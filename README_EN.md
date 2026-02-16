@@ -52,6 +52,32 @@ npm install
 npm run dev
 ```
 
+## Scheduled backup (AES zip to R2)
+
+NodeWarden now supports automatic backup in `scheduled()` via cron.
+
+- Backup runs only when `BACKUP_PASSWORD` is set (as a secret).
+- If `BACKUP_PASSWORD` is missing, backup is skipped.
+- Output is an AES-256 encrypted zip in your R2 bucket.
+- Zip content: `export.json` and optional `attachments/`.
+
+Optional env/secrets:
+
+```bash
+BACKUP_PASSWORD=your-strong-password
+BACKUP_ENABLED=true
+BACKUP_KEEP_LAST=30
+BACKUP_R2_PREFIX=backups/
+BACKUP_INCLUDE_ATTACHMENTS=true
+```
+
+Cron is configured in `wrangler.toml` and `wrangler.my.toml`:
+
+```toml
+[triggers]
+crons = ["0 */6 * * *"]
+```
+
 ---
 
 ## FAQ

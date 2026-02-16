@@ -24,6 +24,9 @@
       "JWT_SECRET": {
         "description": "Secret used to sign JWTs. Use a strong random string (32+ characters recommended)"
       },
+      "BACKUP_PASSWORD": {
+        "description": "Password for AES-encrypted scheduled backup zip. If empty, backup is skipped."
+      },
       "DB": {
         "description": "D1 database for storing vault data"
       },
@@ -38,5 +41,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "wrangler": "^4.61.1"
+  },
+  "dependencies": {
+    "@zip.js/zip.js": "^2.8.20"
   }
 }

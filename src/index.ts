@@ -1,6 +1,7 @@
 import { Env } from './types';
 import { handleRequest } from './router';
 import { StorageService } from './services/storage';
+import { runScheduledBackup } from './services/backup';
 
 // Per-isolate flag. Each Worker isolate may have its own copy of this flag,
 // but initializeDatabase() is idempotent (uses CREATE TABLE IF NOT EXISTS),
@@ -22,5 +23,10 @@ export default {
     }
 
     return handleRequest(request, env);
+  },
+
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    void controller;
+    ctx.waitUntil(runScheduledBackup(env));
   },
 };

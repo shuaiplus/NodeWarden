@@ -3,6 +3,11 @@ export interface Env {
   DB: D1Database;
   ATTACHMENTS: R2Bucket;
   JWT_SECRET: string;
+  BACKUP_PASSWORD?: string;
+  BACKUP_ENABLED?: string;
+  BACKUP_KEEP_LAST?: string;
+  BACKUP_R2_PREFIX?: string;
+  BACKUP_INCLUDE_ATTACHMENTS?: string;
 }
 
 // Sample JWT secret used by `.dev.vars.example`.

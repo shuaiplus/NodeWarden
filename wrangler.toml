@@ -11,3 +11,12 @@ database_name = "nodewarden-db"
 [[r2_buckets]]
 binding = "ATTACHMENTS"
 bucket_name = "nodewarden-attachments"
+
+[vars]
+BACKUP_ENABLED = "true"
+BACKUP_KEEP_LAST = "30"
+BACKUP_R2_PREFIX = "backups/"
+BACKUP_INCLUDE_ATTACHMENTS = "true"
+
+[triggers]
+crons = ["0 */6 * * *"]
