@@ -5,4 +5,4 @@
 JWT_SECRET=Enter-your-JWT-key-here-at-least-32-characters
 
 # Backup (optional)
-BACKUP_PASSWORD=Enter-your-backup-zip-password
+BACKUP_PASSWORD=
