@@ -1,4 +1,4 @@
-import { Env } from '../types';
+﻿import { Env } from '../types';
 import { StorageService } from '../services/storage';
 import { htmlResponse } from '../utils/response';
 
@@ -289,6 +289,45 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
       color: #111418;
     }
 
+    .var-chip-wrap {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .var-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid #d5dae1;
+      border-radius: 999px;
+      background: #ffffff;
+      line-height: 1;
+    }
+    .var-chip code {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #111418;
+    }
+    .icon-copy-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid #d5dae1;
+      background: #fff;
+      color: #344054;
+      font-size: 12px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+    }
+    .icon-copy-btn:hover { background: #f8fafc; }
+
     .flow-bottom {
       margin-top: 14px;
       padding: 0 8px;
@@ -484,8 +523,23 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
       </section>
 
       <section id="step4" class="step">
-        <h2 id="t_s4_title">Final step</h2>
+        <h2 id="t_s4_title">Backup strategy</h2>
         <p class="lead" id="t_s4_desc"></p>
+
+        <div class="kv" style="margin-top:14px;">
+          <h3 id="t_s4_how_title">How to enable</h3>
+          <ol>
+            <li id="t_s4_how_1"></li>
+            <li id="t_s4_how_2"></li>
+            <li id="t_s4_how_3"></li>
+            <li id="t_s4_how_4"></li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="step5" class="step">
+        <h2 id="t_s5_title">Final step</h2>
+        <p class="lead" id="t_s5_desc"></p>
 
         <div id="setup-form">
           <form id="form" onsubmit="handleSubmit(event)">
@@ -550,6 +604,7 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
         <span class="dot" data-step="2"></span>
         <span class="dot" data-step="3"></span>
         <span class="dot" data-step="4"></span>
+        <span class="dot" data-step="5"></span>
       </div>
       <div class="flow-actions" style="justify-content:flex-end;">
         <button id="nextBtn" class="btn primary" type="button">Next</button>
@@ -588,78 +643,85 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
     function t(key) {
       const zh = {
         app: 'NodeWarden',
-        tag: '部署在 Cloudflare Workers 上的 Bitwarden 兼容服务端。',
+        tag: '部署在 Cloudflare Workers 上的最小 Bitwarden 兼容服务。',
         by: '作者',
 
-        s1Title: '恭喜你，NodeWarden 部署成功',
-        s1Desc: '这是一个无需自建服务器的 Bitwarden 第三方服务端：部署快、维护轻、可用官方客户端直接连接。点击右下角“下一步”开始检测。',
-        s1AdvTitle: '核心优势',
+        s1Title: '欢迎使用 NodeWarden',
+        s1Desc: '无需自建 VPS 的 Bitwarden 兼容服务：部署简单、维护成本低、可直接连接官方客户端。点击下一步开始检查。',
+        s1AdvTitle: '为什么选择 NodeWarden',
         s1Adv1: '无需 VPS，直接运行在 Cloudflare Workers',
-        s1Adv2: '兼容 Bitwarden 官方客户端（桌面/移动端/浏览器插件）',
-        s1Adv3: '单用户场景简单稳定，日常维护成本低',
-        s1CompatTitle: '已完美适配',
+        s1Adv2: '兼容 Bitwarden 官方客户端（桌面端 / 移动端 / 浏览器扩展）',
+        s1Adv3: '面向单用户场景，稳定且易维护',
+        s1CompatTitle: '兼容性',
         s1CompatWin: 'Windows 客户端',
-        s1CompatAndroid: '安卓客户端',
+        s1CompatAndroid: 'Android 客户端',
         s1CompatIos: 'iOS 客户端',
         s1CompatExt: '浏览器扩展',
         s1CompatOther: '其他：未测试',
 
-        s2Title: '环境检测：JWT_SECRET',
-        s2DescGood: 'JWT_SECRET 检测通过。',
-        s2DescMissing: '检测到 JWT_SECRET 未配置，先添加后再继续。',
-        s2DescDefault: '检测到 JWT_SECRET 使用默认值，先更换后再继续。',
-        s2DescShort: '检测到 JWT_SECRET 长度小于 32，先更换后再继续。',
-        s2FixTitle: '处理步骤（添加 / 更换）',
-        s2FixAddTitle: '当前是“未配置”，请添加：',
-        s2FixReplaceTitle: '当前是“默认值或长度不足”，请更换：',
-        s2FixStep1: '进入 Cloudflare 控制台 → Workers 和 Pages → 你的 nodewarden 服务。',
-        s2FixStep2Add: '打开 设置 → 变量和机密，新增 JWT_SECRET（类型选“密钥”）。',
-        s2FixStep2Replace: '打开 设置 → 变量和机密，找到 JWT_SECRET 并编辑为新值。',
-        s2FixStep3: '保存并等待服务重新部署完成。',
-        s2FixStep4: '设置完后回到本页，刷新页面继续。',
-        s2FixStep5: '如需新密钥，可在本卡片下方生成并复制后再粘贴到 JWT_SECRET。',
+        s2Title: '环境检查：JWT_SECRET',
+        s2DescGood: 'JWT_SECRET 检查通过。',
+        s2DescMissing: '检测到 JWT_SECRET 未配置，请先配置后继续。',
+        s2DescDefault: '检测到 JWT_SECRET 为默认值，请先替换后继续。',
+        s2DescShort: '检测到 JWT_SECRET 长度小于 32，请先替换后继续。',
+        s2FixTitle: '处理步骤（新增 / 替换）',
+        s2FixAddTitle: '当前为“未配置”，请新增：',
+        s2FixReplaceTitle: '当前为“默认值或长度不足”，请替换：',
+        s2FixStep1: '进入 Cloudflare 控制台 -> Workers 和 Pages -> 你的 nodewarden 服务。',
+        s2FixStep2Add: '打开 设置 -> 变量和机密，新增 JWT_SECRET（类型选择 Secret）。',
+        s2FixStep2Replace: '打开 设置 -> 变量和机密，找到 JWT_SECRET 并修改为新值。',
+        s2FixStep3: '保存并等待重新部署完成。',
+        s2FixStep4: '设置完成后返回本页，刷新页面继续。',
+        s2FixStep5: '如需新密钥，可在下方生成并复制到 JWT_SECRET。',
         s2GenTitle: '随机密钥生成器',
         refresh: '刷新',
         copy: '复制',
         copied: '已复制',
 
         s3Title: '同步策略（可跳过）',
-        s3CommonTitle: '共同前置步骤',
-        s3Common1: '如果还没 fork，请先 fork 本项目到你自己的 GitHub。',
-        s3Common2: 'Cloudflare 控制台 → Workers 和 Pages → NodeWarden → 设置 → 构建 → Git 存储库 → 断开联机。',
-        s3Common3: '在同一位置重新绑定到你自己 fork 的仓库。',
+        s3CommonTitle: '通用前置步骤',
+        s3Common1: '如果还未 fork，请先将本项目 fork 到你自己的 GitHub。',
+        s3Common2: 'Cloudflare 控制台 -> Workers 和 Pages -> 你的服务 -> 设置 -> 构建和部署 -> 源代码，解绑当前仓库。',
+        s3Common3: '在同一位置重新绑定你的 fork 仓库。',
         manualSync: '手动同步',
         autoSync: '自动同步',
         s3ManualText: '手动同步：在 GitHub 网页端一键完成。',
-        s3ManualStep1: '打开你自己的 fork 仓库首页，看到 “This branch is behind” 或可同步提示时，点击 “Sync fork”。',
-        s3ManualStep2: '点击 “Update branch” 完成同步。',
-        s3AutoText: '自动同步：fork 会自动带上同步工作流文件，你只需要开启 Actions。',
-        s3AutoStep1: '进入你的 fork 仓库 → Actions。',
-        s3AutoStep2: '点击 “I understand my workflows, go ahead and enable them”。',
-        s3AutoStep3: '默认每天凌晨 3 点自动同步；需要时可手动点 “Run workflow”。',
-
-        s4Title: '最终：创建账号',
-        s4Desc: '填写信息并创建你的唯一账号，完成初始化。',
-        nameLabel: '昵称',
+        s3ManualStep1: '打开你的 fork 仓库主页，看到可同步提示时点击 Sync fork。',
+        s3ManualStep2: '点击 Update branch 完成同步。',
+        s3AutoText: '自动同步：fork 已包含工作流文件，你只需要开启 Actions。',
+        s3AutoStep1: '进入你的 fork 仓库 -> Actions。',
+        s3AutoStep2: '点击 I understand my workflows, go ahead and enable them。',
+        s3AutoStep3: '默认每天凌晨 3 点自动同步，也可手动点击 Run workflow。',
+        s4BackupTitle: '备份策略（推荐）',
+        s4BackupDesc: '开启后会将明文 JSON 和附件导出到加密压缩包并保存到 R2。',
+        s4HowTitle: '如何开启',
+        s4How1: 'Cloudflare 控制台 -> Workers 和 Pages -> NodeWarden -> 设置 -> 变量和机密。',
+        s4How2: '新增密钥：',
+        s4How2Hint: '（该值是备份压缩包的解压密码，建议使用强密码）',
+        s4How3: '可选变量：',
+        s4How4: '完成变量设置后，在当前 Worker 的「触发事件」中点击「添加 Cron 触发器」，再按你的备份频率设置执行周期。',
+        s5Title: '最终：创建账号',
+        s5Desc: '填写信息并创建你的唯一账号，完成初始化。',
+        nameLabel: '名称',
         emailLabel: '邮箱',
         pwLabel: '主密码',
-        pwHint: '请选择你能记住的强密码。服务器无法找回主密码。',
+        pwHint: '请选择你能记住的强密码。服务器无法帮你找回主密码。',
         pw2Label: '确认主密码',
         create: '创建账号',
         creating: '正在创建…',
         doneTitle: '初始化完成',
-        doneDesc: '服务已就绪。在 Bitwarden 客户端中填入以下服务器地址：',
+        doneDesc: '服务已就绪。请在 Bitwarden 客户端中填写以下服务器地址：',
         important: '重要提示',
-        limitations: '本项目仅支持单用户：不能添加新用户；不支持修改主密码；如果忘记主密码，只能重新部署并重新注册。',
-        hideTitle: '隐藏初始化页',
-        hideDesc: '隐藏后，初始化页对任何人都会返回 404。你的密码库仍可正常使用。',
-        hideBtn: '隐藏初始化页',
+        limitations: '本项目仅支持单用户：不能添加新用户，也不支持修改主密码；若忘记主密码，只能重新部署并重新注册。',
+        hideTitle: '隐藏初始化页面',
+        hideDesc: '隐藏后，初始化页面会对所有人返回 404。你的密码库仍可正常使用。',
+        hideBtn: '隐藏初始化页面',
         hideWorking: '正在隐藏…',
         hideDone: '已隐藏，此页面将返回 404。',
         hideFailed: '隐藏失败',
-        hideConfirm: '确认隐藏初始化页？隐藏后页面将不可访问，但你的密码库不会受影响。',
-        hideModalTitle: '确认隐藏初始化页',
-        hideModalDesc: '隐藏后，初始化页将被永久关闭（返回 404）。你的密码库可继续使用。',
+        hideConfirm: '确认隐藏初始化页面？隐藏后页面将不可访问，但密码库不受影响。',
+        hideModalTitle: '确认隐藏初始化页面',
+        hideModalDesc: '隐藏后，初始化页面将被永久关闭（返回 404）。你的密码库可继续使用。',
         hideModalWarn: '此操作不可恢复。若要重新进入初始化流程，只能重新部署。',
         cancel: '取消',
         confirmHide: '确认隐藏',
@@ -699,11 +761,11 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
         s2DescDefault: 'JWT_SECRET is default/sample. Replace it before continuing.',
         s2DescShort: 'JWT_SECRET is shorter than 32 chars. Replace it before continuing.',
         s2FixTitle: 'Fix steps (add / replace)',
-        s2FixAddTitle: 'Current state is “missing”, add it:',
-        s2FixReplaceTitle: 'Current state is “default or too short”, replace it:',
-        s2FixStep1: 'Open Cloudflare Dashboard → Workers & Pages → your nodewarden service.',
-        s2FixStep2Add: 'Go to Settings → Variables and Secrets, add JWT_SECRET (Secret type).',
-        s2FixStep2Replace: 'Go to Settings → Variables and Secrets, edit JWT_SECRET with a new value.',
+        s2FixAddTitle: 'Current state is "missing", add it:',
+        s2FixReplaceTitle: 'Current state is "default or too short", replace it:',
+        s2FixStep1: 'Open Cloudflare Dashboard -> Workers & Pages -> your nodewarden service.',
+        s2FixStep2Add: 'Go to Settings -> Variables and Secrets, add JWT_SECRET (Secret type).',
+        s2FixStep2Replace: 'Go to Settings -> Variables and Secrets, edit JWT_SECRET with a new value.',
         s2FixStep3: 'Save and wait for redeploy to complete.',
         s2FixStep4: 'After setting it, come back and refresh this page to continue.',
         s2FixStep5: 'If needed, generate a new secret in the section below, then copy and paste it into JWT_SECRET.',
@@ -715,20 +777,28 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
         s3Title: 'Sync strategy (optional)',
         s3CommonTitle: 'Common prerequisites',
         s3Common1: 'If you have not forked yet, fork this project to your own GitHub first.',
-        s3Common2: 'Cloudflare Dashboard → Workers & Pages → your service → Settings → Builds and deployments → Source code, unbind the current one-click-deploy repo.',
+        s3Common2: 'Cloudflare Dashboard -> Workers & Pages -> NodeWarden -> Settings -> Builds and deployments -> Source code, unbind the current one-click-deploy repo.',
         s3Common3: 'In the same place, bind your own fork repository.',
         manualSync: 'Manual sync',
         autoSync: 'Auto sync',
         s3ManualText: 'Manual sync: one click in GitHub web UI.',
-        s3ManualStep1: 'Open your fork repo home page. When you see update hint like “This branch is behind”, click “Sync fork”.',
-        s3ManualStep2: 'Click “Update branch” to finish sync.',
+        s3ManualStep1: 'Open your fork repo home page. When you see update hint like "This branch is behind", click "Sync fork".',
+        s3ManualStep2: 'Click "Update branch" to finish sync.',
         s3AutoText: 'Auto sync: your fork already includes the workflow file; you only need to enable Actions.',
-        s3AutoStep1: 'Go to your fork repository → Actions.',
-        s3AutoStep2: 'Click “I understand my workflows, go ahead and enable them”.',
-        s3AutoStep3: 'It runs daily at 03:00 by default; you can also click “Run workflow”.',
+        s3AutoStep1: 'Go to your fork repository -> Actions.',
+        s3AutoStep2: 'Click "I understand my workflows, go ahead and enable them".',
+        s3AutoStep3: 'It runs daily at 03:00 by default; you can also click "Run workflow".',
+        s4BackupTitle: 'Backup strategy (recommended)',
+        s4BackupDesc: 'Backups export plaintext JSON and attachments into an encrypted archive stored in R2.',
+        s4HowTitle: 'How to enable',
+        s4How1: 'Cloudflare Dashboard -> Workers & Pages -> NodeWarden -> Settings -> Variables and Secrets.',
+        s4How2: 'Add Secret:',
+        s4How2Hint: '(this value is the extraction password for backup archives; use a strong password)',
+        s4How3: 'Optional vars:',
+        s4How4: 'After finishing variables, open Triggers in the same Worker settings, click Add Cron Trigger, then set a schedule that matches your backup cadence.',
 
-        s4Title: 'Final: create account',
-        s4Desc: 'Create your single user account to finish setup.',
+        s5Title: 'Final: create account',
+        s5Desc: 'Create your single user account to finish setup.',
         nameLabel: 'Name',
         emailLabel: 'Email',
         pwLabel: 'Master password',
@@ -764,7 +834,8 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
         errRegisterFailed: 'Registration failed',
       };
 
-      return (isChinese() ? zh : en)[key] || key;
+      if (isChinese()) return zh[key] || en[key] || key;
+      return en[key] || zh[key] || key;
     }
 
     function setText(id, value) {
@@ -772,13 +843,38 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
       if (el) el.textContent = value;
     }
 
+    function renderBackupSecretChip() {
+      const el = document.getElementById('t_s4_how_2');
+      if (!el) return;
+      const value = 'BACKUP_PASSWORD';
+      const chip = '<span class="var-chip"><code>' + value + '</code>'
+        + '<button type="button" class="icon-copy-btn" data-copy="' + value + '" onclick="copyBackupPreset(this)" aria-label="' + t('copy') + '" title="' + t('copy') + '">⧉</button></span>';
+      el.innerHTML = t('s4How2') + '<span class="var-chip-wrap">' + chip + '</span> ' + t('s4How2Hint');
+    }
+
+    function renderBackupVarChips() {
+      const el = document.getElementById('t_s4_how_3');
+      if (!el) return;
+      const vars = [
+        'BACKUP_ENABLED=true',
+        'BACKUP_KEEP_LAST=30',
+        'BACKUP_R2_PREFIX=backups/',
+        'BACKUP_INCLUDE_ATTACHMENTS=true'
+      ];
+      const chips = vars.map((value) =>
+        '<span class="var-chip"><code>' + value + '</code>'
+        + '<button type="button" class="icon-copy-btn" data-copy="' + value + '" onclick="copyBackupPreset(this)" aria-label="' + t('copy') + '" title="' + t('copy') + '">⧉</button></span>'
+      ).join('');
+      el.innerHTML = t('s4How3') + '<span class="var-chip-wrap">' + chips + '</span>';
+    }
+
     function renderJwtFixSteps() {
       const el = document.getElementById('t_s2_fix_text');
       if (!el) return;
       if (!JWT_STATE) {
         el.innerHTML = isChinese()
-          ? '<ol><li>你可以继续下一步，不影响使用。</li><li>如果当前密钥不是强随机值，建议复制下方生成器的 64 位密钥。</li><li>到 Cloudflare 控制台 → Workers 和 Pages → 你的服务 → 设置 → 变量和机密，更新 JWT_SECRET。</li><li>保存并等待重新部署完成，然后刷新本页确认。</li></ol>'
-          : '<ol><li>You can continue directly.</li><li>If your current secret is not a strong random one, copy a 64-char secret from the generator below.</li><li>Go to Cloudflare Dashboard → Workers & Pages → your service → Settings → Variables and Secrets, then update JWT_SECRET.</li><li>Save, wait for redeploy, and refresh this page to confirm.</li></ol>';
+          ? '<ol><li>你可以直接继续下一步，不影响使用。</li><li>如果当前密钥不是强随机值，建议复制下方生成器生成的 64 位密钥。</li><li>前往 Cloudflare 控制台 -> Workers 和 Pages -> 你的服务 -> 设置 -> 变量和机密，更新 JWT_SECRET。</li><li>保存并等待重新部署完成，然后刷新本页确认。</li></ol>'
+          : '<ol><li>You can continue directly.</li><li>If your current secret is not a strong random one, copy a 64-char secret from the generator below.</li><li>Go to Cloudflare Dashboard -> Workers & Pages -> NodeWarden -> Settings -> Variables and Secrets, then update JWT_SECRET.</li><li>Save, wait for redeploy, and refresh this page to confirm.</li></ol>';
         return;
       }
       const isAdd = JWT_STATE === 'missing';
@@ -833,8 +929,16 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
       setText('t_s3_auto_step2', t('s3AutoStep2'));
       setText('t_s3_auto_step3', t('s3AutoStep3'));
 
-      setText('t_s4_title', t('s4Title'));
-      setText('t_s4_desc', t('s4Desc'));
+      setText('t_s4_title', t('s4BackupTitle'));
+      setText('t_s4_desc', t('s4BackupDesc'));
+      setText('t_s4_how_title', t('s4HowTitle'));
+      setText('t_s4_how_1', t('s4How1'));
+      renderBackupSecretChip();
+      renderBackupVarChips();
+      setText('t_s4_how_4', t('s4How4'));
+
+      setText('t_s5_title', t('s5Title'));
+      setText('t_s5_desc', t('s5Desc'));
       setText('t_name_label', t('nameLabel'));
       setText('t_email_label', t('emailLabel'));
       setText('t_pw_label', t('pwLabel'));
@@ -912,12 +1016,31 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
       }
     }
 
+    async function copyBackupPreset(btn) {
+      if (!btn) return;
+      const value = btn.getAttribute('data-copy') || '';
+      if (!value) return;
+      const old = btn.textContent;
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = old || '⧉'; }, 1000);
+    }
+
     function goToStep(targetStep) {
-      // 安全限制：JWT_SECRET 不合规时，只允许访问第 1/2 步。
-      const maxStep = JWT_STATE ? 2 : 4;
+      // 瀹夊叏闄愬埗锛欽WT_SECRET 涓嶅悎瑙勬椂锛屽彧鍏佽璁块棶绗?1/2 姝ャ€?
+      const maxStep = JWT_STATE ? 2 : 5;
       currentStep = Math.max(1, Math.min(maxStep, targetStep));
 
-      for (let i = 1; i <= 4; i++) {
+      for (let i = 1; i <= 5; i++) {
         const el = document.getElementById('step' + i);
         if (el) el.classList.toggle('active', i === currentStep);
       }
@@ -933,7 +1056,7 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
 
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) {
-        nextBtn.style.display = currentStep >= 4 ? 'none' : 'inline-flex';
+        nextBtn.style.display = currentStep >= 5 ? 'none' : 'inline-flex';
         if (currentStep === 2 && !!JWT_STATE) {
           nextBtn.disabled = true;
           nextBtn.textContent = t('keyWaitRefresh');
@@ -958,10 +1081,10 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
         isRegistered = !!data.registered;
         if (isRegistered) {
           if (JWT_STATE) {
-            // 已注册但密钥不安全：只能停留在首页/密钥页，不能直接进入后续页面。
+            // 宸叉敞鍐屼絾瀵嗛挜涓嶅畨鍏細鍙兘鍋滅暀鍦ㄩ椤?瀵嗛挜椤碉紝涓嶈兘鐩存帴杩涘叆鍚庣画椤甸潰銆?
             goToStep(2);
           } else {
-            goToStep(4);
+            goToStep(5);
             showRegisteredView();
           }
         }
@@ -1198,6 +1321,7 @@ function renderRegisterPageHTML(jwtState: JwtSecretState | null): string {
           if (currentStep === 1) goToStep(2);
           else if (currentStep === 2) goToStep(3);
           else if (currentStep === 3) goToStep(4);
+          else if (currentStep === 4) goToStep(5);
         });
       }
 
@@ -1227,3 +1351,7 @@ export async function handleRegisterPage(request: Request, env: Env, jwtState: J
   }
   return htmlResponse(renderRegisterPageHTML(jwtState));
 }
+
+
+
+

@@ -4,5 +4,3 @@
 # (Example only, 64 hex chars = 32 bytes)
 JWT_SECRET=Enter-your-JWT-key-here-at-least-32-characters
 
-# Backup (optional)
-BACKUP_PASSWORD=
