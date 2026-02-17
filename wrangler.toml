@@ -1,4 +1,4 @@
-name = "nodewarden"
+name = "nodewarden-backup-test"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
