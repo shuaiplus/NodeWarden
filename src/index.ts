@@ -26,7 +26,19 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    void controller;
-    ctx.waitUntil(runScheduledBackup(env));
+    const task = (async () => {
+      try {
+        if (!dbInitialized) {
+          const storage = new StorageService(env.DB);
+          await storage.initializeDatabase();
+          dbInitialized = true;
+        }
+        await runScheduledBackup(env);
+      } catch (error) {
+        console.error('Scheduled backup failed:', error, 'cron=', controller.cron);
+      }
+    })();
+
+    ctx.waitUntil(task);
   },
 };

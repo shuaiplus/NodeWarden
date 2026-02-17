@@ -127,35 +127,35 @@ async function saveBackupStatus(db: D1Database, key: string, value: string): Pro
 }
 
 export async function runScheduledBackup(env: Env): Promise<void> {
-  const enabled = parseBool(env.BACKUP_ENABLED, true);
-  if (!enabled) {
-    console.log('Backup skipped: BACKUP_ENABLED is false');
-    return;
-  }
-
-  const password = (env.BACKUP_PASSWORD || '').trim();
-  if (!password) {
-    console.log('Backup skipped: BACKUP_PASSWORD is not set');
-    return;
-  }
-
-  const keepLast = parsePositiveInt(env.BACKUP_KEEP_LAST, 30);
-  const prefix = normalizePrefix(env.BACKUP_R2_PREFIX);
-  const includeAttachments = parseBool(env.BACKUP_INCLUDE_ATTACHMENTS, true);
-  const storage = new StorageService(env.DB);
-
-  const userId = await getSingleUserId(env.DB);
-  if (!userId) {
-    console.log('Backup skipped: no user found');
-    return;
-  }
-
-  const now = new Date();
-  const stamp = makeTimestamp(now);
-  const datePath = makeDatePath(now);
-  const objectKey = `${prefix}${datePath}/nodewarden-${stamp}.zip`;
-
   try {
+    const enabled = parseBool(env.BACKUP_ENABLED, true);
+    if (!enabled) {
+      console.log('Backup skipped: BACKUP_ENABLED is false');
+      return;
+    }
+
+    const password = (env.BACKUP_PASSWORD || '').trim();
+    if (!password) {
+      console.log('Backup skipped: BACKUP_PASSWORD is not set');
+      return;
+    }
+
+    const keepLast = parsePositiveInt(env.BACKUP_KEEP_LAST, 30);
+    const prefix = normalizePrefix(env.BACKUP_R2_PREFIX);
+    const includeAttachments = parseBool(env.BACKUP_INCLUDE_ATTACHMENTS, true);
+    const storage = new StorageService(env.DB);
+
+    const userId = await getSingleUserId(env.DB);
+    if (!userId) {
+      console.log('Backup skipped: no user found');
+      return;
+    }
+
+    const now = new Date();
+    const stamp = makeTimestamp(now);
+    const datePath = makeDatePath(now);
+    const objectKey = `${prefix}${datePath}/nodewarden-${stamp}.zip`;
+
     const ciphers = await storage.getAllCiphers(userId);
     const folders = await storage.getAllFolders(userId);
     const payload = buildExportPayload(ciphers, folders);
