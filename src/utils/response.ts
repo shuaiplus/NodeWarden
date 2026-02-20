@@ -1,7 +1,7 @@
 import { LIMITS } from '../config/limits';
 
 const CORS_METHODS = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
-const CORS_HEADERS = 'Content-Type, Authorization, Accept, Device-Type, Bitwarden-Client-Name, Bitwarden-Client-Version';
+const CORS_HEADERS = 'Content-Type, Authorization, Accept, Device-Type, Bitwarden-Client-Name, Bitwarden-Client-Version, X-Request-Email, X-Device-Identifier, X-Device-Name';
 
 function isTrustedClientOrigin(origin: string): boolean {
   // Official browser extension / desktop-webview common origins.

@@ -37,6 +37,7 @@ import { handleSync } from './handlers/sync';
 
 // Setup handlers
 import { handleSetupPage, handleSetupStatus, handleDisableSetup } from './handlers/setup';
+import { handleKnownDevice, handleGetDevices } from './handlers/devices';
 
 // Import handler
 import { handleCiphersImport } from './handlers/import';
@@ -218,13 +219,9 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return new Response(null, { status: 200 });
     }
 
-    // Known device check (no auth required) - returns plain string "true" or "false"
-    if (path.startsWith('/api/devices/knowndevice')) {
-      return new Response('true', {
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-      });
+    // Known device check (no auth required)
+    if (path === '/api/devices/knowndevice' && method === 'GET') {
+      return handleKnownDevice(request, env);
     }
 
     // Identity endpoints (no auth required)
@@ -540,9 +537,9 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       }
     }
 
-    // Devices endpoint (stub) - for authenticated requests
+    // Devices endpoint
     if (path === '/api/devices' && method === 'GET') {
-      return jsonResponse({ data: [], object: 'list', continuationToken: null });
+      return handleGetDevices(request, env, userId);
     }
 
     // Not found

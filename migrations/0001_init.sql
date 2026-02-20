@@ -1,5 +1,9 @@
 PRAGMA foreign_keys = ON;
 
+-- IMPORTANT:
+-- Keep this file in sync with src/services/storage.ts (SCHEMA_STATEMENTS).
+-- Any new table/column/index must be added to both places together.
+
 CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -76,6 +80,28 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS devices (
+  user_id TEXT NOT NULL,
+  device_identifier TEXT NOT NULL,
+  name TEXT NOT NULL,
+  type INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, device_identifier),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user_updated ON devices(user_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS trusted_two_factor_device_tokens (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  device_identifier TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_trusted_two_factor_device_tokens_user_device
+  ON trusted_two_factor_device_tokens(user_id, device_identifier);
 
 -- Rate limiting
 CREATE TABLE IF NOT EXISTS login_attempts_ip (

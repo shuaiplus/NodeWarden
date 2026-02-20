@@ -1,5 +1,70 @@
-import { User, Cipher, Folder, Attachment } from '../types';
+import { User, Cipher, Folder, Attachment, Device } from '../types';
 import { LIMITS } from '../config/limits';
+
+const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SCHEMA_HASH_CONFIG_KEY = 'schema_hash';
+
+// IMPORTANT:
+// Keep this schema list in sync with migrations/0001_init.sql.
+// Any new table/column/index must be added to both places together.
+const SCHEMA_STATEMENTS: readonly string[] = [
+  'CREATE TABLE IF NOT EXISTS users (' +
+  'id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, master_password_hash TEXT NOT NULL, ' +
+  'key TEXT NOT NULL, private_key TEXT, public_key TEXT, kdf_type INTEGER NOT NULL, ' +
+  'kdf_iterations INTEGER NOT NULL, kdf_memory INTEGER, kdf_parallelism INTEGER, ' +
+  'security_stamp TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+
+  'CREATE TABLE IF NOT EXISTS user_revisions (' +
+  'user_id TEXT PRIMARY KEY, revision_date TEXT NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+
+  'CREATE TABLE IF NOT EXISTS ciphers (' +
+  'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type INTEGER NOT NULL, folder_id TEXT, name TEXT, notes TEXT, ' +
+  'favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, key TEXT, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
+  'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
+
+  'CREATE TABLE IF NOT EXISTS folders (' +
+  'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_folders_user_updated ON folders(user_id, updated_at)',
+
+  'CREATE TABLE IF NOT EXISTS attachments (' +
+  'id TEXT PRIMARY KEY, cipher_id TEXT NOT NULL, file_name TEXT NOT NULL, size INTEGER NOT NULL, ' +
+  'size_name TEXT NOT NULL, key TEXT, ' +
+  'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_attachments_cipher ON attachments(cipher_id)',
+
+  'CREATE TABLE IF NOT EXISTS refresh_tokens (' +
+  'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)',
+
+  'CREATE TABLE IF NOT EXISTS devices (' +
+  'user_id TEXT NOT NULL, device_identifier TEXT NOT NULL, name TEXT NOT NULL, type INTEGER NOT NULL, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'PRIMARY KEY (user_id, device_identifier), ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_devices_user_updated ON devices(user_id, updated_at)',
+
+  'CREATE TABLE IF NOT EXISTS trusted_two_factor_device_tokens (' +
+  'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, device_identifier TEXT NOT NULL, expires_at INTEGER NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_trusted_two_factor_device_tokens_user_device ON trusted_two_factor_device_tokens(user_id, device_identifier)',
+
+  'CREATE TABLE IF NOT EXISTS api_rate_limits (' +
+  'identifier TEXT NOT NULL, window_start INTEGER NOT NULL, count INTEGER NOT NULL, ' +
+  'PRIMARY KEY (identifier, window_start))',
+  'CREATE INDEX IF NOT EXISTS idx_api_rate_window ON api_rate_limits(window_start)',
+
+  'CREATE TABLE IF NOT EXISTS login_attempts_ip (' +
+  'ip TEXT PRIMARY KEY, attempts INTEGER NOT NULL, locked_until INTEGER, updated_at INTEGER NOT NULL)',
+
+  'CREATE TABLE IF NOT EXISTS used_attachment_download_tokens (' +
+  'jti TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)',
+];
 
 // D1-backed storage.
 // Contract:
@@ -56,67 +121,47 @@ export class StorageService {
   }
 
   // --- Database initialization ---
-  // One-click deploy requires zero manual migration steps.
-  // This method idempotently creates required schema objects on first request.
+  // Strategy:
+  // - Run only once per isolate.
+  // - Persist schema hash in DB config; if unchanged, skip all schema SQL.
+  // - Keep statements idempotent so updates are safe.
   async initializeDatabase(): Promise<void> {
     if (StorageService.schemaVerified) return;
 
-    const schemaStatements = [
-      'PRAGMA foreign_keys = ON',
+    await this.db.prepare('PRAGMA foreign_keys = ON').run();
+    await this.db.prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)').run();
 
-      'CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+    const schemaHash = await this.sha256Hex(SCHEMA_STATEMENTS.join('\n'));
+    const current = await this.db.prepare('SELECT value FROM config WHERE key = ?')
+      .bind(SCHEMA_HASH_CONFIG_KEY)
+      .first<{ value: string }>();
 
-      'CREATE TABLE IF NOT EXISTS users (' +
-      'id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, master_password_hash TEXT NOT NULL, ' +
-      'key TEXT NOT NULL, private_key TEXT, public_key TEXT, kdf_type INTEGER NOT NULL, ' +
-      'kdf_iterations INTEGER NOT NULL, kdf_memory INTEGER, kdf_parallelism INTEGER, ' +
-      'security_stamp TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+    if (current?.value !== schemaHash) {
+      for (const stmt of SCHEMA_STATEMENTS) {
+        await this.executeSchemaStatement(stmt);
+      }
 
-      'CREATE TABLE IF NOT EXISTS user_revisions (' +
-      'user_id TEXT PRIMARY KEY, revision_date TEXT NOT NULL, ' +
-      'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
-
-      'CREATE TABLE IF NOT EXISTS ciphers (' +
-      'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type INTEGER NOT NULL, folder_id TEXT, name TEXT, notes TEXT, ' +
-      'favorite INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL, reprompt INTEGER, key TEXT, ' +
-      'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, ' +
-      'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_updated ON ciphers(user_id, updated_at)',
-      'CREATE INDEX IF NOT EXISTS idx_ciphers_user_deleted ON ciphers(user_id, deleted_at)',
-
-      'CREATE TABLE IF NOT EXISTS folders (' +
-      'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
-      'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS idx_folders_user_updated ON folders(user_id, updated_at)',
-
-      'CREATE TABLE IF NOT EXISTS attachments (' +
-      'id TEXT PRIMARY KEY, cipher_id TEXT NOT NULL, file_name TEXT NOT NULL, size INTEGER NOT NULL, ' +
-      'size_name TEXT NOT NULL, key TEXT, ' +
-      'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS idx_attachments_cipher ON attachments(cipher_id)',
-
-      'CREATE TABLE IF NOT EXISTS refresh_tokens (' +
-      'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, ' +
-      'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
-      'CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)',
-
-      'CREATE TABLE IF NOT EXISTS api_rate_limits (' +
-      'identifier TEXT NOT NULL, window_start INTEGER NOT NULL, count INTEGER NOT NULL, ' +
-      'PRIMARY KEY (identifier, window_start))',
-      'CREATE INDEX IF NOT EXISTS idx_api_rate_window ON api_rate_limits(window_start)',
-
-      'CREATE TABLE IF NOT EXISTS login_attempts_ip (' +
-      'ip TEXT PRIMARY KEY, attempts INTEGER NOT NULL, locked_until INTEGER, updated_at INTEGER NOT NULL)',
-
-      'CREATE TABLE IF NOT EXISTS used_attachment_download_tokens (' +
-      'jti TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)',
-    ];
-
-    for (const stmt of schemaStatements) {
-      await this.db.prepare(stmt).run();
+      await this.db.prepare(
+        'INSERT INTO config(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+      )
+        .bind(SCHEMA_HASH_CONFIG_KEY, schemaHash)
+        .run();
     }
 
     StorageService.schemaVerified = true;
+  }
+
+  private async executeSchemaStatement(statement: string): Promise<void> {
+    try {
+      await this.db.prepare(statement).run();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      // Keep migration resilient if a future non-idempotent DDL is retried.
+      if (msg.includes('already exists') || msg.includes('duplicate column name')) {
+        return;
+      }
+      throw error;
+    }
   }
 
   // --- Config / setup ---
@@ -611,6 +656,93 @@ export class StorageService {
     const tokenKey = await this.refreshTokenKey(token);
     await this.db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(token).run();
     await this.db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(tokenKey).run();
+  }
+
+  private async trustedTwoFactorTokenKey(token: string): Promise<string> {
+    const digest = await this.sha256Hex(token);
+    return `sha256:${digest}`;
+  }
+
+  // --- Devices ---
+
+  async upsertDevice(userId: string, deviceIdentifier: string, name: string, type: number): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.prepare(
+      'INSERT INTO devices(user_id, device_identifier, name, type, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(user_id, device_identifier) DO UPDATE SET name=excluded.name, type=excluded.type, updated_at=excluded.updated_at'
+    )
+      .bind(userId, deviceIdentifier, name, type, now, now)
+      .run();
+  }
+
+  async isKnownDevice(userId: string, deviceIdentifier: string): Promise<boolean> {
+    const row = await this.db
+      .prepare('SELECT 1 FROM devices WHERE user_id = ? AND device_identifier = ? LIMIT 1')
+      .bind(userId, deviceIdentifier)
+      .first<{ '1': number }>();
+    return !!row;
+  }
+
+  async isKnownDeviceByEmail(email: string, deviceIdentifier: string): Promise<boolean> {
+    const user = await this.getUser(email);
+    if (!user) return false;
+    return this.isKnownDevice(user.id, deviceIdentifier);
+  }
+
+  async getDevicesByUserId(userId: string): Promise<Device[]> {
+    const res = await this.db
+      .prepare(
+        'SELECT user_id, device_identifier, name, type, created_at, updated_at ' +
+        'FROM devices WHERE user_id = ? ORDER BY updated_at DESC'
+      )
+      .bind(userId)
+      .all<any>();
+    return (res.results || []).map(row => ({
+      userId: row.user_id,
+      deviceIdentifier: row.device_identifier,
+      name: row.name,
+      type: row.type,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  // --- Trusted 2FA remember tokens (device-bound) ---
+
+  async saveTrustedTwoFactorDeviceToken(
+    token: string,
+    userId: string,
+    deviceIdentifier: string,
+    expiresAtMs?: number
+  ): Promise<void> {
+    const expiresAt = expiresAtMs ?? (Date.now() + TWO_FACTOR_REMEMBER_TTL_MS);
+    const tokenKey = await this.trustedTwoFactorTokenKey(token);
+
+    await this.db.prepare('DELETE FROM trusted_two_factor_device_tokens WHERE expires_at < ?').bind(Date.now()).run();
+    await this.db.prepare(
+      'INSERT INTO trusted_two_factor_device_tokens(token, user_id, device_identifier, expires_at) VALUES(?, ?, ?, ?) ' +
+      'ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id, device_identifier=excluded.device_identifier, expires_at=excluded.expires_at'
+    )
+      .bind(tokenKey, userId, deviceIdentifier, expiresAt)
+      .run();
+  }
+
+  async getTrustedTwoFactorDeviceTokenUserId(token: string, deviceIdentifier: string): Promise<string | null> {
+    const now = Date.now();
+    const tokenKey = await this.trustedTwoFactorTokenKey(token);
+    const row = await this.db
+      .prepare(
+        'SELECT user_id, expires_at FROM trusted_two_factor_device_tokens WHERE token = ? AND device_identifier = ?'
+      )
+      .bind(tokenKey, deviceIdentifier)
+      .first<{ user_id: string; expires_at: number }>();
+
+    if (!row) return null;
+    if (row.expires_at && row.expires_at < now) {
+      await this.db.prepare('DELETE FROM trusted_two_factor_device_tokens WHERE token = ?').bind(tokenKey).run();
+      return null;
+    }
+    return row.user_id;
   }
 
   // --- Revision dates ---

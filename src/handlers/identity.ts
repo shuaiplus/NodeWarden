@@ -4,6 +4,48 @@ import { AuthService } from '../services/auth';
 import { RateLimitService, getClientIdentifier } from '../services/ratelimit';
 import { jsonResponse, errorResponse, identityErrorResponse } from '../utils/response';
 import { LIMITS } from '../config/limits';
+import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
+import { createRefreshToken } from '../utils/jwt';
+import { readAuthRequestDeviceInfo } from '../utils/device';
+
+const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function twoFactorRequiredResponse(message: string = 'Two factor required.'): Response {
+  // Bitwarden clients rely on these fields to trigger the 2FA UI flow.
+  return jsonResponse(
+    {
+      error: 'invalid_grant',
+      error_description: message,
+      TwoFactorProviders: [0],
+      TwoFactorProviders2: {
+        '0': {
+          Priority: 1,
+        },
+      },
+      ErrorModel: {
+        Message: message,
+        Object: 'error',
+      },
+    },
+    400
+  );
+}
+
+async function recordFailedLoginAndBuildResponse(
+  rateLimit: RateLimitService,
+  loginIdentifier: string,
+  message: string
+): Promise<Response> {
+  const result = await rateLimit.recordFailedLogin(loginIdentifier);
+  if (result.locked) {
+    return identityErrorResponse(
+      `Too many failed login attempts. Account locked for ${Math.ceil(result.retryAfterSeconds! / 60)} minutes.`,
+      'TooManyRequests',
+      429
+    );
+  }
+  return identityErrorResponse(message, 'invalid_grant', 400);
+}
 
 // POST /identity/connect/token
 export async function handleToken(request: Request, env: Env): Promise<Response> {
@@ -30,7 +72,11 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     // Login with password
     const email = body.username?.toLowerCase();
     const passwordHash = body.password;
+    const twoFactorToken = body.twoFactorToken;
+    const twoFactorProvider = body.twoFactorProvider;
+    const twoFactorRemember = body.twoFactorRemember;
     const loginIdentifier = getClientIdentifier(request);
+    const deviceInfo = readAuthRequestDeviceInfo(body, request);
 
     if (!email || !passwordHash) {
       // Bitwarden clients expect OAuth-style error fields.
@@ -55,16 +101,60 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     const valid = await auth.verifyPassword(passwordHash, user.masterPasswordHash);
     if (!valid) {
-      // Record failed login attempt
-      const result = await rateLimit.recordFailedLogin(loginIdentifier);
-      if (result.locked) {
-        return identityErrorResponse(
-          `Too many failed login attempts. Account locked for ${Math.ceil(result.retryAfterSeconds! / 60)} minutes.`,
-          'TooManyRequests',
-          429
+      return recordFailedLoginAndBuildResponse(
+        rateLimit,
+        loginIdentifier,
+        'Username or password is incorrect. Try again'
+      );
+    }
+
+    if (deviceInfo.deviceIdentifier) {
+      await storage.upsertDevice(user.id, deviceInfo.deviceIdentifier, deviceInfo.deviceName, deviceInfo.deviceType);
+    }
+
+    // Optional 2FA: enabled only when TOTP_SECRET is configured in Workers env.
+    let trustedTwoFactorTokenToReturn: string | undefined;
+    if (isTotpEnabled(env.TOTP_SECRET)) {
+      const rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
+
+      // Bitwarden may reuse twoFactorToken as a remembered-device token on subsequent logins.
+      let passedByRememberToken = false;
+      if (twoFactorToken && !/^\d{6}$/.test(twoFactorToken) && deviceInfo.deviceIdentifier) {
+        const trustedUserId = await storage.getTrustedTwoFactorDeviceTokenUserId(
+          twoFactorToken,
+          deviceInfo.deviceIdentifier
+        );
+        passedByRememberToken = trustedUserId === user.id;
+      }
+
+      if (!passedByRememberToken && !twoFactorToken) {
+        return twoFactorRequiredResponse();
+      }
+
+      if (!passedByRememberToken) {
+        const totpOk = await verifyTotpToken(env.TOTP_SECRET!, twoFactorToken);
+        if (!totpOk) {
+          const failed = await rateLimit.recordFailedLogin(loginIdentifier);
+          if (failed.locked) {
+            return identityErrorResponse(
+              `Too many failed login attempts. Account locked for ${Math.ceil(failed.retryAfterSeconds! / 60)} minutes.`,
+              'TooManyRequests',
+              429
+            );
+          }
+          return identityErrorResponse('Invalid two-factor token', 'invalid_grant', 400);
+        }
+      }
+
+      if (rememberRequested && deviceInfo.deviceIdentifier) {
+        trustedTwoFactorTokenToReturn = createRefreshToken();
+        await storage.saveTrustedTwoFactorDeviceToken(
+          trustedTwoFactorTokenToReturn,
+          user.id,
+          deviceInfo.deviceIdentifier,
+          Date.now() + TWO_FACTOR_REMEMBER_TTL_MS
         );
       }
-      return identityErrorResponse('Username or password is incorrect. Try again', 'invalid_grant', 400);
     }
 
     // Successful login - clear failed attempts
@@ -78,6 +168,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       expires_in: LIMITS.auth.accessTokenTtlSeconds,
       token_type: 'Bearer',
       refresh_token: refreshToken,
+      ...(trustedTwoFactorTokenToReturn ? { TwoFactorToken: trustedTwoFactorTokenToReturn } : {}),
       Key: user.key,
       PrivateKey: user.privateKey,
       Kdf: user.kdfType,

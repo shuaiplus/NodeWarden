@@ -3,6 +3,7 @@ export interface Env {
   DB: D1Database;
   ATTACHMENTS: R2Bucket;
   JWT_SECRET: string;
+  TOTP_SECRET?: string;
 }
 
 // Sample JWT secret used by `.dev.vars.example`.
@@ -147,6 +148,15 @@ export interface Folder {
   updatedAt: string;
 }
 
+export interface Device {
+  userId: string;
+  deviceIdentifier: string;
+  name: string;
+  type: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // JWT Payload
 export interface JWTPayload {
   sub: string;      // user id
@@ -190,6 +200,7 @@ export interface TokenResponse {
   expires_in: number;
   token_type: string;
   refresh_token: string;
+  TwoFactorToken?: string;
   Key: string;
   PrivateKey: string | null;
   Kdf: number;

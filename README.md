@@ -18,10 +18,10 @@ English：[`README_EN.md`](./README_EN.md)
 | 附件上传/下载 | ✅ | ✅ | 基于 Cloudflare R2 |
 | 导入功能 | ✅ | ✅ | 覆盖常见导入路径 |
 | 网站图标代理 | ✅ | ✅ | 通过 `/icons/{hostname}/icon.png` |
-| 密码条目 TOTP 字段 | ❌ | ✅ |官方需要会员，我们的不需要 |
+| passkey、TOTP | ❌ | ✅ |官方需要会员，我们的不需要 |
 | 多用户 | ✅ | ❌ | NodeWarden 定位单用户 |
 | 组织/集合/成员权限 | ✅ | ❌ | 没必要实现 |
-| 登录 2FA（TOTP/WebAuthn/Duo/Email） | ✅ | ❌ | 暂未实现 |
+| 登录 2FA（TOTP/WebAuthn/Duo/Email） | ✅ | ⚠️ 部分支持 | 仅支持 TOTP（通过 `TOTP_SECRET`） |
 | SSO / SCIM / 企业目录 | ✅ | ❌ | 没必要实现 |
 | Send | ✅ | ❌ | 基本没人用 |
 | 紧急访问 | ✅ | ❌ | 没必要实现 |
@@ -57,6 +57,13 @@ English：[`README_EN.md`](./README_EN.md)
 npm install
 npm run dev
 ```
+
+## 可选：登录 TOTP（2FA）
+
+- 在 Workers 的 Variables and Secrets 里新增 Secret：`TOTP_SECRET`（Base32）。
+- 配置了 `TOTP_SECRET` 就启用登录 TOTP；删除该变量即关闭。
+- 客户端流程：密码 -> TOTP 验证码。
+- 支持“记住此设备”30 天。
 
 ---
 

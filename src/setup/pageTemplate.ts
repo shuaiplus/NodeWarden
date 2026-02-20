@@ -528,7 +528,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
       </section>
 
       <section id="step4" class="step">
-        <h2 id="t_s4_title">Final step</h2>
+        <h2 id="t_s4_title">Create account</h2>
         <p class="lead" id="t_s4_desc"></p>
 
         <div id="setup-form">
@@ -561,6 +561,35 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
             <button type="submit" id="submitBtn" class="btn primary" style="width:100%;height:52px;">Create account</button>
           </form>
         </div>
+      </section>
+
+      <section id="step5" class="step">
+        <h2 id="t_s5_title">Optional: login TOTP (2FA)</h2>
+        <p class="lead" id="t_s5_desc"></p>
+
+        <div class="kv" style="margin-top:14px;">
+          <h3 id="t_s5_enable_title">Enable on server (Cloudflare Workers)</h3>
+          <ol>
+            <li id="t_s5_enable_1"></li>
+            <li id="t_s5_enable_2"></li>
+            <li id="t_s5_enable_3"></li>
+          </ol>
+        </div>
+
+        <div class="kv">
+          <h3 id="t_s5_client_title">Use in Bitwarden client</h3>
+          <ol>
+            <li id="t_s5_client_1"></li>
+            <li id="t_s5_client_2"></li>
+            <li id="t_s5_client_3"></li>
+          </ol>
+        </div>
+
+      </section>
+
+      <section id="step6" class="step">
+        <h2 id="t_s6_title">Final step</h2>
+        <p class="lead" id="t_s6_desc"></p>
 
         <div id="registered-view" style="display:none;">
           <div class="kv">
@@ -594,6 +623,8 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         <span class="dot" data-step="2"></span>
         <span class="dot" data-step="3"></span>
         <span class="dot" data-step="4"></span>
+        <span class="dot" data-step="5"></span>
+        <span class="dot" data-step="6"></span>
       </div>
       <div class="flow-actions" style="justify-content:flex-end;">
         <button id="nextBtn" class="btn primary" type="button">Next</button>
@@ -667,7 +698,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         copy: '复制',
         copied: '已复制',
 
-        s3Title: '同步策略（可跳过）',
+        s3Title: '更新策略（可跳过）',
         s3CommonTitle: '共同前置步骤',
         s3Common1: '如果还没 fork，请先 fork 本项目到你自己的 GitHub。',
         s3Common2: 'Cloudflare 控制台 → Workers 和 Pages → NodeWarden → 设置 → 构建 → Git 存储库 → 断开联机。',
@@ -682,8 +713,20 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         s3AutoStep2: '点击 “I understand my workflows, go ahead and enable them”。',
         s3AutoStep3: '默认每天凌晨 3 点自动同步；需要时可手动点 “Run workflow”。',
 
-        s4Title: '最终：创建账号',
-        s4Desc: '填写信息并创建你的唯一账号，完成初始化。',
+        s4Title: '创建账号',
+        s4Desc: '填写信息并创建你的唯一账号。创建成功后会进入登录 TOTP 教程。',
+        s5Title: '开启登录 TOTP（2FA，可跳过）',
+        s5Desc: '这一页可跳过。如果你想开启登录二次验证，按下面步骤设置。',
+        s5EnableTitle: '服务端开启（Cloudflare Workers）',
+        s5Enable1: '打开 Cloudflare 控制台 -> Workers 和 Pages -> NodeWarden -> 设置 -> 变量和机密。',
+        s5Enable2: '新增 Secret：TOTP_SECRET，值填写 Base32 密钥 。',
+        s5Enable3: '保存并等待重新部署。删除 TOTP_SECRET 即关闭登录 2FA。',
+        s5ClientTitle: '客户端使用',
+        s5Client1: '下次登录时先输入主密码。',
+        s5Client2: '客户端会弹出 2FA 验证码输入框，输入验证器里的 6 位码。',
+        s5Client3: '如需可勾选记住此设备（30 天）。',
+        s6Title: '最终页面',
+        s6Desc: '最后一步：查看客户端使用地址，并可选择隐藏初始化页面。',
         nameLabel: '昵称',
         emailLabel: '邮箱',
         pwLabel: '主密码',
@@ -769,8 +812,20 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         s3AutoStep2: 'Click “I understand my workflows, go ahead and enable them”.',
         s3AutoStep3: 'It runs daily at 03:00 by default; you can also click “Run workflow”.',
 
-        s4Title: 'Final: create account',
-        s4Desc: 'Create your single user account to finish setup.',
+        s4Title: 'Create account',
+        s4Desc: 'Create your single user account. After success, you will see the optional login TOTP guide.',
+        s5Title: 'Optional: login TOTP (2FA)',
+        s5Desc: 'You can skip this step. If you want login 2FA, follow the steps below.',
+        s5EnableTitle: 'Enable on server (Cloudflare Workers)',
+        s5Enable1: 'Open Cloudflare Dashboard -> Workers & Pages -> your service -> Settings -> Variables and Secrets.',
+        s5Enable2: 'Add Secret: TOTP_SECRET, value is a Base32 secret (example: JBSWY3DPEHPK3PXP).',
+        s5Enable3: 'Save and wait for redeploy. Remove TOTP_SECRET to disable login 2FA.',
+        s5ClientTitle: 'Use in Bitwarden client',
+        s5Client1: 'On next login, enter your master password first.',
+        s5Client2: 'Client will prompt 2FA code. Enter the 6-digit code from your authenticator app.',
+        s5Client3: 'Optionally choose remember this device (30 days).',
+        s6Title: 'Final step',
+        s6Desc: 'Last step: check your server URL, then optionally hide this setup page.',
         nameLabel: 'Name',
         emailLabel: 'Email',
         pwLabel: 'Master password',
@@ -886,6 +941,18 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
       setText('t_hide_title', t('hideTitle'));
       setText('t_hide_desc', t('hideDesc'));
       setText('hideBtn', t('hideBtn'));
+      setText('t_s5_title', t('s5Title'));
+      setText('t_s5_desc', t('s5Desc'));
+      setText('t_s5_enable_title', t('s5EnableTitle'));
+      setText('t_s5_enable_1', t('s5Enable1'));
+      setText('t_s5_enable_2', t('s5Enable2'));
+      setText('t_s5_enable_3', t('s5Enable3'));
+      setText('t_s5_client_title', t('s5ClientTitle'));
+      setText('t_s5_client_1', t('s5Client1'));
+      setText('t_s5_client_2', t('s5Client2'));
+      setText('t_s5_client_3', t('s5Client3'));
+      setText('t_s6_title', t('s6Title'));
+      setText('t_s6_desc', t('s6Desc'));
       setText('hideModalTitle', t('hideModalTitle'));
       setText('hideModalDesc', t('hideModalDesc'));
       setText('hideModalWarn', t('hideModalWarn'));
@@ -952,10 +1019,11 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
 
     function goToStep(targetStep) {
       // 安全限制：JWT_SECRET 不合规时，只允许访问第 1/2 步。
-      const maxStep = JWT_STATE ? 2 : 4;
+      const maxStep = JWT_STATE ? 2 : (isRegistered ? 6 : 4);
       currentStep = Math.max(1, Math.min(maxStep, targetStep));
+      if (isRegistered && currentStep === 4) currentStep = 5;
 
-      for (let i = 1; i <= 4; i++) {
+      for (let i = 1; i <= 6; i++) {
         const el = document.getElementById('step' + i);
         if (el) el.classList.toggle('active', i === currentStep);
       }
@@ -971,7 +1039,8 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
 
       const nextBtn = document.getElementById('nextBtn');
       if (nextBtn) {
-        nextBtn.style.display = currentStep >= 4 ? 'none' : 'inline-flex';
+        const reachedEnd = isRegistered ? (currentStep >= 6) : (currentStep >= 4);
+        nextBtn.style.display = reachedEnd ? 'none' : 'inline-flex';
         if (currentStep === 2 && !!JWT_STATE) {
           nextBtn.disabled = true;
           nextBtn.textContent = t('keyWaitRefresh');
@@ -999,8 +1068,8 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
             // 已注册但密钥不安全：只能停留在首页/密钥页，不能直接进入后续页面。
             goToStep(2);
           } else {
-            goToStep(4);
-            showRegisteredView();
+            goToStep(6);
+            showFinalView();
           }
         }
       } catch (e) {
@@ -1008,8 +1077,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
       }
     }
 
-    function showRegisteredView() {
-      isRegistered = true;
+    function showFinalView() {
       const setupForm = document.getElementById('setup-form');
       const registeredView = document.getElementById('registered-view');
       const serverUrl = document.getElementById('serverUrl');
@@ -1132,7 +1200,8 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
     async function handleSubmit(event) {
       event.preventDefault();
       if (isRegistered) {
-        showRegisteredView();
+        goToStep(6);
+        showFinalView();
         return;
       }
 
@@ -1197,7 +1266,9 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
 
         const result = await response.json();
         if (response.ok && result.success) {
-          showRegisteredView();
+          isRegistered = true;
+          goToStep(5);
+          showFinalView();
         } else {
           showMessage(result.error || (result.ErrorModel && result.ErrorModel.Message) || t('errRegisterFailed'), 'error');
           if (btn) {
@@ -1226,6 +1297,10 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
       if (prevBtn) {
         prevBtn.addEventListener('click', () => {
           if (currentStep <= 1) return;
+          if (isRegistered && currentStep === 5) {
+            goToStep(3);
+            return;
+          }
           goToStep(currentStep - 1);
         });
       }
@@ -1235,7 +1310,9 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         nextBtn.addEventListener('click', () => {
           if (currentStep === 1) goToStep(2);
           else if (currentStep === 2) goToStep(3);
-          else if (currentStep === 3) goToStep(4);
+          else if (currentStep === 3) goToStep(isRegistered ? 5 : 4);
+          else if (currentStep === 4) goToStep(5);
+          else if (currentStep === 5) goToStep(6);
         });
       }
 

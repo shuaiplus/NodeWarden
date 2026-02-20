@@ -4,6 +4,7 @@ import { AuthService } from '../services/auth';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
+import { isTotpEnabled } from '../utils/totp';
 
 function looksLikeEncString(value: string): boolean {
   if (!value) return false;
@@ -128,7 +129,7 @@ export async function handleGetProfile(request: Request, env: Env, userId: strin
     usesKeyConnector: false,
     masterPasswordHint: null,
     culture: 'en-US',
-    twoFactorEnabled: false,
+    twoFactorEnabled: isTotpEnabled(env.TOTP_SECRET),
     key: user.key,
     privateKey: user.privateKey,
     accountKeys: null,

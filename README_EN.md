@@ -20,10 +20,10 @@ A **Bitwarden-compatible** server that runs on **Cloudflare Workers**.
 | Attachment upload/download | ✅ | ✅ | Backed by Cloudflare R2 |
 | Import flow (common clients) | ✅ | ✅ | Common import paths covered |
 | Website icon proxy | ✅ | ✅ | Via `/icons/{hostname}/icon.png` |
-| Vault item TOTP field | ❌ | ✅ | Official service requires premium; NodeWarden does not |
+| passkey、TOTP | ❌ | ✅ | Official service requires premium; NodeWarden does not |
 | Multi-user | ✅ | ❌ | NodeWarden is single-user by design |
 | Organizations / Collections / Member roles | ✅ | ❌ | Not necessary to implement |
-| Login 2FA (TOTP/WebAuthn/Duo/Email) | ✅ | ❌ | Not implemented yet |
+| Login 2FA (TOTP/WebAuthn/Duo/Email) | ✅ | ⚠️ Partial | TOTP-only  via `TOTP_SECRET` |
 | SSO / SCIM / Enterprise directory | ✅ | ❌ | Not necessary to implement |
 | Send | ✅ | ❌ | Not necessary to implement |
 | Emergency access | ✅ | ❌ | Not necessary to implement |
@@ -60,6 +60,13 @@ This repo is a Cloudflare Workers TypeScript project (Wrangler).
 npm install
 npm run dev
 ```
+
+## Optional Login TOTP (2FA)
+
+- Add Workers Secret `TOTP_SECRET` (Base32) to enable login TOTP.
+- Remove `TOTP_SECRET` to disable login TOTP.
+- Client flow: password -> TOTP code.
+- "Remember this device" is supported for 30 days.
 
 ---
 
