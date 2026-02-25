@@ -13,213 +13,298 @@ function renderWebClientHTML(): string {
   <title>NodeWarden Web</title>
   <style>
     :root {
-      --bg: #f4f0e7;
-      --bg2: #e9f1ec;
-      --panel: #fffdf8;
-      --line: #d7ccbb;
-      --text: #1f1710;
-      --muted: #6a5f52;
-      --primary: #a63c2b;
-      --primary2: #1f6b5a;
-      --danger: #a53024;
-      --ok: #0f7a3d;
+      --bg: #f8fafc;
+      --bg2: #f1f5f9;
+      --panel: #ffffff;
+      --line: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #0f172a;
+      --primary-hover: #334155;
+      --primary2: #3b82f6;
+      --primary2-hover: #2563eb;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-bg: #fef2f2;
+      --ok: #10b981;
+      --ok-bg: #ecfdf5;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
       margin: 0;
       color: var(--text);
-      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background:
-        radial-gradient(circle at 12% 14%, #f6ddaf 0%, transparent 35%),
-        radial-gradient(circle at 84% 20%, #d5efe4 0%, transparent 33%),
-        linear-gradient(155deg, var(--bg) 0%, var(--bg2) 100%);
+      font-family: var(--font-sans);
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, hsla(253,16%,7%,0.05) 0, transparent 50%),
+        radial-gradient(at 50% 0%, hsla(225,39%,30%,0.05) 0, transparent 50%),
+        radial-gradient(at 100% 0%, hsla(339,49%,30%,0.05) 0, transparent 50%);
+      background-attachment: fixed;
+      -webkit-font-smoothing: antialiased;
     }
-    #app { min-height: 100%; }
-    .shell { min-height: 100%; padding: 10px; }
+    #app { min-height: 100%; display: flex; flex-direction: column; }
+    .shell { flex: 1; padding: 20px; display: flex; flex-direction: column; }
     .auth {
-      min-height: calc(100vh - 20px);
+      width: 100%;
+      max-width: 900px;
+      min-height: 600px;
+      margin: auto;
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: 24px;
       background: var(--panel);
-      box-shadow: 0 20px 46px rgba(26, 18, 12, 0.12);
+      box-shadow: var(--shadow-lg);
       display: grid;
       grid-template-columns: 360px 1fr;
       overflow: hidden;
     }
     .auth-left {
       border-right: 1px solid var(--line);
-      padding: 24px;
-      background: #fff8eb;
+      padding: 40px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
     .brand {
-      width: 58px;
-      height: 58px;
-      border-radius: 13px;
-      background: #111;
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #0f172a, #334155);
       color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      margin-bottom: 14px;
+      font-size: 24px;
+      margin-bottom: 24px;
       user-select: none;
+      box-shadow: var(--shadow);
     }
-    .auth-left h1 { margin: 0; font-size: 30px; }
-    .auth-left p { margin: 10px 0 0 0; color: var(--muted); line-height: 1.7; font-size: 14px; }
-    .auth-right { padding: 24px; position: relative; }
-    .section-title { margin: 0 0 12px 0; font-size: 28px; }
+    .auth-left h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+    .auth-left p { margin: 16px 0 0 0; color: var(--muted); line-height: 1.6; font-size: 15px; }
+    .auth-right { padding: 40px; position: relative; display: flex; flex-direction: column; justify-content: center; }
+    .section-title { margin: 0 0 24px 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
     .msg {
-      margin-bottom: 12px;
-      border-radius: 10px;
+      margin-bottom: 20px;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--line);
-      padding: 10px 12px;
-      font-size: 13px;
+      padding: 12px 16px;
+      font-size: 14px;
       background: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .msg.ok { color: var(--ok); border-color: #9dd2b6; background: #f0fbf4; }
-    .msg.err { color: var(--danger); border-color: #f2b4a9; background: #fff5f2; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .field { margin-bottom: 10px; }
-    .field label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+    .msg.ok { color: var(--ok); border-color: #a7f3d0; background: var(--ok-bg); }
+    .msg.err { color: var(--danger); border-color: #fecaca; background: var(--danger-bg); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; margin-bottom: 8px; color: var(--text); font-size: 14px; font-weight: 500; }
     .field input, .field select, .field textarea {
       width: 100%;
-      min-height: 44px;
+      min-height: 48px;
       border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #fffdf8;
+      border-radius: var(--radius-sm);
+      background: #fff;
       color: var(--text);
-      padding: 0 12px;
-      font-size: 14px;
+      padding: 0 16px;
+      font-size: 15px;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--primary2);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
     .field textarea {
-      min-height: 90px;
-      padding-top: 10px;
-      padding-bottom: 10px;
+      min-height: 100px;
+      padding-top: 12px;
+      padding-bottom: 12px;
       resize: vertical;
     }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
     .btn {
-      border: 1px solid #b8ad9c;
-      background: #f4ede3;
+      border: 1px solid var(--line);
+      background: #fff;
       color: var(--text);
-      border-radius: 10px;
-      min-height: 40px;
-      padding: 0 12px;
-      font-weight: 700;
+      border-radius: var(--radius-sm);
+      min-height: 44px;
+      padding: 0 20px;
+      font-weight: 600;
+      font-size: 14px;
       cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
-    .btn.primary { border-color: #8f3124; background: var(--primary); color: #fff; }
-    .btn.secondary { border-color: #1b594c; background: var(--primary2); color: #fff; }
-    .btn.danger { border-color: #7f261d; background: var(--danger); color: #fff; }
-    .tiny { font-size: 12px; color: var(--muted); }
+    .btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+    .btn.primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+    .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn.secondary { border-color: var(--primary2); background: var(--primary2); color: #fff; }
+    .btn.secondary:hover { background: var(--primary2-hover); border-color: var(--primary2-hover); }
+    .btn.danger { border-color: var(--danger); background: var(--danger); color: #fff; }
+    .btn.danger:hover { background: var(--danger-hover); border-color: var(--danger-hover); }
+    .tiny { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
     .totp-mask {
       position: absolute;
       inset: 0;
-      background: rgba(22, 17, 12, 0.48);
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 20px;
+      z-index: 50;
+      border-radius: 24px;
     }
     .totp-box {
-      width: min(460px, 100%);
+      width: min(400px, 100%);
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 20px;
       background: #fff;
-      padding: 16px;
-      box-shadow: 0 18px 30px rgba(0, 0, 0, 0.2);
+      padding: 32px;
+      box-shadow: var(--shadow-xl);
     }
-    .totp-box h3 { margin: 0 0 8px 0; font-size: 20px; }
+    .totp-box h3 { margin: 0 0 12px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
     .app-layout {
-      min-height: calc(100vh - 20px);
+      width: 100%;
+      max-width: 1400px;
+      height: calc(100vh - 40px);
+      margin: auto;
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: 24px;
       background: var(--panel);
-      box-shadow: 0 16px 40px rgba(26, 18, 12, 0.12);
+      box-shadow: var(--shadow-lg);
       overflow: hidden;
       display: grid;
     }
-    .app-layout.normal-layout { grid-template-columns: 250px 1fr; }
-    .app-layout.vault-layout { grid-template-columns: 250px 260px 1fr; }
+    .app-layout.normal-layout { grid-template-columns: 260px 1fr; }
+    .app-layout.vault-layout { grid-template-columns: 260px 300px 1fr; }
     .sidebar, .folderbar {
       border-right: 1px solid var(--line);
-      padding: 14px;
-      background: #fff8eb;
+      padding: 20px;
+      background: #f8fafc;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
     }
-    .folderbar { background: #fffaf1; }
-    .sidebar .brand { width: 50px; height: 50px; margin-bottom: 8px; }
-    .sidebar .mail { font-size: 12px; color: var(--muted); margin-bottom: 10px; word-break: break-all; }
-    .nav-btn, .folder-btn { width: 100%; text-align: left; margin-bottom: 8px; }
-    .nav-btn.active { border-color: #8f3124; background: #fff2ea; color: #7f271c; }
-    .folder-btn { margin-bottom: 6px; font-size: 13px; }
-    .folder-btn.active { border-color: #1b594c; background: #e9f6f0; color: #184f43; }
-    .content { padding: 12px; min-width: 0; overflow: auto; }
+    .folderbar { background: #ffffff; }
+    .sidebar .brand { width: 48px; height: 48px; margin-bottom: 16px; font-size: 18px; border-radius: 12px; }
+    .sidebar .mail { font-size: 13px; color: var(--muted); margin-bottom: 24px; word-break: break-all; font-weight: 500; }
+    .nav-btn, .folder-btn { 
+      width: 100%; 
+      text-align: left; 
+      margin-bottom: 8px; 
+      justify-content: flex-start;
+      border: none;
+      box-shadow: none;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .nav-btn:hover, .folder-btn:hover { background: #f1f5f9; color: var(--text); }
+    .nav-btn.active { background: #e2e8f0; color: var(--text); font-weight: 600; }
+    .folder-btn { margin-bottom: 4px; font-size: 14px; min-height: 36px; padding: 0 12px; }
+    .folder-btn.active { background: #eff6ff; color: var(--primary2); font-weight: 600; }
+    .content { padding: 24px; min-width: 0; overflow: auto; background: #ffffff; }
     .panel {
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 16px;
       background: #fff;
-      padding: 12px;
-      margin-bottom: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
     }
-    .panel h3 { margin: 0 0 10px 0; font-size: 18px; }
-    .vault-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; }
+    .panel h3 { margin: 0 0 16px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+    .vault-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: calc(100vh - 220px); }
     .list {
       border: 1px solid var(--line);
-      border-radius: 10px;
-      max-height: calc(100vh - 280px);
+      border-radius: 12px;
       overflow: auto;
       background: #fff;
+      box-shadow: var(--shadow-sm);
     }
     .item {
       border-bottom: 1px solid var(--line);
-      padding: 9px 10px;
+      padding: 12px 16px;
       display: grid;
-      grid-template-columns: 26px 1fr;
-      gap: 8px;
+      grid-template-columns: 24px 1fr;
+      gap: 12px;
       align-items: center;
       cursor: pointer;
+      transition: background 0.2s ease;
     }
+    .item:hover { background: #f8fafc; }
     .item:last-child { border-bottom: none; }
-    .item.active { background: #fff2ea; }
+    .item.active { background: #eff6ff; }
+    .item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary2); }
     .kv {
-      margin-bottom: 7px;
-      font-size: 13px;
-      line-height: 1.55;
+      margin-bottom: 12px;
+      font-size: 14px;
+      line-height: 1.6;
       word-break: break-word;
+      display: flex;
+      flex-direction: column;
     }
-    .kv b { color: var(--muted); margin-right: 6px; }
+    .kv b { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
     .table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 12px;
       overflow: hidden;
-      font-size: 13px;
+      font-size: 14px;
       background: #fff;
+      box-shadow: var(--shadow-sm);
     }
+    .table th { background: #f8fafc; font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
     .table th, .table td {
       border-bottom: 1px solid var(--line);
-      padding: 8px;
+      padding: 12px 16px;
       text-align: left;
       vertical-align: middle;
     }
     .table tr:last-child td { border-bottom: none; }
-    .qr-row { display: grid; grid-template-columns: 190px 1fr; gap: 12px; align-items: start; }
-    .qr-box { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fff; }
-    .qr-box img { width: 170px; height: 170px; display: block; object-fit: contain; background: #fff; }
-    .help-box { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 12px; margin-bottom: 10px; }
-    .help-box h4 { margin: 0 0 8px 0; font-size: 15px; }
-    .help-box ul { margin: 0; padding-left: 18px; line-height: 1.65; font-size: 13px; color: #3f352c; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #f1f5f9;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge.success { background: #dcfce7; color: #166534; }
+    .badge.danger { background: #fee2e2; color: #991b1b; }
+    .qr-row { display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: start; }
+    .qr-box { border: 1px solid var(--line); border-radius: 16px; padding: 16px; background: #fff; box-shadow: var(--shadow-sm); }
+    .qr-box img { width: 100%; height: auto; display: block; object-fit: contain; border-radius: 8px; }
     @media (max-width: 1080px) {
-      .auth { grid-template-columns: 1fr; }
-      .auth-left { border-right: none; border-bottom: 1px solid var(--line); }
-      .app-layout { grid-template-columns: 1fr; }
-      .sidebar, .folderbar { border-right: none; border-bottom: 1px solid var(--line); }
-      .vault-grid { grid-template-columns: 1fr; }
+      .auth { grid-template-columns: 1fr; min-height: auto; }
+      .auth-left { border-right: none; border-bottom: 1px solid var(--line); padding: 32px; }
+      .auth-right { padding: 32px; }
+      .app-layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 40px); }
+      .sidebar, .folderbar { border-right: none; border-bottom: 1px solid var(--line); padding: 16px; }
+      .vault-grid { grid-template-columns: 1fr; height: auto; }
+      .list { max-height: 400px; }
       .row { grid-template-columns: 1fr; }
       .qr-row { grid-template-columns: 1fr; }
+      .totp-mask { border-radius: 0; }
     }
   </style>
 </head>
@@ -403,12 +488,12 @@ function renderWebClientHTML(): string {
           + '    <form id="loginForm">'
           + '      <div class="field"><label>Email</label><input type="email" name="email" value="'+esc(state.loginEmail)+'" required /></div>'
           + '      <div class="field"><label>Master Password</label><input type="password" name="password" value="'+esc(state.loginPassword)+'" required /></div>'
-          + '      <div class="actions"><button class="btn primary" type="submit">Login</button><button class="btn" type="button" data-action="goto-register">Register</button></div>'
+          + '      <div class="actions"><button class="btn primary" type="submit">Login</button><button class="btn secondary" type="button" data-action="goto-register">Register</button></div>'
           + '    </form>'
           + (state.pendingLogin ? ''
             + '<div class="totp-mask"><div class="totp-box"><h3>Two-step verification</h3><div class="tiny">Password is already verified.</div>'
             + (state.loginTotpError?'<div class="msg err" style="margin-top:8px;">'+esc(state.loginTotpError)+'</div>':'')
-            + '<form id="loginTotpForm"><div class="field"><label>TOTP Code</label><input name="totpToken" maxlength="6" value="'+esc(state.loginTotpToken)+'" required /></div><div class="actions"><button class="btn primary" type="submit">Verify</button><button class="btn" type="button" data-action="totp-cancel">Cancel</button></div></form>'
+            + '<form id="loginTotpForm"><div class="field"><label>TOTP Code</label><input name="totpToken" maxlength="6" value="'+esc(state.loginTotpToken)+'" required /></div><div class="actions"><button class="btn primary" type="submit">Verify</button><button class="btn secondary" type="button" data-action="totp-cancel">Cancel</button></div></form>'
             + '</div></div>'
             : '')
           + '  </main>'
@@ -426,7 +511,7 @@ function renderWebClientHTML(): string {
           + '      <div class="field"><label>Master Password</label><input type="password" name="password" value="'+esc(state.registerPassword)+'" minlength="12" required /></div>'
           + '      <div class="field"><label>Confirm Password</label><input type="password" name="password2" value="'+esc(state.registerPassword2)+'" minlength="12" required /></div>'
           + '      <div class="field"><label>Invite Code</label><input name="inviteCode" value="'+esc(state.inviteCode)+'" /></div>'
-          + '      <div class="actions"><button class="btn primary" type="submit">Create Account</button><button class="btn" type="button" data-action="goto-login">Back to Login</button></div>'
+          + '      <div class="actions"><button class="btn primary" type="submit">Create Account</button><button class="btn secondary" type="button" data-action="goto-login">Back to Login</button></div>'
           + '    </form>'
           + '  </main>'
           + '</div></div>';
@@ -438,12 +523,12 @@ function renderWebClientHTML(): string {
         for(var i=0;i<list.length;i++){
           var c=list[i];
           var nameText=(c.decName||c.name||c.id);
-          rows += '<div class="item '+(c.id===state.selectedCipherId?'active':'')+'" data-action="pick-cipher" data-id="'+esc(c.id)+'"><input type="checkbox" data-action="toggle-select" data-id="'+esc(c.id)+'"'+(state.selectedMap[c.id]?' checked':'')+' /><div><div style="font-weight:700;font-size:14px;">'+esc(nameText)+'</div><div class="tiny">'+esc(c.id)+'</div></div></div>';
+          rows += '<div class="item '+(c.id===state.selectedCipherId?'active':'')+'" data-action="pick-cipher" data-id="'+esc(c.id)+'"><input type="checkbox" data-action="toggle-select" data-id="'+esc(c.id)+'"'+(state.selectedMap[c.id]?' checked':'')+' /><div><div style="font-weight:600;font-size:14px;color:var(--text-primary);">'+esc(nameText)+'</div><div class="tiny" style="color:var(--text-secondary);">'+esc(c.id)+'</div></div></div>';
         }
-        if(!rows) rows='<div class="item"><div></div><div class="tiny">No items in this folder.</div></div>';
+        if(!rows) rows='<div class="item" style="justify-content:center; color:var(--text-secondary);">No items in this folder.</div>';
 
         var c0=selectedCipher();
-        var detail='<div class="tiny">Select an item to view details.</div>';
+        var detail='<div class="tiny" style="text-align:center; padding:40px; color:var(--text-secondary);">Select an item to view details.</div>';
         if(c0){
           var login = c0.login||{};
           var fields=Array.isArray(c0.fields)?c0.fields:[];
@@ -463,10 +548,11 @@ function renderWebClientHTML(): string {
 
         return ''
           + renderMsg()
-          + '<div class="panel"><h3>Vault</h3>'
-          + '<div class="actions"><button class="btn" data-action="vault-refresh">Refresh</button><button class="btn" data-action="bulk-move">Move Selected</button><button class="btn danger" data-action="bulk-delete">Delete Selected ('+selectedCount()+')</button><button class="btn" data-action="select-all">Select all</button><button class="btn" data-action="select-none">Clear</button></div>'
-          + '<div class="vault-grid" style="margin-top:10px;"><div class="list">'+rows+'</div><div class="panel" style="margin:0;">'+detail+'</div></div>'
-          + '</div>';
+          + '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">'
+          + '<h2 style="margin:0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">Vault</h2>'
+          + '<div class="actions" style="margin:0;"><button class="btn secondary" data-action="vault-refresh">Refresh</button><button class="btn secondary" data-action="bulk-move">Move</button><button class="btn danger" data-action="bulk-delete">Delete ('+selectedCount()+')</button><button class="btn secondary" data-action="select-all">All</button><button class="btn secondary" data-action="select-none">Clear</button></div>'
+          + '</div>'
+          + '<div class="vault-grid"><div class="list">'+rows+'</div><div class="panel" style="margin:0; overflow:auto;">'+detail+'</div></div>';
       }
 
       function renderSettingsTab(){
@@ -475,52 +561,58 @@ function renderWebClientHTML(): string {
         var qr='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(buildTotpUri(secret));
         return ''
           + renderMsg()
+          + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">Settings</h2>'
           + '<div class="panel"><h3>Profile</h3><form id="profileForm"><div class="row"><div class="field"><label>Name</label><input name="name" value="'+esc(p.name||'')+'" /></div><div class="field"><label>Email</label><input type="email" name="email" value="'+esc(p.email||'')+'" required /></div></div><div class="actions"><button class="btn primary" type="submit">Save Profile</button></div></form></div>'
           + '<div class="panel"><h3>Master Password</h3><form id="passwordForm"><div class="field"><label>Current Master Password</label><input type="password" name="currentPassword" required /></div><div class="row"><div class="field"><label>New Master Password</label><input type="password" name="newPassword" minlength="12" required /></div><div class="field"><label>Confirm New Password</label><input type="password" name="newPassword2" minlength="12" required /></div></div><div class="actions"><button class="btn danger" type="submit">Change Master Password</button></div><div class="tiny">After success, current sessions are revoked and you must log in again.</div></form></div>'
-          + '<div class="panel"><h3>TOTP Setup</h3><div class="qr-row"><div class="qr-box"><img src="'+esc(qr)+'" alt="TOTP QR" /></div><div><form id="totpEnableForm"><div class="field"><label>Secret (Base32)</label><input name="secret" value="'+esc(secret)+'" /></div><div class="field"><label>Verification Code</label><input name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div class="actions"><button class="btn secondary" type="submit">Enable TOTP</button><button class="btn" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><div class="actions"><button class="btn danger" type="button" data-action="totp-disable">Disable TOTP</button></div><div class="tiny">Disable action prompts for master password.</div></div>';
+          + '<div class="panel"><h3>TOTP Setup</h3><div class="qr-row"><div class="qr-box"><img src="'+esc(qr)+'" alt="TOTP QR" /></div><div><form id="totpEnableForm"><div class="field"><label>Secret (Base32)</label><input name="secret" value="'+esc(secret)+'" /></div><div class="field"><label>Verification Code</label><input name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div class="actions"><button class="btn primary" type="submit">Enable TOTP</button><button class="btn secondary" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn secondary" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><div class="actions"><button class="btn danger" type="button" data-action="totp-disable">Disable TOTP</button></div><div class="tiny">Disable action prompts for master password.</div></div>';
       }
       function renderTotpDisableModal(){
         if(!state.totpDisableOpen) return '';
         return ''
-          + '<div class="totp-mask"><div class="totp-box"><h3>Disable TOTP</h3><div class="tiny">Enter master password to disable two-step verification.</div>'
-          + (state.totpDisableError?'<div class="msg err" style="margin-top:8px;">'+esc(state.totpDisableError)+'</div>':'')
-          + '<form id="totpDisableForm"><div class="field"><label>Master Password</label><input type="password" name="masterPassword" value="'+esc(state.totpDisablePassword)+'" required /></div><div class="actions"><button class="btn danger" type="submit">Disable</button><button class="btn" type="button" data-action="totp-disable-cancel">Cancel</button></div></form>'
+          + '<div class="totp-mask"><div class="totp-box"><h3 style="margin:0 0 8px 0; font-size:20px;">Disable TOTP</h3><div class="tiny" style="margin-bottom:16px;">Enter master password to disable two-step verification.</div>'
+          + (state.totpDisableError?'<div class="msg err" style="margin-bottom:16px;">'+esc(state.totpDisableError)+'</div>':'')
+          + '<form id="totpDisableForm"><div class="field"><label>Master Password</label><input type="password" name="masterPassword" value="'+esc(state.totpDisablePassword)+'" required /></div><div class="actions"><button class="btn danger" type="submit">Disable</button><button class="btn secondary" type="button" data-action="totp-disable-cancel">Cancel</button></div></form>'
           + '</div></div>';
       }
 
       function renderHelpTab(){
         return ''
-          + '<div class="help-box"><h4>Upstream Sync</h4><ul><li>Track upstream with a fork and scheduled sync workflow (recommended).</li><li>Before merge: compare API routes, migration files, and auth logic changes.</li><li>After merge: run local dev migration tests, then deploy Worker after validation.</li></ul></div>'
-          + '<div class="help-box"><h4>Common Errors</h4><ul><li>401 Unauthorized: token expired or revoked, login again.</li><li>403 Account disabled: admin must unban user in User Management.</li><li>403 Invite invalid: invite expired/used/revoked, create a new invite.</li><li>429 Too many requests: wait retry seconds and avoid burst writes.</li></ul></div>'
-          + '<div class="help-box"><h4>Troubleshooting</h4><ul><li>Login OK but encrypted values shown: verify profile key and KDF settings are consistent.</li><li>TOTP fails repeatedly: sync device time and re-scan QR using latest secret.</li><li>Password change failed: ensure current password is correct and new password has at least 12 chars.</li><li>Sync conflicts: refresh vault and retry one operation at a time.</li></ul></div>';
+          + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">Help & Support</h2>'
+          + '<div class="panel"><h3>Upstream Sync</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>Track upstream with a fork and scheduled sync workflow (recommended).</li><li>Before merge: compare API routes, migration files, and auth logic changes.</li><li>After merge: run local dev migration tests, then deploy Worker after validation.</li></ul></div>'
+          + '<div class="panel"><h3>Common Errors</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>401 Unauthorized: token expired or revoked, login again.</li><li>403 Account disabled: admin must unban user in User Management.</li><li>403 Invite invalid: invite expired/used/revoked, create a new invite.</li><li>429 Too many requests: wait retry seconds and avoid burst writes.</li></ul></div>'
+          + '<div class="panel"><h3>Troubleshooting</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>Login OK but encrypted values shown: verify profile key and KDF settings are consistent.</li><li>TOTP fails repeatedly: sync device time and re-scan QR using latest secret.</li><li>Password change failed: ensure current password is correct and new password has at least 12 chars.</li><li>Sync conflicts: refresh vault and retry one operation at a time.</li></ul></div>';
       }
 
       function renderAdminTab(){
         var usersRows='';
         for(var i=0;i<state.users.length;i++){
           var u=state.users[i]; var canAct=state.profile&&u.id!==state.profile.id;
-          usersRows += '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name||'')+'</td><td>'+esc(u.role)+'</td><td>'+esc(u.status)+'</td><td>'
-            + (canAct?'<button class="btn" data-action="user-toggle" data-id="'+esc(u.id)+'" data-status="'+esc(u.status)+'">'+(u.status==='active'?'Ban':'Unban')+'</button>':'')
+          usersRows += '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name||'')+'</td><td><span class="badge">'+esc(u.role)+'</span></td><td><span class="badge '+(u.status==='active'?'success':'danger')+'">'+esc(u.status)+'</span></td><td>'
+            + (canAct?'<button class="btn secondary" data-action="user-toggle" data-id="'+esc(u.id)+'" data-status="'+esc(u.status)+'">'+(u.status==='active'?'Ban':'Unban')+'</button>':'')
             + (canAct?' <button class="btn danger" data-action="user-delete" data-id="'+esc(u.id)+'">Delete</button>':'')
             + '</td></tr>';
         }
-        if(!usersRows) usersRows='<tr><td colspan="5">No users.</td></tr>';
+        if(!usersRows) usersRows='<tr><td colspan="5" style="text-align:center; color:var(--text-secondary); padding:24px;">No users found.</td></tr>';
 
         var inviteRows='';
         for(var j=0;j<state.invites.length;j++){
           var inv=state.invites[j];
-          inviteRows += '<tr><td>'+esc(inv.code)+'</td><td>'+esc(inv.status)+'</td><td>'+esc(inv.expiresAt)+'</td><td>'
-            + '<button class="btn" data-action="invite-copy" data-link="'+esc(inv.inviteLink||'')+'">Copy link</button>'
+          inviteRows += '<tr><td><code style="background:var(--bg-secondary); padding:4px 8px; border-radius:6px; font-size:13px;">'+esc(inv.code)+'</code></td><td><span class="badge '+(inv.status==='active'?'success':'danger')+'">'+esc(inv.status)+'</span></td><td>'+esc(inv.expiresAt)+'</td><td>'
+            + '<button class="btn secondary" data-action="invite-copy" data-link="'+esc(inv.inviteLink||'')+'">Copy link</button>'
             + (inv.status==='active'?' <button class="btn danger" data-action="invite-revoke" data-code="'+esc(inv.code)+'">Revoke</button>':'')
             + '</td></tr>';
         }
-        if(!inviteRows) inviteRows='<tr><td colspan="4">No invites.</td></tr>';
+        if(!inviteRows) inviteRows='<tr><td colspan="4" style="text-align:center; color:var(--text-secondary); padding:24px;">No invites found.</td></tr>';
 
         return ''
           + renderMsg()
-          + '<div class="panel"><h3>Create Invite</h3><form id="inviteForm"><div class="field"><label>Expires in hours</label><input name="hours" type="number" min="1" max="720" value="168" /></div><div class="actions"><button class="btn primary" type="submit">Create Invite</button><button class="btn" type="button" data-action="admin-refresh">Refresh</button></div></form></div>'
-          + '<div class="panel"><h3>Users</h3><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>'+usersRows+'</tbody></table></div>'
-          + '<div class="panel"><h3>Invites</h3><table class="table"><thead><tr><th>Code</th><th>Status</th><th>Expires At</th><th>Action</th></tr></thead><tbody>'+inviteRows+'</tbody></table></div>';
+          + '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">'
+          + '<h2 style="margin:0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">User Management</h2>'
+          + '<button class="btn secondary" data-action="admin-refresh">Refresh Data</button>'
+          + '</div>'
+          + '<div class="panel"><h3>Create Invite</h3><form id="inviteForm"><div class="field"><label>Expires in hours</label><input name="hours" type="number" min="1" max="720" value="168" /></div><div class="actions"><button class="btn primary" type="submit">Create Invite</button></div></form></div>'
+          + '<div class="panel"><h3>Users</h3><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>'+usersRows+'</tbody></table></div></div>'
+          + '<div class="panel"><h3>Invites</h3><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Code</th><th>Status</th><th>Expires At</th><th>Action</th></tr></thead><tbody>'+inviteRows+'</tbody></table></div></div>';
       }
 
       function renderApp(){
@@ -534,18 +626,20 @@ function renderWebClientHTML(): string {
         return ''
           + '<div class="shell"><div class="app-layout '+layoutClass+'">'
           + '  <aside class="sidebar"><div class="brand">NW</div><div class="mail">'+esc(state.profile&&state.profile.email?state.profile.email:'')+'</div>'
-          + '    <button class="btn nav-btn '+(state.tab==='vault'?'active':'')+'" data-action="tab" data-tab="vault">Vault</button>'
-          + '    <button class="btn nav-btn '+(state.tab==='settings'?'active':'')+'" data-action="tab" data-tab="settings">Settings</button>'
+          + '    <div style="flex:1; display:flex; flex-direction:column; gap:4px;">'
+          + '      <button class="btn nav-btn '+(state.tab==='vault'?'active':'')+'" data-action="tab" data-tab="vault">Vault</button>'
+          + '      <button class="btn nav-btn '+(state.tab==='settings'?'active':'')+'" data-action="tab" data-tab="settings">Settings</button>'
           + (isAdmin?'<button class="btn nav-btn '+(state.tab==='admin'?'active':'')+'" data-action="tab" data-tab="admin">User Management</button>':'')
-          + '    <button class="btn nav-btn '+(state.tab==='help'?'active':'')+'" data-action="tab" data-tab="help">Help</button>'
-          + '    <button class="btn nav-btn" data-action="logout">Logout</button></aside>'
-          + (showFolders?('  <aside class="folderbar"><h3 style="margin:0 0 10px 0;">Folders</h3>'+folders+'</aside>'):'')
+          + '      <button class="btn nav-btn '+(state.tab==='help'?'active':'')+'" data-action="tab" data-tab="help">Help</button>'
+          + '    </div>'
+          + '    <button class="btn nav-btn" style="margin-top:auto; color:var(--danger);" data-action="logout">Logout</button></aside>'
+          + (showFolders?('  <aside class="folderbar"><h3 style="margin:0 0 16px 0; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-secondary);">Folders</h3><div style="display:flex; flex-direction:column; gap:4px;">'+folders+'</div></aside>'):'')
           + '  <main class="content">'+content+'</main>'
           + '</div>'+renderTotpDisableModal()+'</div>';
       }
 
       function render(){
-        if(state.phase==='loading'){ app.innerHTML='<div class="shell"><div class="panel"><h3>Loading...</h3></div></div>'; return; }
+        if(state.phase==='loading'){ app.innerHTML='<div class="shell" style="align-items:center; justify-content:center;"><div style="display:flex; flex-direction:column; align-items:center; gap:16px;"><div class="brand" style="margin:0;">NW</div><div style="color:var(--text-secondary); font-weight:500;">Loading NodeWarden...</div></div></div>'; return; }
         if(state.phase==='register'){ app.innerHTML=renderRegisterScreen(); return; }
         if(state.phase==='login'){ app.innerHTML=renderLoginScreen(); return; }
         app.innerHTML=renderApp();
