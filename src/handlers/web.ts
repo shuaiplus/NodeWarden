@@ -13,298 +13,352 @@ function renderWebClientHTML(): string {
   <title>NodeWarden Web</title>
   <style>
     :root {
-      --bg: #f8fafc;
-      --bg2: #f1f5f9;
-      --panel: #ffffff;
-      --line: #e2e8f0;
-      --text: #0f172a;
-      --muted: #64748b;
-      --primary: #0f172a;
-      --primary-hover: #334155;
-      --primary2: #3b82f6;
-      --primary2-hover: #2563eb;
-      --danger: #ef4444;
-      --danger-hover: #dc2626;
-      --danger-bg: #fef2f2;
-      --ok: #10b981;
-      --ok-bg: #ecfdf5;
-      --radius: 16px;
-      --radius-sm: 10px;
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --bg: #F3F5F8;
+      --panel: #FFFFFF;
+      --line: #DEE2E6;
+      --text-primary: #212529;
+      --text-secondary: #6C757D;
+      --primary: #175DDC;
+      --primary-hover: #144eb8;
+      --danger: #DC3545;
+      --danger-hover: #C82333;
+      --danger-bg: #F8D7DA;
+      --success: #198754;
+      --success-bg: #D1E7DD;
+      --border-color: #DEE2E6;
+      --radius: 6px;
+      --radius-sm: 4px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
+    html, body { height: 100%; margin: 0; }
     body {
-      margin: 0;
-      color: var(--text);
+      color: var(--text-primary);
       font-family: var(--font-sans);
       background-color: var(--bg);
-      background-image:
-        radial-gradient(at 0% 0%, hsla(253,16%,7%,0.05) 0, transparent 50%),
-        radial-gradient(at 50% 0%, hsla(225,39%,30%,0.05) 0, transparent 50%),
-        radial-gradient(at 100% 0%, hsla(339,49%,30%,0.05) 0, transparent 50%);
-      background-attachment: fixed;
       -webkit-font-smoothing: antialiased;
     }
-    #app { min-height: 100%; display: flex; flex-direction: column; }
-    .shell { flex: 1; padding: 20px; display: flex; flex-direction: column; }
-    .auth {
-      width: 100%;
-      max-width: 900px;
-      min-height: 600px;
-      margin: auto;
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      background: var(--panel);
-      box-shadow: var(--shadow-lg);
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      overflow: hidden;
-    }
-    .auth-left {
-      border-right: 1px solid var(--line);
-      padding: 40px;
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    #app { height: 100%; display: flex; flex-direction: column; }
+    
+    /* Auth Pages */
+    .auth-page {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-    }
-    .brand {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #0f172a, #334155);
-      color: #fff;
-      display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 24px;
-      margin-bottom: 24px;
-      user-select: none;
+      min-height: 100vh;
+      padding: 20px;
+      position: relative;
+    }
+    .lang-switch {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .lang-switch:hover { color: var(--primary); }
+    .auth-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 40px;
       box-shadow: var(--shadow);
     }
-    .auth-left h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
-    .auth-left p { margin: 16px 0 0 0; color: var(--muted); line-height: 1.6; font-size: 15px; }
-    .auth-right { padding: 40px; position: relative; display: flex; flex-direction: column; justify-content: center; }
-    .section-title { margin: 0 0 24px 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
-    .msg {
-      margin-bottom: 20px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--line);
-      padding: 12px 16px;
-      font-size: 14px;
-      background: #fff;
+    .auth-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .auth-logo {
+      width: 48px;
+      height: 48px;
+      background: var(--primary);
+      border-radius: 12px;
+      margin: 0 auto 16px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 24px;
     }
-    .msg.ok { color: var(--ok); border-color: #a7f3d0; background: var(--ok-bg); }
-    .msg.err { color: var(--danger); border-color: #fecaca; background: var(--danger-bg); }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .field { margin-bottom: 16px; }
-    .field label { display: block; margin-bottom: 8px; color: var(--text); font-size: 14px; font-weight: 500; }
-    .field input, .field select, .field textarea {
-      width: 100%;
-      min-height: 48px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: #fff;
-      color: var(--text);
-      padding: 0 16px;
+    .auth-logo::after { content: "NW"; }
+    .auth-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .auth-subtitle {
+      color: var(--text-secondary);
       font-size: 15px;
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow-sm);
     }
-    .field input:focus, .field select:focus, .field textarea:focus {
-      outline: none;
-      border-color: var(--primary2);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    .field textarea {
-      min-height: 100px;
-      padding-top: 12px;
-      padding-bottom: 12px;
-      resize: vertical;
-    }
-    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-    .btn {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-      border-radius: var(--radius-sm);
-      min-height: 44px;
-      padding: 0 20px;
-      font-weight: 600;
+    .auth-footer {
+      margin-top: 24px;
+      text-align: center;
       font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow-sm);
+    }
+    .auth-footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .auth-footer a:hover { text-decoration: underline; }
+
+    /* Forms */
+    .form-group { margin-bottom: 20px; }
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .form-input {
+      width: 100%;
+      height: 42px;
+      padding: 8px 12px;
+      font-size: 15px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text-primary);
+      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(23, 93, 220, 0.15);
+    }
+    
+    /* Buttons */
+    .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      height: 42px;
+      padding: 0 20px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
     }
-    .btn:hover { background: #f8fafc; border-color: #cbd5e1; }
-    .btn.primary { border-color: var(--primary); background: var(--primary); color: #fff; }
-    .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
-    .btn.secondary { border-color: var(--primary2); background: var(--primary2); color: #fff; }
-    .btn.secondary:hover { background: var(--primary2-hover); border-color: var(--primary2-hover); }
-    .btn.danger { border-color: var(--danger); background: var(--danger); color: #fff; }
-    .btn.danger:hover { background: var(--danger-hover); border-color: var(--danger-hover); }
-    .tiny { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
-    .totp-mask {
-      position: absolute;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(4px);
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary {
+      background: #fff;
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+    .btn-secondary:hover { background: #F8F9FA; }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:hover { background: var(--danger-hover); }
+    
+    /* Alerts */
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      margin-bottom: 24px;
+      border: 1px solid transparent;
+    }
+    .alert-success { background: var(--success-bg); color: var(--success); border-color: #BADBCC; }
+    .alert-danger { background: var(--danger-bg); color: var(--danger); border-color: #F5C2C7; }
+    
+    /* App Layout */
+    .navbar {
+      height: 64px;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .nav-logo {
+      width: 32px;
+      height: 32px;
+      background: #fff;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-      z-index: 50;
-      border-radius: 24px;
+      color: var(--primary);
+      font-weight: bold;
+      font-size: 16px;
     }
-    .totp-box {
-      width: min(400px, 100%);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: #fff;
-      padding: 32px;
-      box-shadow: var(--shadow-xl);
+    .nav-logo::after { content: "NW"; }
+    .nav-links {
+      display: flex;
+      gap: 8px;
     }
-    .totp-box h3 { margin: 0 0 12px 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-    .app-layout {
-      width: 100%;
-      max-width: 1400px;
-      height: calc(100vh - 40px);
-      margin: auto;
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      background: var(--panel);
-      box-shadow: var(--shadow-lg);
+    .nav-link {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      font-size: 15px;
+      transition: all 0.15s;
+    }
+    .nav-link:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .nav-link.active { color: #fff; background: rgba(255,255,255,0.2); }
+    .nav-user {
+      display: flex;
+      align-items: center;
+    }
+    .nav-user .lang-switch {
+      color: rgba(255,255,255,0.8);
+    }
+    .nav-user .lang-switch:hover { color: #fff; }
+    .nav-user .btn-secondary {
+      height: 32px;
+      padding: 0 12px;
+      font-size: 13px;
+      background: rgba(255,255,255,0.1);
+      border-color: transparent;
+      color: #fff;
+    }
+    .nav-user .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+    
+    .app-body {
+      display: flex;
+      flex: 1;
       overflow: hidden;
-      display: grid;
     }
-    .app-layout.normal-layout { grid-template-columns: 260px 1fr; }
-    .app-layout.vault-layout { grid-template-columns: 260px 300px 1fr; }
-    .sidebar, .folderbar {
-      border-right: 1px solid var(--line);
-      padding: 20px;
-      background: #f8fafc;
-      min-width: 0;
+    .sidebar {
+      width: 260px;
+      background: #fff;
+      border-right: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
+      padding: 24px 16px;
+      overflow-y: auto;
     }
-    .folderbar { background: #ffffff; }
-    .sidebar .brand { width: 48px; height: 48px; margin-bottom: 16px; font-size: 18px; border-radius: 12px; }
-    .sidebar .mail { font-size: 13px; color: var(--muted); margin-bottom: 24px; word-break: break-all; font-weight: 500; }
-    .nav-btn, .folder-btn { 
-      width: 100%; 
-      text-align: left; 
-      margin-bottom: 8px; 
-      justify-content: flex-start;
-      border: none;
-      box-shadow: none;
+    .sidebar-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      padding: 0 12px;
+    }
+    .folder-btn {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
       background: transparent;
-      color: var(--muted);
+      border: none;
+      color: var(--text-primary);
+      font-size: 14px;
       font-weight: 500;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-bottom: 4px;
     }
-    .nav-btn:hover, .folder-btn:hover { background: #f1f5f9; color: var(--text); }
-    .nav-btn.active { background: #e2e8f0; color: var(--text); font-weight: 600; }
-    .folder-btn { margin-bottom: 4px; font-size: 14px; min-height: 36px; padding: 0 12px; }
-    .folder-btn.active { background: #eff6ff; color: var(--primary2); font-weight: 600; }
-    .content { padding: 24px; min-width: 0; overflow: auto; background: #ffffff; }
-    .panel {
-      border: 1px solid var(--line);
-      border-radius: 16px;
+    .folder-btn:hover { background: var(--bg); }
+    .folder-btn.active { background: #E7F1FF; color: var(--primary); font-weight: 600; }
+    
+    .content {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+    }
+    
+    /* Vault Grid */
+    .vault-grid {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 24px;
+      height: calc(100vh - 180px);
+    }
+    .list {
       background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      overflow-y: auto;
+    }
+    .item {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .item:hover { background: var(--bg); }
+    .item.active { background: #E7F1FF; }
+    .item:last-child { border-bottom: none; }
+    
+    /* Common Components */
+    .panel {
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
       padding: 24px;
       margin-bottom: 24px;
       box-shadow: var(--shadow-sm);
     }
-    .panel h3 { margin: 0 0 16px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-    .vault-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: calc(100vh - 220px); }
-    .list {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      overflow: auto;
-      background: #fff;
-      box-shadow: var(--shadow-sm);
-    }
-    .item {
-      border-bottom: 1px solid var(--line);
-      padding: 12px 16px;
-      display: grid;
-      grid-template-columns: 24px 1fr;
-      gap: 12px;
-      align-items: center;
-      cursor: pointer;
-      transition: background 0.2s ease;
-    }
-    .item:hover { background: #f8fafc; }
-    .item:last-child { border-bottom: none; }
-    .item.active { background: #eff6ff; }
-    .item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary2); }
-    .kv {
-      margin-bottom: 12px;
-      font-size: 14px;
-      line-height: 1.6;
-      word-break: break-word;
-      display: flex;
-      flex-direction: column;
-    }
-    .kv b { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
-    .table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      overflow: hidden;
-      font-size: 14px;
-      background: #fff;
-      box-shadow: var(--shadow-sm);
-    }
-    .table th { background: #f8fafc; font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
-    .table th, .table td {
-      border-bottom: 1px solid var(--line);
-      padding: 12px 16px;
-      text-align: left;
-      vertical-align: middle;
-    }
-    .table tr:last-child td { border-bottom: none; }
+    .panel h3 { margin: 0 0 20px 0; font-size: 18px; font-weight: 600; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+    
+    .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .table th, .table td { padding: 12px 16px; border-bottom: 1px solid var(--border-color); text-align: left; }
+    .table th { font-weight: 600; color: var(--text-secondary); background: var(--bg); }
+    
     .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 9999px;
+      padding: 4px 8px;
+      border-radius: 4px;
       font-size: 12px;
       font-weight: 600;
-      background: #f1f5f9;
-      color: #475569;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      background: var(--bg);
+      color: var(--text-secondary);
     }
-    .badge.success { background: #dcfce7; color: #166534; }
-    .badge.danger { background: #fee2e2; color: #991b1b; }
-    .qr-row { display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: start; }
-    .qr-box { border: 1px solid var(--line); border-radius: 16px; padding: 16px; background: #fff; box-shadow: var(--shadow-sm); }
-    .qr-box img { width: 100%; height: auto; display: block; object-fit: contain; border-radius: 8px; }
-    @media (max-width: 1080px) {
-      .auth { grid-template-columns: 1fr; min-height: auto; }
-      .auth-left { border-right: none; border-bottom: 1px solid var(--line); padding: 32px; }
-      .auth-right { padding: 32px; }
-      .app-layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 40px); }
-      .sidebar, .folderbar { border-right: none; border-bottom: 1px solid var(--line); padding: 16px; }
-      .vault-grid { grid-template-columns: 1fr; height: auto; }
-      .list { max-height: 400px; }
-      .row { grid-template-columns: 1fr; }
-      .qr-row { grid-template-columns: 1fr; }
-      .totp-mask { border-radius: 0; }
+    .badge.success { background: var(--success-bg); color: var(--success); }
+    .badge.danger { background: var(--danger-bg); color: var(--danger); }
+    
+    .kv { margin-bottom: 12px; font-size: 14px; line-height: 1.5; display: flex; }
+    .kv b { color: var(--text-secondary); font-weight: 600; width: 120px; flex-shrink: 0; }
+    
+    .totp-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .totp-box {
+      width: 100%;
+      max-width: 400px;
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: var(--shadow-lg);
     }
   </style>
 </head>
@@ -316,6 +370,7 @@ function renderWebClientHTML(): string {
       var defaultKdfIterations = ${defaultKdfIterations};
       var state = {
         phase: 'loading',
+        lang: (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en',
         msg: '',
         msgType: 'ok',
         inviteCode: '',
@@ -346,13 +401,162 @@ function renderWebClientHTML(): string {
       };
       var NO_FOLDER_FILTER = '__none__';
 
+      var i18n = {
+        en: {
+          brand: 'NodeWarden',
+          subtitle: 'Open Source Password Manager',
+          login: 'Log In',
+          register: 'Create Account',
+          email: 'Email Address',
+          masterPwd: 'Master Password',
+          confirmPwd: 'Confirm Master Password',
+          name: 'Name',
+          inviteCode: 'Invite Code (Optional)',
+          loginBtn: 'Log In',
+          registerBtn: 'Create Account',
+          backToLogin: 'Back to Log In',
+          vault: 'Vault',
+          settings: 'Settings',
+          admin: 'Admin',
+          help: 'Help',
+          logout: 'Log Out',
+          folders: 'Folders',
+          allItems: 'All Items',
+          noFolder: 'No Folder',
+          refresh: 'Refresh',
+          move: 'Move',
+          delete: 'Delete',
+          selectAll: 'Select All',
+          clear: 'Clear',
+          noItems: 'There are no items to list.',
+          selectItem: 'Select an item to view details.',
+          profile: 'Profile',
+          saveProfile: 'Save Profile',
+          changePwd: 'Change Master Password',
+          currentPwd: 'Current Master Password',
+          newPwd: 'New Master Password',
+          totpSetup: 'Two-Step Login (TOTP)',
+          enableTotp: 'Enable TOTP',
+          disableTotp: 'Disable TOTP',
+          secret: 'Authenticator Key',
+          verifyCode: 'Verification Code',
+          users: 'Users',
+          invites: 'Invites',
+          createInvite: 'Create Invite',
+          expiresIn: 'Expires in (hours)',
+          copyLink: 'Copy Link',
+          revoke: 'Revoke',
+          ban: 'Ban',
+          unban: 'Unban',
+          status: 'Status',
+          role: 'Role',
+          action: 'Options',
+          loading: 'Loading NodeWarden...',
+          totpVerify: 'Two-step verification',
+          totpVerifySub: 'Password is already verified.',
+          totpCode: 'TOTP Code',
+          verify: 'Verify',
+          cancel: 'Cancel',
+          totpDisableSub: 'Enter master password to disable two-step verification.',
+          helpSync: 'Upstream Sync',
+          helpSync1: 'Track upstream with a fork and scheduled sync workflow (recommended).',
+          helpSync2: 'Before merge: compare API routes, migration files, and auth logic changes.',
+          helpSync3: 'After merge: run local dev migration tests, then deploy Worker after validation.',
+          helpErr: 'Common Errors',
+          helpErr1: '401 Unauthorized: token expired or revoked, login again.',
+          helpErr2: '403 Account disabled: admin must unban user in User Management.',
+          helpErr3: '403 Invite invalid: invite expired/used/revoked, create a new invite.',
+          helpErr4: '429 Too many requests: wait retry seconds and avoid burst writes.',
+          helpTb: 'Troubleshooting',
+          helpTb1: 'Login OK but encrypted values shown: verify profile key and KDF settings are consistent.',
+          helpTb2: 'TOTP fails repeatedly: sync device time and re-scan QR using latest secret.',
+          helpTb3: 'Password change failed: ensure current password is correct and new password has at least 12 chars.',
+          helpTb4: 'Sync conflicts: refresh vault and retry one operation at a time.',
+          langSwitch: '中文'
+        },
+        zh: {
+          brand: 'NodeWarden',
+          subtitle: '开源密码管理器',
+          login: '登录',
+          register: '创建账号',
+          email: '电子邮件地址',
+          masterPwd: '主密码',
+          confirmPwd: '确认主密码',
+          name: '姓名',
+          inviteCode: '邀请码 (可选)',
+          loginBtn: '登录',
+          registerBtn: '创建账号',
+          backToLogin: '返回登录',
+          vault: '密码库',
+          settings: '设置',
+          admin: '管理',
+          help: '帮助',
+          logout: '退出登录',
+          folders: '文件夹',
+          allItems: '所有项目',
+          noFolder: '无文件夹',
+          refresh: '刷新',
+          move: '移动',
+          delete: '删除',
+          selectAll: '全选',
+          clear: '清除',
+          noItems: '没有可列出的项目。',
+          selectItem: '选择一个项目以查看详细信息。',
+          profile: '个人资料',
+          saveProfile: '保存个人资料',
+          changePwd: '更改主密码',
+          currentPwd: '当前主密码',
+          newPwd: '新主密码',
+          totpSetup: '两步登录 (TOTP)',
+          enableTotp: '启用 TOTP',
+          disableTotp: '禁用 TOTP',
+          secret: '身份验证器密钥',
+          verifyCode: '验证码',
+          users: '用户',
+          invites: '邀请',
+          createInvite: '创建邀请',
+          expiresIn: '过期时间 (小时)',
+          copyLink: '复制链接',
+          revoke: '撤销',
+          ban: '封禁',
+          unban: '解封',
+          status: '状态',
+          role: '角色',
+          action: '选项',
+          loading: '正在加载 NodeWarden...',
+          totpVerify: '两步验证',
+          totpVerifySub: '密码已验证。',
+          totpCode: 'TOTP 验证码',
+          verify: '验证',
+          cancel: '取消',
+          totpDisableSub: '输入主密码以禁用两步验证。',
+          helpSync: '上游同步',
+          helpSync1: '建议通过 fork 和定时同步工作流跟踪上游。',
+          helpSync2: '合并前：比较 API 路由、迁移文件和认证逻辑的更改。',
+          helpSync3: '合并后：运行本地开发迁移测试，验证后部署 Worker。',
+          helpErr: '常见错误',
+          helpErr1: '401 未授权：令牌过期或被撤销，请重新登录。',
+          helpErr2: '403 账号被禁用：管理员必须在用户管理中解封用户。',
+          helpErr3: '403 邀请无效：邀请已过期/已使用/被撤销，请创建新邀请。',
+          helpErr4: '429 请求过多：等待重试时间，避免突发写入。',
+          helpTb: '故障排除',
+          helpTb1: '登录成功但显示加密值：验证个人资料密钥和 KDF 设置是否一致。',
+          helpTb2: 'TOTP 反复失败：同步设备时间并使用最新密钥重新扫描二维码。',
+          helpTb3: '密码更改失败：确保当前密码正确且新密码至少 12 个字符。',
+          helpTb4: '同步冲突：刷新密码库并一次重试一个操作。',
+          langSwitch: 'English'
+        }
+      };
+
+      function t(key) { return i18n[state.lang][key] || key; }
+
       function esc(v) {
         return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
       function sessionKey() { return 'nodewarden.web.session.v2'; }
       function setMsg(t, ty) { state.msg = t || ''; state.msgType = ty || 'ok'; render(); }
       function clearMsg() { state.msg = ''; }
-      function renderMsg() { return state.msg ? '<div class="msg ' + (state.msgType === 'err' ? 'err' : 'ok') + '">' + esc(state.msg) + '</div>' : ''; }
+      function renderMsg() { return state.msg ? '<div class="alert alert-' + (state.msgType === 'err' ? 'danger' : 'success') + '">' + esc(state.msg) + '</div>' : ''; }
       function saveSession() { if (state.session) localStorage.setItem(sessionKey(), JSON.stringify(state.session)); else localStorage.removeItem(sessionKey()); }
       function loadSession() { try { var r = localStorage.getItem(sessionKey()); if (!r) return null; var p = JSON.parse(r); if (!p || !p.accessToken || !p.refreshToken) return null; return p; } catch (e) { return null; } }
       function bytesToBase64(bytes) { var s=''; for (var i=0;i<bytes.length;i++) s += String.fromCharCode(bytes[i]); return btoa(s); }
@@ -481,40 +685,57 @@ function renderWebClientHTML(): string {
       }
       function renderLoginScreen(){
         return ''
-          + '<div class="shell"><div class="auth">'
-          + '  <aside class="auth-left"><div class="brand">NW</div><h1>NodeWarden Web</h1><p>Password errors keep email/password fields. If 2FA is enabled, password step is done once and TOTP is entered in modal only.</p></aside>'
-          + '  <main class="auth-right"><h2 class="section-title">Sign In</h2>'
+          + '<div class="auth-page">'
+          + '  <div class="lang-switch" data-action="toggle-lang">'+t('langSwitch')+'</div>'
+          + '  <div class="auth-card">'
+          + '    <div class="auth-header">'
+          + '      <div class="auth-logo"></div>'
+          + '      <div class="auth-title">'+t('brand')+'</div>'
+          + '      <div class="auth-subtitle">'+t('subtitle')+'</div>'
+          + '    </div>'
           +      renderMsg()
           + '    <form id="loginForm">'
-          + '      <div class="field"><label>Email</label><input type="email" name="email" value="'+esc(state.loginEmail)+'" required /></div>'
-          + '      <div class="field"><label>Master Password</label><input type="password" name="password" value="'+esc(state.loginPassword)+'" required /></div>'
-          + '      <div class="actions"><button class="btn primary" type="submit">Login</button><button class="btn secondary" type="button" data-action="goto-register">Register</button></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(state.loginEmail)+'" required autofocus /></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="password" value="'+esc(state.loginPassword)+'" required /></div>'
+          + '      <button class="btn btn-primary" type="submit" style="width:100%; margin-top:16px;">'+t('loginBtn')+'</button>'
           + '    </form>'
+          + '    <div class="auth-footer">'
+          + '      <a href="#" data-action="goto-register">'+t('registerBtn')+'</a>'
+          + '    </div>'
           + (state.pendingLogin ? ''
-            + '<div class="totp-mask"><div class="totp-box"><h3>Two-step verification</h3><div class="tiny">Password is already verified.</div>'
-            + (state.loginTotpError?'<div class="msg err" style="margin-top:8px;">'+esc(state.loginTotpError)+'</div>':'')
-            + '<form id="loginTotpForm"><div class="field"><label>TOTP Code</label><input name="totpToken" maxlength="6" value="'+esc(state.loginTotpToken)+'" required /></div><div class="actions"><button class="btn primary" type="submit">Verify</button><button class="btn secondary" type="button" data-action="totp-cancel">Cancel</button></div></form>'
+            + '<div class="totp-mask"><div class="totp-box"><h3 style="margin-top:0;">'+t('totpVerify')+'</h3><div class="tiny" style="margin-bottom:16px;">'+t('totpVerifySub')+'</div>'
+            + (state.loginTotpError?'<div class="alert alert-danger" style="margin-bottom:16px;">'+esc(state.loginTotpError)+'</div>':'')
+            + '<form id="loginTotpForm"><div class="form-group"><label class="form-label">'+t('totpCode')+'</label><input class="form-input" name="totpToken" maxlength="6" value="'+esc(state.loginTotpToken)+'" required autofocus /></div><div style="display:flex; gap:8px; margin-top:16px;"><button class="btn btn-primary" type="submit" style="flex:1;">'+t('verify')+'</button><button class="btn btn-secondary" type="button" data-action="totp-cancel" style="flex:1;">'+t('cancel')+'</button></div></form>'
             + '</div></div>'
             : '')
-          + '  </main>'
-          + '</div></div>';
+          + '  </div>'
+          + '</div>';
       }
 
       function renderRegisterScreen(){
         return ''
-          + '<div class="shell"><div class="auth">'
-          + '  <aside class="auth-left"><div class="brand">NW</div><h1>NodeWarden Web</h1><p>First account becomes admin. Later accounts require invite code.</p></aside>'
-          + '  <main class="auth-right"><h2 class="section-title">Register</h2>'
+          + '<div class="auth-page">'
+          + '  <div class="lang-switch" data-action="toggle-lang">'+t('langSwitch')+'</div>'
+          + '  <div class="auth-card">'
+          + '    <div class="auth-header">'
+          + '      <div class="auth-logo"></div>'
+          + '      <div class="auth-title">'+t('register')+'</div>'
+          + '      <div class="auth-subtitle">'+t('brand')+'</div>'
+          + '    </div>'
           +      renderMsg()
           + '    <form id="registerForm">'
-          + '      <div class="row"><div class="field"><label>Name</label><input name="name" value="'+esc(state.registerName)+'" required /></div><div class="field"><label>Email</label><input type="email" name="email" value="'+esc(state.registerEmail)+'" required /></div></div>'
-          + '      <div class="field"><label>Master Password</label><input type="password" name="password" value="'+esc(state.registerPassword)+'" minlength="12" required /></div>'
-          + '      <div class="field"><label>Confirm Password</label><input type="password" name="password2" value="'+esc(state.registerPassword2)+'" minlength="12" required /></div>'
-          + '      <div class="field"><label>Invite Code</label><input name="inviteCode" value="'+esc(state.inviteCode)+'" /></div>'
-          + '      <div class="actions"><button class="btn primary" type="submit">Create Account</button><button class="btn secondary" type="button" data-action="goto-login">Back to Login</button></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('name')+'</label><input class="form-input" name="name" value="'+esc(state.registerName)+'" required autofocus /></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(state.registerEmail)+'" required /></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="password" value="'+esc(state.registerPassword)+'" minlength="12" required /></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('confirmPwd')+'</label><input class="form-input" type="password" name="password2" value="'+esc(state.registerPassword2)+'" minlength="12" required /></div>'
+          + '      <div class="form-group"><label class="form-label">'+t('inviteCode')+'</label><input class="form-input" name="inviteCode" value="'+esc(state.inviteCode)+'" /></div>'
+          + '      <button class="btn btn-primary" type="submit" style="width:100%; margin-top:16px;">'+t('registerBtn')+'</button>'
           + '    </form>'
-          + '  </main>'
-          + '</div></div>';
+          + '    <div class="auth-footer">'
+          + '      <a href="#" data-action="goto-login">'+t('backToLogin')+'</a>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>';
       }
 
       function renderVaultTab(){
@@ -525,10 +746,10 @@ function renderWebClientHTML(): string {
           var nameText=(c.decName||c.name||c.id);
           rows += '<div class="item '+(c.id===state.selectedCipherId?'active':'')+'" data-action="pick-cipher" data-id="'+esc(c.id)+'"><input type="checkbox" data-action="toggle-select" data-id="'+esc(c.id)+'"'+(state.selectedMap[c.id]?' checked':'')+' /><div><div style="font-weight:600;font-size:14px;color:var(--text-primary);">'+esc(nameText)+'</div><div class="tiny" style="color:var(--text-secondary);">'+esc(c.id)+'</div></div></div>';
         }
-        if(!rows) rows='<div class="item" style="justify-content:center; color:var(--text-secondary);">No items in this folder.</div>';
+        if(!rows) rows='<div class="item" style="justify-content:center; color:var(--text-secondary);">'+t('noItems')+'</div>';
 
         var c0=selectedCipher();
-        var detail='<div class="tiny" style="text-align:center; padding:40px; color:var(--text-secondary);">Select an item to view details.</div>';
+        var detail='<div class="tiny" style="text-align:center; padding:40px; color:var(--text-secondary);">'+t('selectItem')+'</div>';
         if(c0){
           var login = c0.login||{};
           var fields=Array.isArray(c0.fields)?c0.fields:[];
@@ -549,8 +770,8 @@ function renderWebClientHTML(): string {
         return ''
           + renderMsg()
           + '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">'
-          + '<h2 style="margin:0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">Vault</h2>'
-          + '<div class="actions" style="margin:0;"><button class="btn secondary" data-action="vault-refresh">Refresh</button><button class="btn secondary" data-action="bulk-move">Move</button><button class="btn danger" data-action="bulk-delete">Delete ('+selectedCount()+')</button><button class="btn secondary" data-action="select-all">All</button><button class="btn secondary" data-action="select-none">Clear</button></div>'
+          + '<h2 style="margin:0; font-size:24px; font-weight:600; color:var(--text-primary);">'+t('vault')+'</h2>'
+          + '<div style="display:flex; gap:8px;"><button class="btn btn-secondary" data-action="vault-refresh">'+t('refresh')+'</button><button class="btn btn-secondary" data-action="bulk-move">'+t('move')+'</button><button class="btn btn-danger" data-action="bulk-delete">'+t('delete')+' ('+selectedCount()+')</button><button class="btn btn-secondary" data-action="select-all">'+t('selectAll')+'</button><button class="btn btn-secondary" data-action="select-none">'+t('clear')+'</button></div>'
           + '</div>'
           + '<div class="vault-grid"><div class="list">'+rows+'</div><div class="panel" style="margin:0; overflow:auto;">'+detail+'</div></div>';
       }
@@ -561,26 +782,26 @@ function renderWebClientHTML(): string {
         var qr='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(buildTotpUri(secret));
         return ''
           + renderMsg()
-          + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">Settings</h2>'
-          + '<div class="panel"><h3>Profile</h3><form id="profileForm"><div class="row"><div class="field"><label>Name</label><input name="name" value="'+esc(p.name||'')+'" /></div><div class="field"><label>Email</label><input type="email" name="email" value="'+esc(p.email||'')+'" required /></div></div><div class="actions"><button class="btn primary" type="submit">Save Profile</button></div></form></div>'
-          + '<div class="panel"><h3>Master Password</h3><form id="passwordForm"><div class="field"><label>Current Master Password</label><input type="password" name="currentPassword" required /></div><div class="row"><div class="field"><label>New Master Password</label><input type="password" name="newPassword" minlength="12" required /></div><div class="field"><label>Confirm New Password</label><input type="password" name="newPassword2" minlength="12" required /></div></div><div class="actions"><button class="btn danger" type="submit">Change Master Password</button></div><div class="tiny">After success, current sessions are revoked and you must log in again.</div></form></div>'
-          + '<div class="panel"><h3>TOTP Setup</h3><div class="qr-row"><div class="qr-box"><img src="'+esc(qr)+'" alt="TOTP QR" /></div><div><form id="totpEnableForm"><div class="field"><label>Secret (Base32)</label><input name="secret" value="'+esc(secret)+'" /></div><div class="field"><label>Verification Code</label><input name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div class="actions"><button class="btn primary" type="submit">Enable TOTP</button><button class="btn secondary" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn secondary" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><div class="actions"><button class="btn danger" type="button" data-action="totp-disable">Disable TOTP</button></div><div class="tiny">Disable action prompts for master password.</div></div>';
+          + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:600; color:var(--text-primary);">'+t('settings')+'</h2>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('profile')+'</h3><form id="profileForm"><div style="display:flex; gap:16px; margin-bottom:16px;"><div class="form-group" style="flex:1;"><label class="form-label">'+t('name')+'</label><input class="form-input" name="name" value="'+esc(p.name||'')+'" /></div><div class="form-group" style="flex:1;"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(p.email||'')+'" required /></div></div><button class="btn btn-primary" type="submit">'+t('saveProfile')+'</button></form></div>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('changePwd')+'</h3><form id="passwordForm"><div class="form-group"><label class="form-label">'+t('currentPwd')+'</label><input class="form-input" type="password" name="currentPassword" required /></div><div style="display:flex; gap:16px; margin-bottom:16px;"><div class="form-group" style="flex:1;"><label class="form-label">'+t('newPwd')+'</label><input class="form-input" type="password" name="newPassword" minlength="12" required /></div><div class="form-group" style="flex:1;"><label class="form-label">'+t('confirmPwd')+'</label><input class="form-input" type="password" name="newPassword2" minlength="12" required /></div></div><button class="btn btn-danger" type="submit">'+t('changePwd')+'</button><div class="tiny" style="margin-top:8px;">After success, current sessions are revoked and you must log in again.</div></form></div>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('totpSetup')+'</h3><div style="display:flex; gap:24px; margin-bottom:24px; flex-wrap:wrap;"><div style="background:#fff; padding:16px; border:1px solid var(--border-color); border-radius:8px;"><img src="'+esc(qr)+'" alt="TOTP QR" style="display:block;" /></div><div style="flex:1; min-width:250px;"><form id="totpEnableForm"><div class="form-group"><label class="form-label">'+t('secret')+'</label><input class="form-input" name="secret" value="'+esc(secret)+'" /></div><div class="form-group"><label class="form-label">'+t('verifyCode')+'</label><input class="form-input" name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div style="display:flex; gap:8px;"><button class="btn btn-primary" type="submit">'+t('enableTotp')+'</button><button class="btn btn-secondary" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn btn-secondary" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><button class="btn btn-danger" type="button" data-action="totp-disable">'+t('disableTotp')+'</button><div class="tiny" style="margin-top:8px;">Disable action prompts for master password.</div></div>';
       }
       function renderTotpDisableModal(){
         if(!state.totpDisableOpen) return '';
         return ''
-          + '<div class="totp-mask"><div class="totp-box"><h3 style="margin:0 0 8px 0; font-size:20px;">Disable TOTP</h3><div class="tiny" style="margin-bottom:16px;">Enter master password to disable two-step verification.</div>'
-          + (state.totpDisableError?'<div class="msg err" style="margin-bottom:16px;">'+esc(state.totpDisableError)+'</div>':'')
-          + '<form id="totpDisableForm"><div class="field"><label>Master Password</label><input type="password" name="masterPassword" value="'+esc(state.totpDisablePassword)+'" required /></div><div class="actions"><button class="btn danger" type="submit">Disable</button><button class="btn secondary" type="button" data-action="totp-disable-cancel">Cancel</button></div></form>'
+          + '<div class="totp-mask"><div class="totp-box"><h3 style="margin-top:0;">'+t('disableTotp')+'</h3><div class="tiny" style="margin-bottom:16px;">'+t('totpDisableSub')+'</div>'
+          + (state.totpDisableError?'<div class="alert alert-danger" style="margin-bottom:16px;">'+esc(state.totpDisableError)+'</div>':'')
+          + '<form id="totpDisableForm"><div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="masterPassword" value="'+esc(state.totpDisablePassword)+'" required autofocus /></div><div style="display:flex; gap:8px; margin-top:16px;"><button class="btn btn-danger" type="submit" style="flex:1;">'+t('disableTotp')+'</button><button class="btn btn-secondary" type="button" data-action="totp-disable-cancel" style="flex:1;">'+t('cancel')+'</button></div></form>'
           + '</div></div>';
       }
 
       function renderHelpTab(){
         return ''
-          + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">Help & Support</h2>'
-          + '<div class="panel"><h3>Upstream Sync</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>Track upstream with a fork and scheduled sync workflow (recommended).</li><li>Before merge: compare API routes, migration files, and auth logic changes.</li><li>After merge: run local dev migration tests, then deploy Worker after validation.</li></ul></div>'
-          + '<div class="panel"><h3>Common Errors</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>401 Unauthorized: token expired or revoked, login again.</li><li>403 Account disabled: admin must unban user in User Management.</li><li>403 Invite invalid: invite expired/used/revoked, create a new invite.</li><li>429 Too many requests: wait retry seconds and avoid burst writes.</li></ul></div>'
-          + '<div class="panel"><h3>Troubleshooting</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>Login OK but encrypted values shown: verify profile key and KDF settings are consistent.</li><li>TOTP fails repeatedly: sync device time and re-scan QR using latest secret.</li><li>Password change failed: ensure current password is correct and new password has at least 12 chars.</li><li>Sync conflicts: refresh vault and retry one operation at a time.</li></ul></div>';
+          + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:600; color:var(--text-primary);">'+t('help')+'</h2>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('helpSync')+'</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>'+t('helpSync1')+'</li><li>'+t('helpSync2')+'</li><li>'+t('helpSync3')+'</li></ul></div>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('helpErr')+'</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>'+t('helpErr1')+'</li><li>'+t('helpErr2')+'</li><li>'+t('helpErr3')+'</li><li>'+t('helpErr4')+'</li></ul></div>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('helpTb')+'</h3><ul style="margin:0; padding-left:20px; color:var(--text-secondary); line-height:1.6;"><li>'+t('helpTb1')+'</li><li>'+t('helpTb2')+'</li><li>'+t('helpTb3')+'</li><li>'+t('helpTb4')+'</li></ul></div>';
       }
 
       function renderAdminTab(){
@@ -588,8 +809,8 @@ function renderWebClientHTML(): string {
         for(var i=0;i<state.users.length;i++){
           var u=state.users[i]; var canAct=state.profile&&u.id!==state.profile.id;
           usersRows += '<tr><td>'+esc(u.email)+'</td><td>'+esc(u.name||'')+'</td><td><span class="badge">'+esc(u.role)+'</span></td><td><span class="badge '+(u.status==='active'?'success':'danger')+'">'+esc(u.status)+'</span></td><td>'
-            + (canAct?'<button class="btn secondary" data-action="user-toggle" data-id="'+esc(u.id)+'" data-status="'+esc(u.status)+'">'+(u.status==='active'?'Ban':'Unban')+'</button>':'')
-            + (canAct?' <button class="btn danger" data-action="user-delete" data-id="'+esc(u.id)+'">Delete</button>':'')
+            + (canAct?'<button class="btn btn-secondary" data-action="user-toggle" data-id="'+esc(u.id)+'" data-status="'+esc(u.status)+'">'+(u.status==='active'?t('ban'):t('unban'))+'</button>':'')
+            + (canAct?' <button class="btn btn-danger" data-action="user-delete" data-id="'+esc(u.id)+'">'+t('delete')+'</button>':'')
             + '</td></tr>';
         }
         if(!usersRows) usersRows='<tr><td colspan="5" style="text-align:center; color:var(--text-secondary); padding:24px;">No users found.</td></tr>';
@@ -598,8 +819,8 @@ function renderWebClientHTML(): string {
         for(var j=0;j<state.invites.length;j++){
           var inv=state.invites[j];
           inviteRows += '<tr><td><code style="background:var(--bg-secondary); padding:4px 8px; border-radius:6px; font-size:13px;">'+esc(inv.code)+'</code></td><td><span class="badge '+(inv.status==='active'?'success':'danger')+'">'+esc(inv.status)+'</span></td><td>'+esc(inv.expiresAt)+'</td><td>'
-            + '<button class="btn secondary" data-action="invite-copy" data-link="'+esc(inv.inviteLink||'')+'">Copy link</button>'
-            + (inv.status==='active'?' <button class="btn danger" data-action="invite-revoke" data-code="'+esc(inv.code)+'">Revoke</button>':'')
+            + '<button class="btn btn-secondary" data-action="invite-copy" data-link="'+esc(inv.inviteLink||'')+'">'+t('copyLink')+'</button>'
+            + (inv.status==='active'?' <button class="btn btn-danger" data-action="invite-revoke" data-code="'+esc(inv.code)+'">'+t('revoke')+'</button>':'')
             + '</td></tr>';
         }
         if(!inviteRows) inviteRows='<tr><td colspan="4" style="text-align:center; color:var(--text-secondary); padding:24px;">No invites found.</td></tr>';
@@ -607,39 +828,45 @@ function renderWebClientHTML(): string {
         return ''
           + renderMsg()
           + '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">'
-          + '<h2 style="margin:0; font-size:24px; font-weight:700; letter-spacing:-0.02em;">User Management</h2>'
-          + '<button class="btn secondary" data-action="admin-refresh">Refresh Data</button>'
+          + '<h2 style="margin:0; font-size:24px; font-weight:600; color:var(--text-primary);">'+t('admin')+'</h2>'
+          + '<button class="btn btn-secondary" data-action="admin-refresh">'+t('refresh')+'</button>'
           + '</div>'
-          + '<div class="panel"><h3>Create Invite</h3><form id="inviteForm"><div class="field"><label>Expires in hours</label><input name="hours" type="number" min="1" max="720" value="168" /></div><div class="actions"><button class="btn primary" type="submit">Create Invite</button></div></form></div>'
-          + '<div class="panel"><h3>Users</h3><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>'+usersRows+'</tbody></table></div></div>'
-          + '<div class="panel"><h3>Invites</h3><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Code</th><th>Status</th><th>Expires At</th><th>Action</th></tr></thead><tbody>'+inviteRows+'</tbody></table></div></div>';
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('createInvite')+'</h3><form id="inviteForm"><div class="form-group"><label class="form-label">'+t('expiresIn')+'</label><input class="form-input" name="hours" type="number" min="1" max="720" value="168" /></div><button class="btn btn-primary" type="submit">'+t('createInvite')+'</button></form></div>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('users')+'</h3><div style="overflow-x:auto;"><table class="table"><thead><tr><th>'+t('email')+'</th><th>'+t('name')+'</th><th>'+t('role')+'</th><th>'+t('status')+'</th><th>'+t('action')+'</th></tr></thead><tbody>'+usersRows+'</tbody></table></div></div>'
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('invites')+'</h3><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Code</th><th>'+t('status')+'</th><th>Expires At</th><th>'+t('action')+'</th></tr></thead><tbody>'+inviteRows+'</tbody></table></div></div>';
       }
 
       function renderApp(){
         var isAdmin=state.profile&&state.profile.role==='admin';
         var showFolders=state.tab==='vault';
-        var folders='<button class="btn folder-btn '+(!state.folderFilterId?'active':'')+'" data-action="folder-filter" data-folder="">All items</button>'
-          + '<button class="btn folder-btn '+(state.folderFilterId===NO_FOLDER_FILTER?'active':'')+'" data-action="folder-filter" data-folder="'+NO_FOLDER_FILTER+'">无文件夹</button>';
+        var folders='<button class="btn folder-btn '+(!state.folderFilterId?'active':'')+'" data-action="folder-filter" data-folder="">'+t('allItems')+'</button>'
+          + '<button class="btn folder-btn '+(state.folderFilterId===NO_FOLDER_FILTER?'active':'')+'" data-action="folder-filter" data-folder="'+NO_FOLDER_FILTER+'">'+t('noFolder')+'</button>';
         for(var i=0;i<state.folders.length;i++){ var f=state.folders[i]; var folderName=(f.decName||f.name||f.id); folders += '<button class="btn folder-btn '+(state.folderFilterId===f.id?'active':'')+' " data-action="folder-filter" data-folder="'+esc(f.id)+'">'+esc(folderName)+'</button>'; }
         var content = state.tab==='vault'?renderVaultTab():state.tab==='settings'?renderSettingsTab():(state.tab==='admin'&&isAdmin)?renderAdminTab():renderHelpTab();
-        var layoutClass=showFolders?'vault-layout':'normal-layout';
+        
         return ''
-          + '<div class="shell"><div class="app-layout '+layoutClass+'">'
-          + '  <aside class="sidebar"><div class="brand">NW</div><div class="mail">'+esc(state.profile&&state.profile.email?state.profile.email:'')+'</div>'
-          + '    <div style="flex:1; display:flex; flex-direction:column; gap:4px;">'
-          + '      <button class="btn nav-btn '+(state.tab==='vault'?'active':'')+'" data-action="tab" data-tab="vault">Vault</button>'
-          + '      <button class="btn nav-btn '+(state.tab==='settings'?'active':'')+'" data-action="tab" data-tab="settings">Settings</button>'
-          + (isAdmin?'<button class="btn nav-btn '+(state.tab==='admin'?'active':'')+'" data-action="tab" data-tab="admin">User Management</button>':'')
-          + '      <button class="btn nav-btn '+(state.tab==='help'?'active':'')+'" data-action="tab" data-tab="help">Help</button>'
-          + '    </div>'
-          + '    <button class="btn nav-btn" style="margin-top:auto; color:var(--danger);" data-action="logout">Logout</button></aside>'
-          + (showFolders?('  <aside class="folderbar"><h3 style="margin:0 0 16px 0; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-secondary);">Folders</h3><div style="display:flex; flex-direction:column; gap:4px;">'+folders+'</div></aside>'):'')
+          + '<div class="navbar">'
+          + '  <div class="nav-brand"><div class="nav-logo"></div>'+t('brand')+'</div>'
+          + '  <div class="nav-links">'
+          + '    <a href="#" class="nav-link '+(state.tab==='vault'?'active':'')+'" data-action="tab" data-tab="vault">'+t('vault')+'</a>'
+          + '    <a href="#" class="nav-link '+(state.tab==='settings'?'active':'')+'" data-action="tab" data-tab="settings">'+t('settings')+'</a>'
+          + (isAdmin?'<a href="#" class="nav-link '+(state.tab==='admin'?'active':'')+'" data-action="tab" data-tab="admin">'+t('admin')+'</a>':'')
+          + '    <a href="#" class="nav-link '+(state.tab==='help'?'active':'')+'" data-action="tab" data-tab="help">'+t('help')+'</a>'
+          + '  </div>'
+          + '  <div class="nav-user">'
+          + '    <div class="lang-switch" data-action="toggle-lang" style="position:static; margin-right:16px;">'+t('langSwitch')+'</div>'
+          + '    <span style="margin-right:16px; color:var(--text-secondary);">'+esc(state.profile&&state.profile.email?state.profile.email:'')+'</span>'
+          + '    <button class="btn btn-secondary" data-action="logout">'+t('logout')+'</button>'
+          + '  </div>'
+          + '</div>'
+          + '<div class="app-body">'
+          + (showFolders?('  <aside class="sidebar"><div class="sidebar-title">'+t('folders')+'</div><div style="display:flex; flex-direction:column; gap:4px;">'+folders+'</div></aside>'):'')
           + '  <main class="content">'+content+'</main>'
-          + '</div>'+renderTotpDisableModal()+'</div>';
+          + '</div>'+renderTotpDisableModal();
       }
 
       function render(){
-        if(state.phase==='loading'){ app.innerHTML='<div class="shell" style="align-items:center; justify-content:center;"><div style="display:flex; flex-direction:column; align-items:center; gap:16px;"><div class="brand" style="margin:0;">NW</div><div style="color:var(--text-secondary); font-weight:500;">Loading NodeWarden...</div></div></div>'; return; }
+        if(state.phase==='loading'){ app.innerHTML='<div class="auth-page" style="align-items:center; justify-content:center;"><div style="display:flex; flex-direction:column; align-items:center; gap:16px;"><div class="auth-logo" style="margin:0;"></div><div style="color:var(--text-secondary); font-weight:500;">'+t('loading')+'</div></div></div>'; return; }
         if(state.phase==='register'){ app.innerHTML=renderRegisterScreen(); return; }
         if(state.phase==='login'){ app.innerHTML=renderLoginScreen(); return; }
         app.innerHTML=renderApp();
@@ -785,6 +1012,7 @@ function renderWebClientHTML(): string {
 
       app.addEventListener('click', function(ev){
         var n=ev.target; while(n&&n!==app&&!n.getAttribute('data-action')) n=n.parentElement; if(!n||n===app) return; var a=n.getAttribute('data-action'); if(!a) return;
+        if(a==='toggle-lang'){ state.lang = state.lang === 'zh' ? 'en' : 'zh'; render(); return; }
         if(a==='goto-login'){ state.phase='login'; clearMsg(); render(); return; }
         if(a==='goto-register'){ state.phase='register'; clearMsg(); render(); return; }
         if(a==='logout'){ if(window.confirm('Log out now?')) logout(); return; }
