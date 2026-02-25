@@ -234,6 +234,10 @@ function renderWebClientHTML(): string {
         msg: '',
         msgType: 'ok',
         inviteCode: '',
+        registerName: '',
+        registerEmail: '',
+        registerPassword: '',
+        registerPassword2: '',
         session: null,
         profile: null,
         tab: 'vault',
@@ -348,7 +352,7 @@ function renderWebClientHTML(): string {
         var it=Number(d.kdfIterations||defaultKdfIterations);
         var mk=await pbkdf2(password,email.toLowerCase(),it,32);
         var h=await pbkdf2(mk,password,1,32);
-        return { hash: bytesToBase64(h), masterKey: mk };
+        return { hash: bytesToBase64(h), masterKey: mk, kdfIterations: it };
       }
 
       function logout(){
@@ -376,6 +380,20 @@ function renderWebClientHTML(): string {
       function randomBase32Secret(len){ var a='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; var b=crypto.getRandomValues(new Uint8Array(len)); var o=''; for(var i=0;i<b.length;i++) o+=a[b[i]%a.length]; return o; }
       function currentTotpSecret(){ if(!state.totpSetupSecret) state.totpSetupSecret=randomBase32Secret(32); return state.totpSetupSecret; }
       function buildTotpUri(secret){ var issuer='NodeWarden'; var account=state.profile&&state.profile.email?state.profile.email:'account'; return 'otpauth://totp/'+encodeURIComponent(issuer+':'+account)+'?secret='+encodeURIComponent(secret)+'&issuer='+encodeURIComponent(issuer)+'&algorithm=SHA1&digits=6&period=30'; }
+      function buildSymmetricKeyBytes(){
+        if(!state.session||!state.session.symEncKey||!state.session.symMacKey) return null;
+        try{
+          var enc=base64ToBytes(state.session.symEncKey);
+          var mac=base64ToBytes(state.session.symMacKey);
+          if(enc.length!==32||mac.length!==32) return null;
+          var out=new Uint8Array(64);
+          out.set(enc,0);
+          out.set(mac,32);
+          return out;
+        }catch(e){
+          return null;
+        }
+      }
       function renderLoginScreen(){
         return ''
           + '<div class="shell"><div class="auth">'
@@ -404,9 +422,9 @@ function renderWebClientHTML(): string {
           + '  <main class="auth-right"><h2 class="section-title">Register</h2>'
           +      renderMsg()
           + '    <form id="registerForm">'
-          + '      <div class="row"><div class="field"><label>Name</label><input name="name" required /></div><div class="field"><label>Email</label><input type="email" name="email" required /></div></div>'
-          + '      <div class="field"><label>Master Password</label><input type="password" name="password" minlength="12" required /></div>'
-          + '      <div class="field"><label>Confirm Password</label><input type="password" name="password2" minlength="12" required /></div>'
+          + '      <div class="row"><div class="field"><label>Name</label><input name="name" value="'+esc(state.registerName)+'" required /></div><div class="field"><label>Email</label><input type="email" name="email" value="'+esc(state.registerEmail)+'" required /></div></div>'
+          + '      <div class="field"><label>Master Password</label><input type="password" name="password" value="'+esc(state.registerPassword)+'" minlength="12" required /></div>'
+          + '      <div class="field"><label>Confirm Password</label><input type="password" name="password2" value="'+esc(state.registerPassword2)+'" minlength="12" required /></div>'
           + '      <div class="field"><label>Invite Code</label><input name="inviteCode" value="'+esc(state.inviteCode)+'" /></div>'
           + '      <div class="actions"><button class="btn primary" type="submit">Create Account</button><button class="btn" type="button" data-action="goto-login">Back to Login</button></div>'
           + '    </form>'
@@ -458,6 +476,7 @@ function renderWebClientHTML(): string {
         return ''
           + renderMsg()
           + '<div class="panel"><h3>Profile</h3><form id="profileForm"><div class="row"><div class="field"><label>Name</label><input name="name" value="'+esc(p.name||'')+'" /></div><div class="field"><label>Email</label><input type="email" name="email" value="'+esc(p.email||'')+'" required /></div></div><div class="actions"><button class="btn primary" type="submit">Save Profile</button></div></form></div>'
+          + '<div class="panel"><h3>Master Password</h3><form id="passwordForm"><div class="field"><label>Current Master Password</label><input type="password" name="currentPassword" required /></div><div class="row"><div class="field"><label>New Master Password</label><input type="password" name="newPassword" minlength="12" required /></div><div class="field"><label>Confirm New Password</label><input type="password" name="newPassword2" minlength="12" required /></div></div><div class="actions"><button class="btn danger" type="submit">Change Master Password</button></div><div class="tiny">After success, current sessions are revoked and you must log in again.</div></form></div>'
           + '<div class="panel"><h3>TOTP Setup</h3><div class="qr-row"><div class="qr-box"><img src="'+esc(qr)+'" alt="TOTP QR" /></div><div><form id="totpEnableForm"><div class="field"><label>Secret (Base32)</label><input name="secret" value="'+esc(secret)+'" /></div><div class="field"><label>Verification Code</label><input name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div class="actions"><button class="btn secondary" type="submit">Enable TOTP</button><button class="btn" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><div class="actions"><button class="btn danger" type="button" data-action="totp-disable">Disable TOTP</button></div><div class="tiny">Disable action prompts for master password.</div></div>';
       }
       function renderTotpDisableModal(){
@@ -471,8 +490,9 @@ function renderWebClientHTML(): string {
 
       function renderHelpTab(){
         return ''
-          + '<div class="help-box"><h4>Upstream Sync</h4><ul><li>Use fork + GitHub Actions scheduled sync.</li><li>Or use manual Sync fork from repository page.</li><li>Deploy updated branch in Cloudflare Worker after sync.</li></ul></div>'
-          + '<div class="help-box"><h4>Common Errors</h4><ul><li>401 Unauthorized: login again.</li><li>429 Too many requests: wait and retry.</li><li>403 Invite invalid: check invite status and expiry.</li><li>Disabled user cannot login.</li></ul></div>';
+          + '<div class="help-box"><h4>Upstream Sync</h4><ul><li>Track upstream with a fork and scheduled sync workflow (recommended).</li><li>Before merge: compare API routes, migration files, and auth logic changes.</li><li>After merge: run local dev migration tests, then deploy Worker after validation.</li></ul></div>'
+          + '<div class="help-box"><h4>Common Errors</h4><ul><li>401 Unauthorized: token expired or revoked, login again.</li><li>403 Account disabled: admin must unban user in User Management.</li><li>403 Invite invalid: invite expired/used/revoked, create a new invite.</li><li>429 Too many requests: wait retry seconds and avoid burst writes.</li></ul></div>'
+          + '<div class="help-box"><h4>Troubleshooting</h4><ul><li>Login OK but encrypted values shown: verify profile key and KDF settings are consistent.</li><li>TOTP fails repeatedly: sync device time and re-scan QR using latest secret.</li><li>Password change failed: ensure current password is correct and new password has at least 12 chars.</li><li>Sync conflicts: refresh vault and retry one operation at a time.</li></ul></div>';
       }
 
       function renderAdminTab(){
@@ -543,6 +563,7 @@ function renderWebClientHTML(): string {
       async function onRegister(form){
         clearMsg();
         var fd=new FormData(form); var name=String(fd.get('name')||'').trim(); var email=String(fd.get('email')||'').trim().toLowerCase(); var p=String(fd.get('password')||''); var p2=String(fd.get('password2')||''); var invite=String(fd.get('inviteCode')||'').trim();
+        state.registerName=name; state.registerEmail=email; state.registerPassword=p; state.registerPassword2=p2; state.inviteCode=invite;
         if(!email||!p) return setMsg('Please input email and password.', 'err');
         if(p.length<12) return setMsg('Master password must be at least 12 chars.', 'err');
         if(p!==p2) return setMsg('Passwords do not match.', 'err');
@@ -552,6 +573,7 @@ function renderWebClientHTML(): string {
           var pub=new Uint8Array(await crypto.subtle.exportKey('spki',kp.publicKey)); var prv=new Uint8Array(await crypto.subtle.exportKey('pkcs8',kp.privateKey)); var encPrv=await encryptBw(prv,sym.slice(0,32),sym.slice(32,64));
           var resp=await fetch('/api/accounts/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,name:name,masterPasswordHash:bytesToBase64(hash),key:encKey,kdf:0,kdfIterations:it,inviteCode:invite||undefined,keys:{publicKey:bytesToBase64(pub),encryptedPrivateKey:encPrv}})});
           var j=await jsonOrNull(resp); if(!resp.ok) return setMsg((j&&(j.error||j.error_description))||'Register failed.', 'err');
+          state.registerName=''; state.registerEmail=''; state.registerPassword=''; state.registerPassword2=''; state.inviteCode='';
           state.phase='login'; state.loginEmail=email; state.loginPassword=''; setMsg('Registration succeeded. Please sign in.', 'ok');
         }catch(e){ setMsg(e&&e.message?e.message:String(e), 'err'); }
       }
@@ -595,6 +617,40 @@ function renderWebClientHTML(): string {
         setMsg('Login success.', 'ok');
       }
       async function onSaveProfile(form){ var fd=new FormData(form); var n=String(fd.get('name')||'').trim(); var em=String(fd.get('email')||'').trim().toLowerCase(); var r=await authFetch('/api/accounts/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,email:em})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Save profile failed.', 'err'); state.profile=j; render(); setMsg('Profile updated.', 'ok'); }
+      async function onChangePassword(form){
+        var fd=new FormData(form);
+        var currentPassword=String(fd.get('currentPassword')||'');
+        var newPassword=String(fd.get('newPassword')||'');
+        var newPassword2=String(fd.get('newPassword2')||'');
+        if(!currentPassword||!newPassword) return setMsg('Current/new password is required.', 'err');
+        if(newPassword.length<12) return setMsg('New master password must be at least 12 chars.', 'err');
+        if(newPassword!==newPassword2) return setMsg('New passwords do not match.', 'err');
+        if(newPassword===currentPassword) return setMsg('New password must be different.', 'err');
+        var email=String(state.profile&&state.profile.email?state.profile.email:'').toLowerCase();
+        if(!email) return setMsg('Profile email missing.', 'err');
+        try{
+          var current=await deriveLoginHash(email,currentPassword);
+          var userSym=buildSymmetricKeyBytes();
+          if(!userSym){
+            var oldEk=await hkdfExpand(current.masterKey,'enc',32);
+            var oldEm=await hkdfExpand(current.masterKey,'mac',32);
+            userSym=await decryptBw(state.profile.key,oldEk,oldEm);
+          }
+          if(!userSym||userSym.length<64) return setMsg('Unable to load vault key for password rotation.', 'err');
+          var nextMasterKey=await pbkdf2(newPassword,email,current.kdfIterations,32);
+          var nextHash=await pbkdf2(nextMasterKey,newPassword,1,32);
+          var nextEk=await hkdfExpand(nextMasterKey,'enc',32);
+          var nextEm=await hkdfExpand(nextMasterKey,'mac',32);
+          var newKey=await encryptBw(userSym.slice(0,64),nextEk,nextEm);
+          var r=await authFetch('/api/accounts/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPasswordHash:current.hash,newMasterPasswordHash:bytesToBase64(nextHash),newKey:newKey,kdf:0,kdfIterations:current.kdfIterations})});
+          var j=await jsonOrNull(r);
+          if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Change master password failed.', 'err');
+          logout();
+          setMsg('Master password changed. Please log in again.', 'ok');
+        }catch(e){
+          setMsg('Change master password failed: '+(e&&e.message?e.message:String(e)), 'err');
+        }
+      }
       async function onEnableTotp(form){ var fd=new FormData(form); state.totpSetupSecret=String(fd.get('secret')||'').toUpperCase().replace(/[\\s-]/g,'').replace(/=+$/g,''); state.totpSetupToken=String(fd.get('token')||'').trim(); if(!state.totpSetupSecret) return setMsg('TOTP secret is required.', 'err'); if(!state.totpSetupToken) return setMsg('TOTP token is required.', 'err'); var r=await authFetch('/api/accounts/totp',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:true,secret:state.totpSetupSecret,token:state.totpSetupToken})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Enable TOTP failed.', 'err'); state.totpSetupToken=''; render(); setMsg('TOTP enabled.', 'ok'); }
       function onDisableTotp(){ state.totpDisableOpen=true; state.totpDisablePassword=''; state.totpDisableError=''; render(); }
       async function onDisableTotpSubmit(form){
@@ -627,6 +683,7 @@ function renderWebClientHTML(): string {
         if(form.id==='loginForm') return void onLoginPassword(form);
         if(form.id==='loginTotpForm') return void onLoginTotp(form);
         if(form.id==='profileForm') return void onSaveProfile(form);
+        if(form.id==='passwordForm') return void onChangePassword(form);
         if(form.id==='totpEnableForm') return void onEnableTotp(form);
         if(form.id==='totpDisableForm') return void onDisableTotpSubmit(form);
         if(form.id==='inviteForm') return void onCreateInvite(form);
