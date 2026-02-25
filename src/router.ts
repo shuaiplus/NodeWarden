@@ -1,5 +1,6 @@
 import { Env, DEFAULT_DEV_SECRET } from './types';
 import { AuthService } from './services/auth';
+import { StorageService } from './services/storage';
 import { RateLimitService, getClientIdentifier } from './services/ratelimit';
 import { handleCors, errorResponse, jsonResponse } from './utils/response';
 import { LIMITS } from './config/limits';
@@ -8,7 +9,17 @@ import { LIMITS } from './config/limits';
 import { handleToken, handlePrelogin, handleRevocation } from './handlers/identity';
 
 // Account handlers
-import { handleRegister, handleGetProfile, handleUpdateProfile, handleSetKeys, handleGetRevisionDate, handleVerifyPassword } from './handlers/accounts';
+import {
+  handleRegister,
+  handleGetProfile,
+  handleUpdateProfile,
+  handleSetKeys,
+  handleGetRevisionDate,
+  handleVerifyPassword,
+  handleChangePassword,
+  handleGetTotpStatus,
+  handleSetTotpStatus,
+} from './handlers/accounts';
 
 // Cipher handlers
 import { 
@@ -38,6 +49,7 @@ import { handleSync } from './handlers/sync';
 
 // Setup handlers
 import { handleSetupPage, handleSetupStatus } from './handlers/setup';
+import { handleWebClientPage } from './handlers/web';
 import { handleKnownDevice, handleGetDevices, handleUpdateDeviceToken } from './handlers/devices';
 
 // Import handler
@@ -51,6 +63,14 @@ import {
   handleDeleteAttachment,
   handlePublicDownloadAttachment,
 } from './handlers/attachments';
+import {
+  handleAdminListUsers,
+  handleAdminCreateInvite,
+  handleAdminListInvites,
+  handleAdminRevokeInvite,
+  handleAdminSetUserStatus,
+  handleAdminDeleteUser,
+} from './handlers/admin';
 
 function isSameOriginWriteRequest(request: Request): boolean {
   const targetOrigin = new URL(request.url).origin;
@@ -166,8 +186,13 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // Route matching
   try {
 
-    // Setup page (root)
-    if (path === '/' && method === 'GET') {
+    // Web client entry (single-path app)
+    if ((path === '/' || path === '/register' || path === '/login') && method === 'GET') {
+      return handleWebClientPage(request, env);
+    }
+
+    // Legacy setup page
+    if ((path === '/setup' || path === '/setup/legacy') && method === 'GET') {
       return handleSetupPage(request, env);
     }
 
@@ -277,7 +302,9 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return jsonResponse(LIMITS.compatibility.bitwardenServerVersion);  // Always same value as /config.version
     }
 
-    // Registration endpoint (no auth required, but only works once)
+    // Registration endpoint (no auth required):
+    // - first user can self-register and becomes admin
+    // - later registrations require inviteCode in request body
     if (path === '/api/accounts/register' && method === 'POST') {
       if (!isSameOriginWriteRequest(request)) {
         return errorResponse('Forbidden origin', 403);
@@ -301,6 +328,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     const userId = payload.sub;
+    const storage = new StorageService(env.DB);
+    const currentUser = await storage.getUserById(userId);
+    if (!currentUser) {
+      return errorResponse('Unauthorized', 401);
+    }
+    if (currentUser.status !== 'active') {
+      return errorResponse('Account is disabled', 403);
+    }
     const clientId = getClientIdentifier(request);
 
     // Dedicated read rate limiting for heavy sync endpoint.
@@ -344,19 +379,16 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       }
     }
 
-    // Block account operations that could change password or delete user
+    // Block account operations we do not support yet.
     if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
       const blockedAccountPaths = new Set([
-        '/api/accounts/password',
-        '/api/accounts/change-password',
         '/api/accounts/set-password',
-        '/api/accounts/master-password',
         '/api/accounts/delete',
         '/api/accounts/delete-account',
         '/api/accounts/delete-vault',
       ]);
       if (blockedAccountPaths.has(path)) {
-        return errorResponse('Not implemented in single-user mode', 501);
+        return errorResponse('Not implemented', 501);
       }
     }
 
@@ -366,8 +398,17 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       if (method === 'PUT') return handleUpdateProfile(request, env, userId);
     }
 
+    if ((path === '/api/accounts/password' || path === '/api/accounts/change-password') && (method === 'POST' || method === 'PUT')) {
+      return handleChangePassword(request, env, userId);
+    }
+
     if (path === '/api/accounts/keys' && method === 'POST') {
       return handleSetKeys(request, env, userId);
+    }
+
+    if (path === '/api/accounts/totp') {
+      if (method === 'GET') return handleGetTotpStatus(request, env, userId);
+      if (method === 'PUT' || method === 'POST') return handleSetTotpStatus(request, env, userId);
     }
 
     // Revision date endpoint
@@ -537,6 +578,32 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     // Devices endpoint
     if (path === '/api/devices' && method === 'GET') {
       return handleGetDevices(request, env, userId);
+    }
+
+    // Admin endpoints
+    if (path === '/api/admin/users' && method === 'GET') {
+      return handleAdminListUsers(request, env, currentUser);
+    }
+
+    if (path === '/api/admin/invites') {
+      if (method === 'GET') return handleAdminListInvites(request, env, currentUser);
+      if (method === 'POST') return handleAdminCreateInvite(request, env, currentUser);
+    }
+
+    const adminInviteMatch = path.match(/^\/api\/admin\/invites\/([^/]+)$/i);
+    if (adminInviteMatch && method === 'DELETE') {
+      const inviteCode = decodeURIComponent(adminInviteMatch[1]);
+      return handleAdminRevokeInvite(request, env, currentUser, inviteCode);
+    }
+
+    const adminUserStatusMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)\/status$/i);
+    if (adminUserStatusMatch && (method === 'PUT' || method === 'POST')) {
+      return handleAdminSetUserStatus(request, env, currentUser, adminUserStatusMatch[1]);
+    }
+
+    const adminUserDeleteMatch = path.match(/^\/api\/admin\/users\/([a-f0-9-]+)$/i);
+    if (adminUserDeleteMatch && method === 'DELETE') {
+      return handleAdminDeleteUser(request, env, currentUser, adminUserDeleteMatch[1]);
     }
 
     // Device push token endpoint (no-op compatibility handler)

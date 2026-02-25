@@ -31,6 +31,6 @@ export async function handleSetupPage(request: Request, env: Env): Promise<Respo
 export async function handleSetupStatus(request: Request, env: Env): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
-  const registered = await storage.isRegistered();
+  const registered = (await storage.isRegistered()) || (await storage.getUserCount()) > 0;
   return jsonResponse({ registered });
 }

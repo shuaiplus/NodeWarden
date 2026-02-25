@@ -6,6 +6,9 @@ export interface Env {
   TOTP_SECRET?: string;
 }
 
+export type UserRole = 'admin' | 'user';
+export type UserStatus = 'active' | 'banned';
+
 // Sample JWT secret used by `.dev.vars.example`.
 // If runtime JWT_SECRET equals this value, treat it as unsafe.
 export const DEFAULT_DEV_SECRET = 'Enter-your-JWT-key-here-at-least-32-characters';
@@ -34,8 +37,31 @@ export interface User {
   kdfMemory?: number;
   kdfParallelism?: number;
   securityStamp: string;
+  role: UserRole;
+  status: UserStatus;
+  totpSecret: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Invite {
+  code: string;
+  createdBy: string;
+  usedBy: string | null;
+  expiresAt: string;
+  status: 'active' | 'used' | 'revoked' | 'expired';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  actorUserId: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: string | null;
+  createdAt: string;
 }
 
 // Cipher types
@@ -235,6 +261,8 @@ export interface ProfileResponse {
   forcePasswordReset: boolean;
   avatarColor: string | null;
   creationDate: string;
+  role?: UserRole;
+  status?: UserStatus;
   object: string;
 }
 

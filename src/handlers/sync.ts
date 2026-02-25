@@ -74,7 +74,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     usesKeyConnector: false,
     masterPasswordHint: null,
     culture: 'en-US',
-    twoFactorEnabled: isTotpEnabled(env.TOTP_SECRET),
+    twoFactorEnabled: !!user.totpSecret || isTotpEnabled(env.TOTP_SECRET),
     key: user.key,
     privateKey: user.privateKey,
     accountKeys: null,

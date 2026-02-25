@@ -4,7 +4,7 @@ import { AuthService } from '../services/auth';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
-import { isTotpEnabled } from '../utils/totp';
+import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
 
 function looksLikeEncString(value: string): boolean {
   if (!value) return false;
@@ -16,6 +16,10 @@ function looksLikeEncString(value: string): boolean {
   return parts.length >= 2;
 }
 
+function normalizeTotpSecret(input: string): string {
+  return input.toUpperCase().replace(/[\s-]/g, '').replace(/=+$/g, '');
+}
+
 function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
   const secret = (env.JWT_SECRET || '').trim();
   if (!secret) return 'missing';
@@ -24,11 +28,40 @@ function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | 
   return null;
 }
 
-// POST /api/accounts/register (only used from setup page, not client)
+function toProfile(user: User, env: Env): ProfileResponse {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    emailVerified: true,
+    premium: true,
+    premiumFromOrganization: false,
+    usesKeyConnector: false,
+    masterPasswordHint: null,
+    culture: 'en-US',
+    twoFactorEnabled: !!user.totpSecret || isTotpEnabled(env.TOTP_SECRET),
+    key: user.key,
+    privateKey: user.privateKey,
+    accountKeys: null,
+    securityStamp: user.securityStamp || user.id,
+    organizations: [],
+    providers: [],
+    providerOrganizations: [],
+    forcePasswordReset: false,
+    avatarColor: null,
+    creationDate: user.createdAt,
+    role: user.role,
+    status: user.status,
+    object: 'profile',
+  };
+}
+
+// POST /api/accounts/register
+// - First user becomes admin.
+// - Any subsequent user must provide a valid inviteCode.
 export async function handleRegister(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
 
-  // Enforce safe JWT_SECRET before allowing first registration.
   const unsafe = jwtSecretUnsafeReason(env);
   if (unsafe) {
     const message = unsafe === 'missing'
@@ -43,12 +76,12 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     email?: string;
     name?: string;
     masterPasswordHash?: string;
-    masterPasswordHint?: string;
     key?: string;
     kdf?: number;
     kdfIterations?: number;
     kdfMemory?: number;
     kdfParallelism?: number;
+    inviteCode?: string;
     keys?: {
       publicKey?: string;
       encryptedPrivateKey?: string;
@@ -61,17 +94,17 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return errorResponse('Invalid JSON', 400);
   }
 
-  const email = body.email?.toLowerCase();
-  const name = body.name || email;
+  const email = body.email?.toLowerCase().trim();
+  const name = body.name?.trim() || email;
   const masterPasswordHash = body.masterPasswordHash;
   const key = body.key;
   const privateKey = body.keys?.encryptedPrivateKey;
   const publicKey = body.keys?.publicKey;
+  const inviteCode = (body.inviteCode || '').trim();
 
   if (!email || !masterPasswordHash || !key) {
     return errorResponse('Email, masterPasswordHash, and key are required', 400);
   }
-
   if (!privateKey || !publicKey) {
     return errorResponse('Private key and public key are required', 400);
   }
@@ -82,92 +115,121 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     return errorResponse('encryptedPrivateKey is not a valid encrypted string', 400);
   }
 
-  // Create user
+  const now = new Date().toISOString();
   const user: User = {
     id: generateUUID(),
-    email: email,
+    email,
     name: name || email,
-    masterPasswordHash: masterPasswordHash,
-    key: key,
-    privateKey: privateKey,
-    publicKey: publicKey,
+    masterPasswordHash,
+    key,
+    privateKey,
+    publicKey,
     kdfType: body.kdf ?? 0,
     kdfIterations: body.kdfIterations ?? LIMITS.auth.defaultKdfIterations,
     kdfMemory: body.kdfMemory,
     kdfParallelism: body.kdfParallelism,
     securityStamp: generateUUID(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    role: 'user',
+    status: 'active',
+    totpSecret: null,
+    createdAt: now,
+    updatedAt: now,
   };
 
-  const created = await storage.createFirstUser(user);
-  if (!created) {
-    return errorResponse('Registration is closed', 403);
+  const userCount = await storage.getUserCount();
+  if (userCount === 0) {
+    user.role = 'admin';
+    const created = await storage.createFirstUser(user);
+    if (!created) {
+      return errorResponse('Registration is temporarily unavailable, retry once', 409);
+    }
+    await storage.setRegistered();
+    await storage.createAuditLog({
+      id: generateUUID(),
+      actorUserId: user.id,
+      action: 'user.register.first_admin',
+      targetType: 'user',
+      targetId: user.id,
+      metadata: JSON.stringify({ email: user.email }),
+      createdAt: now,
+    });
+    return jsonResponse({ success: true, role: user.role }, 200);
   }
 
-  await storage.setRegistered();
+  if (!inviteCode) {
+    return errorResponse('Invite code is required', 403);
+  }
 
-  return jsonResponse({ success: true }, 200);
+  try {
+    await storage.createUser(user);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (msg.includes('unique') || msg.includes('constraint')) {
+      return errorResponse('Email already registered', 409);
+    }
+    throw error;
+  }
+
+  const inviteMarked = await storage.markInviteUsed(inviteCode, user.id);
+  if (!inviteMarked) {
+    await storage.deleteUserById(user.id);
+    return errorResponse('Invite code is invalid or expired', 403);
+  }
+
+  await storage.createAuditLog({
+    id: generateUUID(),
+    actorUserId: user.id,
+    action: 'user.register.invite',
+    targetType: 'user',
+    targetId: user.id,
+    metadata: JSON.stringify({ email: user.email, inviteCode }),
+    createdAt: now,
+  });
+
+  return jsonResponse({ success: true, role: user.role }, 200);
 }
 
 // GET /api/accounts/profile
 export async function handleGetProfile(request: Request, env: Env, userId: string): Promise<Response> {
+  void request;
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
-
-  if (!user) {
-    return errorResponse('User not found', 404);
-  }
-
-  const profile: ProfileResponse = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    emailVerified: true,
-    premium: true,
-    premiumFromOrganization: false,
-    usesKeyConnector: false,
-    masterPasswordHint: null,
-    culture: 'en-US',
-    twoFactorEnabled: isTotpEnabled(env.TOTP_SECRET),
-    key: user.key,
-    privateKey: user.privateKey,
-    accountKeys: null,
-    securityStamp: user.securityStamp || user.id,
-    organizations: [],
-    providers: [],
-    providerOrganizations: [],
-    forcePasswordReset: false,
-    avatarColor: null,
-    creationDate: user.createdAt,
-    object: 'profile',
-  };
-
-  return jsonResponse(profile);
+  if (!user) return errorResponse('User not found', 404);
+  return jsonResponse(toProfile(user, env));
 }
 
 // PUT /api/accounts/profile
 export async function handleUpdateProfile(request: Request, env: Env, userId: string): Promise<Response> {
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
 
-  if (!user) {
-    return errorResponse('User not found', 404);
-  }
-
-  let body: { name?: string; masterPasswordHint?: string };
+  let body: { name?: string; email?: string };
   try {
     body = await request.json();
   } catch {
     return errorResponse('Invalid JSON', 400);
   }
 
-  if (body.name) {
-    user.name = body.name;
+  if (typeof body.name === 'string') {
+    user.name = body.name.trim() || user.name;
+  }
+  if (typeof body.email === 'string') {
+    const normalized = body.email.trim().toLowerCase();
+    if (!normalized) return errorResponse('Email is required', 400);
+    user.email = normalized;
   }
   user.updatedAt = new Date().toISOString();
 
-  await storage.saveUser(user);
+  try {
+    await storage.saveUser(user);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (msg.includes('unique') || msg.includes('constraint')) {
+      return errorResponse('Email already registered', 409);
+    }
+    throw error;
+  }
 
   return handleGetProfile(request, env, userId);
 }
@@ -209,11 +271,139 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
   return handleGetProfile(request, env, userId);
 }
 
+// POST/PUT /api/accounts/password
+export async function handleChangePassword(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: {
+    masterPasswordHash?: string;
+    currentPasswordHash?: string;
+    newMasterPasswordHash?: string;
+    key?: string;
+    newKey?: string;
+    encryptedPrivateKey?: string;
+    newEncryptedPrivateKey?: string;
+    publicKey?: string;
+    newPublicKey?: string;
+    kdf?: number;
+    kdfIterations?: number;
+    kdfMemory?: number;
+    kdfParallelism?: number;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const currentHash = body.currentPasswordHash || body.masterPasswordHash;
+  if (!currentHash) return errorResponse('Current password hash is required', 400);
+  const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash);
+  if (!valid) return errorResponse('Invalid password', 400);
+
+  if (!body.newMasterPasswordHash) {
+    return errorResponse('newMasterPasswordHash is required', 400);
+  }
+  const nextKey = body.newKey || body.key;
+  const nextPrivateKey = body.newEncryptedPrivateKey || body.encryptedPrivateKey;
+  const nextPublicKey = body.newPublicKey || body.publicKey;
+  if (nextKey && !looksLikeEncString(nextKey)) {
+    return errorResponse('new key is not a valid encrypted string', 400);
+  }
+  if (nextPrivateKey && !looksLikeEncString(nextPrivateKey)) {
+    return errorResponse('new encryptedPrivateKey is not a valid encrypted string', 400);
+  }
+
+  user.masterPasswordHash = body.newMasterPasswordHash;
+  if (nextKey) user.key = nextKey;
+  if (nextPrivateKey) user.privateKey = nextPrivateKey;
+  if (nextPublicKey) user.publicKey = nextPublicKey;
+  if (typeof body.kdf === 'number') user.kdfType = body.kdf;
+  if (typeof body.kdfIterations === 'number') user.kdfIterations = body.kdfIterations;
+  if (typeof body.kdfMemory === 'number') user.kdfMemory = body.kdfMemory;
+  if (typeof body.kdfParallelism === 'number') user.kdfParallelism = body.kdfParallelism;
+  user.securityStamp = generateUUID();
+  user.updatedAt = new Date().toISOString();
+  await storage.saveUser(user);
+  await storage.deleteRefreshTokensByUserId(user.id);
+
+  return new Response(null, { status: 200 });
+}
+
+// GET /api/accounts/totp
+export async function handleGetTotpStatus(request: Request, env: Env, userId: string): Promise<Response> {
+  void request;
+  const storage = new StorageService(env.DB);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  return jsonResponse({
+    enabled: !!user.totpSecret,
+    object: 'twoFactor',
+  });
+}
+
+// PUT /api/accounts/totp
+// enable: { enabled: true, secret: "...", token: "123456" }
+// disable: { enabled: false, masterPasswordHash: "..." }
+export async function handleSetTotpStatus(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: { enabled?: boolean; secret?: string; token?: string; masterPasswordHash?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  if (body.enabled === true) {
+    const normalizedSecret = normalizeTotpSecret(body.secret || '');
+    if (!isTotpEnabled(normalizedSecret)) {
+      return errorResponse('Invalid TOTP secret', 400);
+    }
+    if (!body.token) {
+      return errorResponse('TOTP token is required', 400);
+    }
+    const verified = await verifyTotpToken(normalizedSecret, body.token);
+    if (!verified) {
+      return errorResponse('Invalid TOTP token', 400);
+    }
+    user.totpSecret = normalizedSecret;
+    user.updatedAt = new Date().toISOString();
+    await storage.saveUser(user);
+    await storage.deleteRefreshTokensByUserId(user.id);
+    return jsonResponse({ enabled: true, object: 'twoFactor' });
+  }
+
+  if (body.enabled === false) {
+    if (!body.masterPasswordHash) {
+      return errorResponse('masterPasswordHash is required to disable TOTP', 400);
+    }
+    const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash);
+    if (!valid) return errorResponse('Invalid password', 400);
+
+    user.totpSecret = null;
+    user.updatedAt = new Date().toISOString();
+    await storage.saveUser(user);
+    await storage.deleteRefreshTokensByUserId(user.id);
+    return jsonResponse({ enabled: false, object: 'twoFactor' });
+  }
+
+  return errorResponse('enabled must be true or false', 400);
+}
+
 // GET /api/accounts/revision-date
 export async function handleGetRevisionDate(request: Request, env: Env, userId: string): Promise<Response> {
+  void request;
   const storage = new StorageService(env.DB);
   const revisionDate = await storage.getRevisionDate(userId);
-  
+
   // Return as milliseconds timestamp (Bitwarden format)
   const timestamp = new Date(revisionDate).getTime();
   return jsonResponse(timestamp);

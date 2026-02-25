@@ -12,6 +12,16 @@ const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
 
+function resolveTotpSecret(userSecret: string | null, envSecret: string | undefined): string | null {
+  if (userSecret && isTotpEnabled(userSecret)) {
+    return userSecret;
+  }
+  if (isTotpEnabled(envSecret)) {
+    return envSecret!;
+  }
+  return null;
+}
+
 function twoFactorRequiredResponse(message: string = 'Two factor required.'): Response {
   // Bitwarden clients rely on these fields to trigger the 2FA UI flow.
   return jsonResponse(
@@ -119,6 +129,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       await rateLimit.recordFailedLogin(loginIdentifier);
       return identityErrorResponse('Username or password is incorrect. Try again', 'invalid_grant', 400);
     }
+    if (user.status !== 'active') {
+      await rateLimit.recordFailedLogin(loginIdentifier);
+      return identityErrorResponse('Account is disabled', 'invalid_grant', 400);
+    }
 
     const valid = await auth.verifyPassword(passwordHash, user.masterPasswordHash);
     if (!valid) {
@@ -129,9 +143,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       );
     }
 
-    // Optional 2FA: enabled only when TOTP_SECRET is configured in Workers env.
+    // Optional 2FA: enabled per-user secret first, then falls back to global env secret for compatibility.
     let trustedTwoFactorTokenToReturn: string | undefined;
-    if (isTotpEnabled(env.TOTP_SECRET)) {
+    const effectiveTotpSecret = resolveTotpSecret(user.totpSecret, env.TOTP_SECRET);
+    if (effectiveTotpSecret) {
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
       const rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
@@ -164,7 +179,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
           return twoFactorRequiredResponse();
         }
       } else if (parsedProvider === TWO_FACTOR_PROVIDER_AUTHENTICATOR) {
-        const totpOk = await verifyTotpToken(env.TOTP_SECRET!, normalizedTwoFactorToken);
+        const totpOk = await verifyTotpToken(effectiveTotpSecret, normalizedTwoFactorToken);
         if (!totpOk) {
           return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
         }

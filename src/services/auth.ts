@@ -72,6 +72,10 @@ export class AuthService {
 
     const user = await this.storage.getUserById(userId);
     if (!user) return null;
+    if (user.status !== 'active') {
+      await this.storage.deleteRefreshToken(refreshToken);
+      return null;
+    }
 
     const accessToken = await this.generateAccessToken(user);
     return { accessToken, user };

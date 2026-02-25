@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog } from '../types';
 import { LIMITS } from '../config/limits';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -11,7 +11,10 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, master_password_hash TEXT NOT NULL, ' +
   'key TEXT NOT NULL, private_key TEXT, public_key TEXT, kdf_type INTEGER NOT NULL, ' +
   'kdf_iterations INTEGER NOT NULL, kdf_memory INTEGER, kdf_parallelism INTEGER, ' +
-  'security_stamp TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+  'security_stamp TEXT NOT NULL, role TEXT NOT NULL DEFAULT \'user\', status TEXT NOT NULL DEFAULT \'active\', totp_secret TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+  'ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT \'user\'',
+  'ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT \'active\'',
+  'ALTER TABLE users ADD COLUMN totp_secret TEXT',
 
   'CREATE TABLE IF NOT EXISTS user_revisions (' +
   'user_id TEXT PRIMARY KEY, revision_date TEXT NOT NULL, ' +
@@ -40,6 +43,19 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, ' +
   'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)',
+
+  'CREATE TABLE IF NOT EXISTS invites (' +
+  'code TEXT PRIMARY KEY, created_by TEXT NOT NULL, used_by TEXT, expires_at TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, ' +
+  'FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE, ' +
+  'FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE SET NULL)',
+  'CREATE INDEX IF NOT EXISTS idx_invites_status_expires ON invites(status, expires_at)',
+  'CREATE INDEX IF NOT EXISTS idx_invites_created_by ON invites(created_by, created_at)',
+
+  'CREATE TABLE IF NOT EXISTS audit_logs (' +
+  'id TEXT PRIMARY KEY, actor_user_id TEXT, action TEXT NOT NULL, target_type TEXT, target_id TEXT, metadata TEXT, created_at TEXT NOT NULL, ' +
+  'FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL)',
+  'CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_created ON audit_logs(actor_user_id, created_at)',
 
   'CREATE TABLE IF NOT EXISTS devices (' +
   'user_id TEXT NOT NULL, device_identifier TEXT NOT NULL, name TEXT NOT NULL, type INTEGER NOT NULL, ' +
@@ -132,6 +148,7 @@ export class StorageService {
     for (const stmt of SCHEMA_STATEMENTS) {
       await this.executeSchemaStatement(stmt);
     }
+    await this.ensureAdminUserExists();
 
     StorageService.schemaVerified = true;
   }
@@ -149,6 +166,21 @@ export class StorageService {
     }
   }
 
+  private async ensureAdminUserExists(): Promise<void> {
+    const admin = await this.db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").first<{ id: string }>();
+    if (admin?.id) return;
+
+    const firstUser = await this.db
+      .prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1')
+      .first<{ id: string }>();
+    if (!firstUser?.id) return;
+
+    await this.db
+      .prepare("UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?")
+      .bind(new Date().toISOString(), firstUser.id)
+      .run();
+  }
+
   // --- Config / setup ---
 
   async isRegistered(): Promise<boolean> {
@@ -164,14 +196,7 @@ export class StorageService {
 
   // --- Users ---
 
-  async getUser(email: string): Promise<User | null> {
-    const row = await this.db
-      .prepare(
-        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, created_at, updated_at FROM users WHERE email = ?'
-      )
-      .bind(email.toLowerCase())
-      .first<any>();
-    if (!row) return null;
+  private mapUserRow(row: any): User {
     return {
       id: row.id,
       email: row.email,
@@ -185,45 +210,58 @@ export class StorageService {
       kdfMemory: row.kdf_memory ?? undefined,
       kdfParallelism: row.kdf_parallelism ?? undefined,
       securityStamp: row.security_stamp,
+      role: row.role === 'admin' ? 'admin' : 'user',
+      status: row.status === 'banned' ? 'banned' : 'active',
+      totpSecret: row.totp_secret ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  async getUser(email: string): Promise<User | null> {
+    const row = await this.db
+      .prepare(
+        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at FROM users WHERE email = ?'
+      )
+      .bind(email.toLowerCase())
+      .first<any>();
+    if (!row) return null;
+    return this.mapUserRow(row);
   }
 
   async getUserById(id: string): Promise<User | null> {
     const row = await this.db
       .prepare(
-        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, created_at, updated_at FROM users WHERE id = ?'
+        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at FROM users WHERE id = ?'
       )
       .bind(id)
       .first<any>();
     if (!row) return null;
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      masterPasswordHash: row.master_password_hash,
-      key: row.key,
-      privateKey: row.private_key,
-      publicKey: row.public_key,
-      kdfType: row.kdf_type,
-      kdfIterations: row.kdf_iterations,
-      kdfMemory: row.kdf_memory ?? undefined,
-      kdfParallelism: row.kdf_parallelism ?? undefined,
-      securityStamp: row.security_stamp,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    return this.mapUserRow(row);
+  }
+
+  async getUserCount(): Promise<number> {
+    const row = await this.db.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>();
+    return Number(row?.count || 0);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    const res = await this.db
+      .prepare(
+        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at FROM users ORDER BY created_at ASC'
+      )
+      .all<any>();
+    return (res.results || []).map(row => this.mapUserRow(row));
   }
 
   async saveUser(user: User): Promise<void> {
     const email = user.email.toLowerCase();
     const stmt = this.db.prepare(
-      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, created_at, updated_at) ' +
-      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at) ' +
+      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
       'ON CONFLICT(id) DO UPDATE SET ' +
       'email=excluded.email, name=excluded.name, master_password_hash=excluded.master_password_hash, key=excluded.key, private_key=excluded.private_key, public_key=excluded.public_key, ' +
-      'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, updated_at=excluded.updated_at'
+      'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, role=excluded.role, status=excluded.status, totp_secret=excluded.totp_secret, updated_at=excluded.updated_at'
     );
     await this.safeBind(stmt,
       user.id,
@@ -238,16 +276,23 @@ export class StorageService {
       user.kdfMemory,
       user.kdfParallelism,
       user.securityStamp,
+      user.role,
+      user.status,
+      user.totpSecret,
       user.createdAt,
       user.updatedAt
     ).run();
   }
 
+  async createUser(user: User): Promise<void> {
+    await this.saveUser(user);
+  }
+
   async createFirstUser(user: User): Promise<boolean> {
     const email = user.email.toLowerCase();
     const stmt = this.db.prepare(
-      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, created_at, updated_at) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
+      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
       'WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)'
     );
     const result = await this.safeBind(stmt,
@@ -263,11 +308,97 @@ export class StorageService {
       user.kdfMemory,
       user.kdfParallelism,
       user.securityStamp,
+      user.role,
+      user.status,
+      user.totpSecret,
       user.createdAt,
       user.updatedAt
     ).run();
 
     return (result.meta.changes ?? 0) > 0;
+  }
+
+  async deleteUserById(id: string): Promise<boolean> {
+    const result = await this.db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
+  async createInvite(invite: Invite): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO invites(code, created_by, used_by, expires_at, status, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)'
+      )
+      .bind(invite.code, invite.createdBy, invite.usedBy, invite.expiresAt, invite.status, invite.createdAt, invite.updatedAt)
+      .run();
+  }
+
+  async getInvite(code: string): Promise<Invite | null> {
+    const row = await this.db
+      .prepare('SELECT code, created_by, used_by, expires_at, status, created_at, updated_at FROM invites WHERE code = ?')
+      .bind(code)
+      .first<any>();
+    if (!row) return null;
+    return {
+      code: row.code,
+      createdBy: row.created_by,
+      usedBy: row.used_by ?? null,
+      expiresAt: row.expires_at,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  async listInvites(includeInactive: boolean = false): Promise<Invite[]> {
+    const now = new Date().toISOString();
+    const predicate = includeInactive
+      ? '1 = 1'
+      : "(status = 'active' AND expires_at > ?)";
+    const query =
+      'SELECT code, created_by, used_by, expires_at, status, created_at, updated_at FROM invites ' +
+      `WHERE ${predicate} ORDER BY created_at DESC`;
+    const res = includeInactive
+      ? await this.db.prepare(query).all<any>()
+      : await this.db.prepare(query).bind(now).all<any>();
+
+    return (res.results || []).map(row => ({
+      code: row.code,
+      createdBy: row.created_by,
+      usedBy: row.used_by ?? null,
+      expiresAt: row.expires_at,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  async markInviteUsed(code: string, userId: string): Promise<boolean> {
+    const now = new Date().toISOString();
+    const result = await this.db
+      .prepare(
+        "UPDATE invites SET status = 'used', used_by = ?, updated_at = ? WHERE code = ? AND status = 'active' AND expires_at > ?"
+      )
+      .bind(userId, now, code, now)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
+  async revokeInvite(code: string): Promise<boolean> {
+    const now = new Date().toISOString();
+    const result = await this.db
+      .prepare("UPDATE invites SET status = 'revoked', updated_at = ? WHERE code = ? AND status = 'active'")
+      .bind(now, code)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
+  async createAuditLog(log: AuditLog): Promise<void> {
+    await this.db
+      .prepare(
+        'INSERT INTO audit_logs(id, actor_user_id, action, target_type, target_id, metadata, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)'
+      )
+      .bind(log.id, log.actorUserId, log.action, log.targetType, log.targetId, log.metadata, log.createdAt)
+      .run();
   }
 
   // --- Ciphers ---
@@ -630,6 +761,10 @@ export class StorageService {
     const tokenKey = await this.refreshTokenKey(token);
     await this.db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(token).run();
     await this.db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(tokenKey).run();
+  }
+
+  async deleteRefreshTokensByUserId(userId: string): Promise<void> {
+    await this.db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').bind(userId).run();
   }
 
   // Keep a short overlap window for rotated refresh token to reduce
