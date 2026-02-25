@@ -48,7 +48,7 @@ import {
 import { handleSync } from './handlers/sync';
 
 // Setup handlers
-import { handleSetupPage, handleSetupStatus } from './handlers/setup';
+import { handleSetupStatus } from './handlers/setup';
 import { handleWebClientPage } from './handlers/web';
 import { handleKnownDevice, handleGetDevices, handleUpdateDeviceToken } from './handlers/devices';
 
@@ -187,13 +187,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   try {
 
     // Web client entry (single-path app)
-    if ((path === '/' || path === '/register' || path === '/login') && method === 'GET') {
+    if ((path === '/' || path === '/register' || path === '/login' || path === '/setup' || path === '/setup/legacy') && method === 'GET') {
       return handleWebClientPage(request, env);
-    }
-
-    // Legacy setup page
-    if ((path === '/setup' || path === '/setup/legacy') && method === 'GET') {
-      return handleSetupPage(request, env);
     }
 
     // Setup status
