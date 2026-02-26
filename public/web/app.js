@@ -1,8 +1,7 @@
-﻿export function renderWebClientScript(defaultKdfIterations: number): string {
-  return `
-(function () {
+
+export function startNodewardenApp(runtimeConfig) {
       var app = document.getElementById('app');
-      var defaultKdfIterations = ${defaultKdfIterations};
+      var defaultKdfIterations = Number(runtimeConfig && runtimeConfig.defaultKdfIterations) || 600000;
       var state = {
         phase: 'loading',
         lang: (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en',
@@ -429,7 +428,7 @@
       function hostFromUri(uri){
         try{
           if(!uri) return '';
-          var fixed=/^https?:\\/\\//i.test(uri)?uri:('https://'+uri);
+          var fixed=/^https?:\/\//i.test(uri)?uri:('https://'+uri);
           return new URL(fixed).hostname;
         }catch(e){ return ''; }
       }
@@ -452,7 +451,7 @@
       function extractTotpSecret(raw){
         var s=String(raw||'').trim();
         if(!s) return '';
-        if(/^otpauth:\\/\\//i.test(s)){
+        if(/^otpauth:\/\//i.test(s)){
           try{
             var u=new URL(s);
             var sec=u.searchParams.get('secret');
@@ -1097,7 +1096,7 @@
           var uri=firstCipherUri(c);
           var host=hostFromUri(uri);
           var icon=host
-            ? ('<span class="vault-item-icon-wrap"><img class="vault-item-icon" src="/icons/'+esc(host)+'/icon.png" alt="" onerror="this.style.display=\\'none\\';this.nextElementSibling.style.display=\\'inline-flex\\';"><span class="vault-item-icon vault-item-icon-fallback" style="display:none;">🌐</span></span>')
+            ? ('<span class="vault-item-icon-wrap"><img class="vault-item-icon" src="/icons/'+esc(host)+'/icon.png" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline-flex\';"><span class="vault-item-icon vault-item-icon-fallback" style="display:none;">🌐</span></span>')
             : '<span class="vault-item-icon vault-item-icon-fallback">🌐</span>';
           rows += ''
             + '<div class="vault-item '+(c.id===state.selectedCipherId?'active':'')+'" data-action="pick-cipher" data-id="'+esc(c.id)+'">'
@@ -1376,7 +1375,7 @@
           setMsg('Change master password failed: '+(e&&e.message?e.message:String(e)), 'err');
         }
       }
-      async function onEnableTotp(form){ var fd=new FormData(form); state.totpSetupSecret=String(fd.get('secret')||'').toUpperCase().replace(/[\\s-]/g,'').replace(/=+$/g,''); state.totpSetupToken=String(fd.get('token')||'').trim(); if(!state.totpSetupSecret) return setMsg('TOTP secret is required.', 'err'); if(!state.totpSetupToken) return setMsg('TOTP token is required.', 'err'); var r=await authFetch('/api/accounts/totp',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:true,secret:state.totpSetupSecret,token:state.totpSetupToken})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Enable TOTP failed.', 'err'); state.totpSetupToken=''; render(); setMsg('TOTP enabled.', 'ok'); }
+      async function onEnableTotp(form){ var fd=new FormData(form); state.totpSetupSecret=String(fd.get('secret')||'').toUpperCase().replace(/[\s-]/g,'').replace(/=+$/g,''); state.totpSetupToken=String(fd.get('token')||'').trim(); if(!state.totpSetupSecret) return setMsg('TOTP secret is required.', 'err'); if(!state.totpSetupToken) return setMsg('TOTP token is required.', 'err'); var r=await authFetch('/api/accounts/totp',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:true,secret:state.totpSetupSecret,token:state.totpSetupToken})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Enable TOTP failed.', 'err'); state.totpSetupToken=''; render(); setMsg('TOTP enabled.', 'ok'); }
       function onDisableTotp(){ state.totpDisableOpen=true; state.totpDisablePassword=''; state.totpDisableError=''; render(); }
       async function onDisableTotpSubmit(form){
         var fd=new FormData(form); state.totpDisablePassword=String(fd.get('masterPassword')||'');
@@ -1395,7 +1394,7 @@
       }
 
       async function onBulkDelete(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); if(!window.confirm('Delete selected '+ids.length+' items?')) return; for(var i=0;i<ids.length;i++) await authFetch('/api/ciphers/'+encodeURIComponent(ids[i]),{method:'DELETE'}); state.selectedMap={}; await loadVault(); render(); setMsg('Deleted selected items.', 'ok'); }
-      async function onBulkMove(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); var opts=['0) No folder']; for(var i=0;i<state.folders.length;i++){ var f=state.folders[i]; var label=(f.decName||f.name||f.id); opts.push(String(i+1)+') '+String(label)); } var pick=window.prompt('Move selected items to:\\n'+opts.join('\\n')+'\\n\\nInput number (empty to cancel):','0'); if(pick===null) return; pick=String(pick).trim(); if(!pick) return; var idx=Number(pick); if(!Number.isInteger(idx)||idx<0||idx>state.folders.length) return setMsg('Invalid folder selection.', 'err'); var folderId=idx===0?null:state.folders[idx-1].id; var r=await authFetch('/api/ciphers/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids,folderId:folderId})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Bulk move failed.', 'err'); await loadVault(); render(); setMsg('Moved selected items.', 'ok'); }
+      async function onBulkMove(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); var opts=['0) No folder']; for(var i=0;i<state.folders.length;i++){ var f=state.folders[i]; var label=(f.decName||f.name||f.id); opts.push(String(i+1)+') '+String(label)); } var pick=window.prompt('Move selected items to:\n'+opts.join('\n')+'\n\nInput number (empty to cancel):','0'); if(pick===null) return; pick=String(pick).trim(); if(!pick) return; var idx=Number(pick); if(!Number.isInteger(idx)||idx<0||idx>state.folders.length) return setMsg('Invalid folder selection.', 'err'); var folderId=idx===0?null:state.folders[idx-1].id; var r=await authFetch('/api/ciphers/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids,folderId:folderId})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Bulk move failed.', 'err'); await loadVault(); render(); setMsg('Moved selected items.', 'ok'); }
 
       async function onCreateInvite(form){ var fd=new FormData(form); var h=Number(fd.get('hours')||168); var r=await authFetch('/api/admin/invites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expiresInHours:h})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Create invite failed.', 'err'); await loadAdminData(); render(); setMsg('Invite created.', 'ok'); }
       async function onToggleUserStatus(id,status){ var n=status==='active'?'banned':'active'; var r=await authFetch('/api/admin/users/'+encodeURIComponent(id)+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:n})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Update user status failed.', 'err'); await loadAdminData(); render(); setMsg('User status updated.', 'ok'); }
@@ -1449,9 +1448,9 @@
         if(a==='select-all'){ var list=filteredCiphers(); state.selectedMap={}; for(var i=0;i<list.length;i++) state.selectedMap[list[i].id]=true; render(); return; }
         if(a==='select-none'){ state.selectedMap={}; render(); return; }
         if(a==='toggle-password'){ state.showSelectedPassword=!state.showSelectedPassword; render(); return; }
-        if(a==='copy-totp-current'){ var tv=document.getElementById('totp-live-value'); var txt=tv?String(tv.textContent||'').replace(/\\s+/g,''):''; if(!txt) return setMsg('No current TOTP code.', 'err'); navigator.clipboard.writeText(txt).then(function(){ setMsg('Copied to clipboard.', 'ok'); }).catch(function(){ setMsg('Copy failed.', 'err'); }); return; }
+        if(a==='copy-totp-current'){ var tv=document.getElementById('totp-live-value'); var txt=tv?String(tv.textContent||'').replace(/\s+/g,''):''; if(!txt) return setMsg('No current TOTP code.', 'err'); navigator.clipboard.writeText(txt).then(function(){ setMsg('Copied to clipboard.', 'ok'); }).catch(function(){ setMsg('Copy failed.', 'err'); }); return; }
         if(a==='copy-field'){ var val=n.getAttribute('data-value')||''; navigator.clipboard.writeText(val).then(function(){ setMsg('Copied to clipboard.', 'ok'); }).catch(function(){ setMsg('Copy failed.', 'err'); }); return; }
-        if(a==='open-uri'){ var v=n.getAttribute('data-value')||''; if(!v) return; if(!/^https?:\\/\\//i.test(v)) v='https://'+v; window.open(v, '_blank', 'noopener'); return; }
+        if(a==='open-uri'){ var v=n.getAttribute('data-value')||''; if(!v) return; if(!/^https?:\/\//i.test(v)) v='https://'+v; window.open(v, '_blank', 'noopener'); return; }
         if(a==='bulk-delete') return void onBulkDelete();
         if(a==='bulk-move') return void onBulkMove();
         if(a==='vault-refresh'){ loadVault().then(function(){ render(); setMsg('Vault refreshed.', 'ok'); }).catch(function(e){ setMsg('Refresh failed: '+(e&&e.message?e.message:String(e)), 'err'); }); return; }
@@ -1516,8 +1515,4 @@
       });
 
       init();
-    })();
-
-`;
-}
-
+    }

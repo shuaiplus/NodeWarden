@@ -49,7 +49,6 @@ import { handleSync } from './handlers/sync';
 
 // Setup handlers
 import { handleSetupStatus } from './handlers/setup';
-import { handleWebClientPage } from './handlers/web';
 import { handleKnownDevice, handleGetDevices, handleUpdateDeviceToken } from './handlers/devices';
 
 // Import handler
@@ -186,14 +185,16 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // Route matching
   try {
 
-    // Web client entry (single-path app)
-    if ((path === '/' || path === '/register' || path === '/login' || path === '/setup' || path === '/setup/legacy') && method === 'GET') {
-      return handleWebClientPage(request, env);
-    }
-
     // Setup status
     if (path === '/setup/status' && method === 'GET') {
       return handleSetupStatus(request, env);
+    }
+
+    // Web runtime config for static client bootstrap
+    if (path === '/api/web/config' && method === 'GET') {
+      return jsonResponse({
+        defaultKdfIterations: LIMITS.auth.defaultKdfIterations,
+      });
     }
 
     // Browser/devtools probe endpoint

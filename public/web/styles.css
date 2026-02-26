@@ -1,4 +1,4 @@
-﻿export const WEB_CLIENT_STYLES = `
+
 :root {
       --bg: #F3F5F8;
       --panel: #FFFFFF;
@@ -561,5 +561,4 @@
       .vault-grid { grid-template-columns: 1fr; }
     }
 
-`;
 
