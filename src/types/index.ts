@@ -157,6 +157,54 @@ export interface Device {
   updatedAt: string;
 }
 
+// Send types
+export enum SendType {
+  Text = 0,
+  File = 1,
+}
+
+// Send model
+export interface Send {
+  id: string;
+  userId: string;
+  type: SendType;
+  name: string;
+  notes: string | null;
+  data: string;
+  key: string;
+  passwordHash: string | null;
+  passwordSalt: string | null;
+  passwordIterations: number | null;
+  maxAccessCount: number | null;
+  accessCount: number;
+  disabled: boolean;
+  hideEmail: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+  expirationDate: string | null;
+  deletionDate: string;
+}
+
+export interface SendResponse {
+  id: string;
+  accessId: string;
+  type: number;
+  name: string;
+  notes: string | null;
+  text: any | null;
+  file: any | null;
+  key: string;
+  maxAccessCount: number | null;
+  accessCount: number;
+  password: string | null;
+  disabled: boolean;
+  hideEmail: boolean | null;
+  revisionDate: string;
+  expirationDate: string | null;
+  deletionDate: string;
+  object: string;
+}
+
 // JWT Payload
 export interface JWTPayload {
   sub: string;      // user id
@@ -290,7 +338,7 @@ export interface SyncResponse {
   ciphers: CipherResponse[];
   domains: any;
   policies: any[];
-  sends: any[];
+  sends: SendResponse[];
   // PascalCase for desktop/browser clients
   UserDecryptionOptions: UserDecryptionOptions | null;
   // camelCase for Android client (SyncResponseJson uses @SerialName("userDecryption"))

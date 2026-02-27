@@ -33,6 +33,21 @@ import {
   handleDeleteFolder 
 } from './handlers/folders';
 
+// Send handlers
+import {
+  handleGetSends,
+  handleGetSend,
+  handleCreateSend,
+  handleCreateFileSendV2,
+  handleUploadSendFile,
+  handleUpdateSend,
+  handleDeleteSend,
+  handleRemoveSendPassword,
+  handleAccessSend,
+  handleAccessSendFile,
+  handleDownloadSendFile,
+} from './handlers/sends';
+
 // Sync handler
 import { handleSync } from './handlers/sync';
 
@@ -205,6 +220,27 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       const cipherId = publicAttachmentMatch[1];
       const attachmentId = publicAttachmentMatch[2];
       return handlePublicDownloadAttachment(request, env, cipherId, attachmentId);
+    }
+
+    // Public Send access endpoints
+    const sendAccessMatch = path.match(/^\/api\/sends\/access\/([^/]+)$/i);
+    if (sendAccessMatch && method === 'POST') {
+      const accessId = sendAccessMatch[1];
+      return handleAccessSend(request, env, accessId);
+    }
+
+    const sendAccessFileMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)\/access\/file\/([a-f0-9-]+)$/i);
+    if (sendAccessFileMatch && method === 'POST') {
+      const sendId = sendAccessFileMatch[1];
+      const fileId = sendAccessFileMatch[2];
+      return handleAccessSendFile(request, env, sendId, fileId);
+    }
+
+    const sendDownloadMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)\/([a-f0-9-]+)$/i);
+    if (sendDownloadMatch && method === 'GET') {
+      const sendId = sendDownloadMatch[1];
+      const fileId = sendDownloadMatch[2];
+      return handleDownloadSendFile(request, env, sendId, fileId);
     }
 
     // Notifications hub (stub - no auth required, return 200 for connection)
@@ -502,10 +538,35 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       }
     }
 
-    // Sends endpoint (stub - not implemented)
-    if (path === '/api/sends' || path.startsWith('/api/sends/')) {
-      if (method === 'GET') {
-        return jsonResponse({ data: [], object: 'list', continuationToken: null });
+    // Send endpoints
+    if (path === '/api/sends') {
+      if (method === 'GET') return handleGetSends(request, env, userId);
+      if (method === 'POST') return handleCreateSend(request, env, userId);
+    }
+
+    if (path === '/api/sends/file/v2' && method === 'POST') {
+      return handleCreateFileSendV2(request, env, userId);
+    }
+
+    const sendMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)(\/.*)?$/i);
+    if (sendMatch) {
+      const sendId = sendMatch[1];
+      const subPath = sendMatch[2] || '';
+
+      if (subPath === '' || subPath === '/') {
+        if (method === 'GET') return handleGetSend(request, env, userId, sendId);
+        if (method === 'PUT') return handleUpdateSend(request, env, userId, sendId);
+        if (method === 'DELETE') return handleDeleteSend(request, env, userId, sendId);
+      }
+
+      if (subPath === '/remove-password' && method === 'PUT') {
+        return handleRemoveSendPassword(request, env, userId, sendId);
+      }
+
+      const sendFileUploadMatch = subPath.match(/^\/file\/([a-f0-9-]+)$/i);
+      if (sendFileUploadMatch && method === 'POST') {
+        const fileId = sendFileUploadMatch[1];
+        return handleUploadSendFile(request, env, userId, sendId, fileId);
       }
     }
 

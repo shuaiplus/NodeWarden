@@ -70,6 +70,14 @@
     // 附件上传大小上限（字节）。
     maxFileSizeBytes: 100 * 1024 * 1024,
   },
+  send: {
+    // Max file size allowed for Send file uploads.
+    // Send 文件上传大小上限。
+    maxFileSizeBytes: 550_502_400,
+    // Max days allowed between now and deletion date.
+    // 允许的最远删除日期（距当前天数）。
+    maxDeletionDays: 31,
+  },
   pagination: {
     // Default page size when client does not specify pageSize.
     // 客户端未传 pageSize 时的默认分页大小。
