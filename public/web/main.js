@@ -15,6 +15,8 @@ export function startNodewardenApp(runtimeConfig) {
         registerEmail: '',
         registerPassword: '',
         registerPassword2: '',
+        registerShowPassword: false,
+        registerShowPassword2: false,
         session: null,
         profile: null,
         tab: 'vault',
@@ -41,6 +43,7 @@ export function startNodewardenApp(runtimeConfig) {
         invites: [],
         loginEmail: '',
         loginPassword: '',
+        loginShowPassword: false,
         loginTotpToken: '',
         loginTotpError: '',
         pendingLogin: null,
@@ -51,10 +54,14 @@ export function startNodewardenApp(runtimeConfig) {
         totpDisableError: '',
         unlockPassword: '',
         unlockError: '',
+        unlockShowPassword: false,
         lockTimeoutMinutes: 15,
         lockLastActiveTs: Date.now(),
         lockCheckTimer: 0,
-        lockChannel: null
+        lockChannel: null,
+        toasts: [],
+        toastSeq: 0,
+        dialog: null
       };
       var NO_FOLDER_FILTER = '__none__';
       var i18n = I18N;
@@ -66,9 +73,84 @@ export function startNodewardenApp(runtimeConfig) {
       }
       function sessionKey() { return 'nodewarden.web.session.v2'; }
       function lockSettingsKey() { return 'nodewarden.web.lock.v1'; }
-      function setMsg(t, ty) { state.msg = t || ''; state.msgType = ty || 'ok'; render(); }
-      function clearMsg() { state.msg = ''; }
-      function renderMsg() { return state.msg ? '<div class="alert alert-' + (state.msgType === 'err' ? 'danger' : 'success') + '">' + esc(state.msg) + '</div>' : ''; }
+      function dismissToast(id) {
+        var next = [];
+        for (var i = 0; i < state.toasts.length; i++) if (state.toasts[i].id !== id) next.push(state.toasts[i]);
+        if (next.length === state.toasts.length) return;
+        state.toasts = next;
+        render();
+      }
+      function setMsg(t, ty) {
+        var text = String(t || '').trim();
+        if (!text) return;
+        var id = 'toast-' + (++state.toastSeq);
+        var level = ty === 'err' ? 'error' : (ty === 'warn' ? 'warning' : 'success');
+        state.toasts.push({ id: id, text: text, level: level });
+        if (state.toasts.length > 4) state.toasts = state.toasts.slice(state.toasts.length - 4);
+        render();
+        setTimeout(function () { dismissToast(id); }, 4500);
+      }
+      function clearMsg() {}
+      function renderMsg() { return ''; }
+      function renderToasts() {
+        if (!state.toasts || state.toasts.length === 0) return '';
+        var items = '';
+        for (var i = 0; i < state.toasts.length; i++) {
+          var x = state.toasts[i];
+          items += '<li class="toast-item ' + esc(x.level) + '">'
+            + '<div class="toast-text">' + esc(x.text) + '</div>'
+            + '<button class="toast-close" type="button" data-action="toast-close" data-id="' + esc(x.id) + '">✕</button>'
+            + '<div class="toast-bar"></div>'
+            + '</li>';
+        }
+        return '<ul class="toast-stack">' + items + '</ul>';
+      }
+      function askConfirm(opts) {
+        return new Promise(function (resolve) {
+          state.dialog = {
+            type: 'confirm',
+            title: String(opts && opts.title || 'Confirm'),
+            message: String(opts && opts.message || ''),
+            okText: String(opts && opts.okText || 'Yes'),
+            cancelText: String(opts && opts.cancelText || 'No'),
+            danger: !!(opts && opts.danger),
+            resolve: resolve
+          };
+          render();
+        });
+      }
+      function askMoveFolder() {
+        return new Promise(function (resolve) {
+          state.dialog = {
+            type: 'move',
+            title: 'Move selected items',
+            message: 'Choose destination folder.',
+            selectedFolderId: '__none__',
+            resolve: resolve
+          };
+          render();
+        });
+      }
+      function closeDialog(result) {
+        var d = state.dialog;
+        state.dialog = null;
+        render();
+        if (d && typeof d.resolve === 'function') d.resolve(result);
+      }
+      function renderDialog() {
+        var d = state.dialog;
+        if (!d) return '';
+        if (d.type === 'move') {
+          var options = '<option value="__none__">' + t('noFolder') + '</option>';
+          for (var i = 0; i < state.folders.length; i++) {
+            var f = state.folders[i];
+            var id = String(f.id || '');
+            options += '<option value="' + esc(id) + '"' + (d.selectedFolderId === id ? ' selected' : '') + '>' + esc(f.decName || f.name || id) + '</option>';
+          }
+          return '<div class="dialog-mask"><div class="dialog-card"><div class="dialog-icon">⚠</div><h3 class="dialog-title">' + esc(d.title) + '</h3><div class="dialog-msg">' + esc(d.message) + '</div><div class="form-group" style="margin: 12px 0 16px 0;"><select class="form-input" data-action="dialog-move-folder">' + options + '</select></div><button class="btn btn-primary dialog-btn" type="button" data-action="dialog-confirm">Move</button><button class="btn btn-secondary dialog-btn" type="button" data-action="dialog-cancel">Cancel</button></div></div>';
+        }
+        return '<div class="dialog-mask"><div class="dialog-card"><div class="dialog-icon">⚠</div><h3 class="dialog-title">' + esc(d.title) + '</h3><div class="dialog-msg">' + esc(d.message) + '</div><button class="btn ' + (d.danger ? 'btn-danger' : 'btn-primary') + ' dialog-btn" type="button" data-action="dialog-confirm">' + esc(d.okText) + '</button><button class="btn btn-secondary dialog-btn" type="button" data-action="dialog-cancel">' + esc(d.cancelText) + '</button></div></div>';
+      }
       function saveSession() {
         if (!state.session) { localStorage.removeItem(sessionKey()); return; }
         var persisted = {
@@ -197,6 +279,7 @@ export function startNodewardenApp(runtimeConfig) {
         state.loginTotpError = '';
         state.unlockPassword = '';
         state.unlockError = '';
+        state.unlockShowPassword = false;
         state.phase = 'locked';
         if (broadcast !== false && state.lockChannel) {
           try { state.lockChannel.postMessage({ type: 'lock', at: Date.now() }); } catch (_) {}
@@ -227,6 +310,7 @@ export function startNodewardenApp(runtimeConfig) {
           state.session.symMacKey = bytesToBase64(symKeyBytes.slice(32, 64));
           state.unlockPassword = '';
           state.unlockError = '';
+          state.unlockShowPassword = false;
           await loadVault();
           await loadAdminData();
           state.phase = 'app';
@@ -241,7 +325,7 @@ export function startNodewardenApp(runtimeConfig) {
       }
 
       function logout(){
-        state.session=null; state.profile=null; state.ciphers=[]; state.folders=[]; state.users=[]; state.invites=[]; state.folderFilterId=''; state.selectedCipherId=''; state.selectedMap={}; state.pendingLogin=null; state.loginTotpToken=''; state.loginTotpError=''; state.totpDisableOpen=false; state.totpDisablePassword=''; state.totpDisableError=''; state.unlockPassword=''; state.unlockError=''; state.phase='login'; saveSession(); clearMsg(); render();
+        state.session=null; state.profile=null; state.ciphers=[]; state.folders=[]; state.users=[]; state.invites=[]; state.folderFilterId=''; state.selectedCipherId=''; state.selectedMap={}; state.pendingLogin=null; state.loginTotpToken=''; state.loginTotpError=''; state.totpDisableOpen=false; state.totpDisablePassword=''; state.totpDisableError=''; state.unlockPassword=''; state.unlockError=''; state.unlockShowPassword=false; state.phase='login'; saveSession(); clearMsg(); render();
       }
 
       async function authFetch(path, options){
@@ -600,7 +684,8 @@ export function startNodewardenApp(runtimeConfig) {
       }
       async function deleteSelectedCipher(){
         var c=selectedCipher(); if(!c) return;
-        if(!window.confirm('Delete this item? This operation cannot be undone.')) return;
+        var ok = await askConfirm({ title: 'Delete item', message: 'Are you sure you want to delete this item?', okText: 'Yes', cancelText: 'No', danger: true });
+        if(!ok) return;
         var r=await authFetch('/api/ciphers/'+encodeURIComponent(c.id),{method:'DELETE'});
         var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Delete failed.', 'err');
         closeDetailEdit();
@@ -838,20 +923,20 @@ export function startNodewardenApp(runtimeConfig) {
         return ''
           + '<div class="auth-page">'
           + '  <div class="lang-switch" data-action="toggle-lang">'+t('langSwitch')+'</div>'
-          + '  <div class="auth-card">'
-          + '    <div class="auth-header">'
-          + '      <div class="auth-logo"></div>'
-          + '      <div class="auth-title">'+t('brand')+'</div>'
-          + '      <div class="auth-subtitle">'+t('subtitle')+'</div>'
+          + '  <div class="auth-card unlock-card">'
+          + '    <div class="auth-header" style="margin-bottom:20px;">'
+          + '      <div class="auth-title" style="margin-bottom:4px;">'+t('login')+'</div>'
+          + '      <div class="auth-subtitle">'+t('brand')+'</div>'
           + '    </div>'
           +      renderMsg()
           + '    <form id="loginForm">'
           + '      <div class="form-group"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(state.loginEmail)+'" required autofocus /></div>'
-          + '      <div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="password" value="'+esc(state.loginPassword)+'" required /></div>'
-          + '      <button class="btn btn-primary" type="submit" style="width:100%; margin-top:16px;">'+t('loginBtn')+'</button>'
+          + '      <div class="form-group unlock-pwd-wrap"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input unlock-pwd-input" type="'+(state.loginShowPassword?'text':'password')+'" name="password" value="'+esc(state.loginPassword)+'" required /><button class="unlock-eye-btn" type="button" data-action="login-toggle-password" aria-label="Toggle password visibility">&#128065;</button></div>'
+          + '      <button class="btn btn-primary unlock-main-btn" type="submit">'+t('loginBtn')+'</button>'
           + '    </form>'
-          + '    <div class="auth-footer">'
-          + '      <a href="#" data-action="goto-register">'+t('registerBtn')+'</a>'
+          + '    <div class="unlock-or">or</div>'
+          + '    <div style="display:flex; gap:8px;">'
+          + '      <button class="btn btn-secondary unlock-secondary-btn" style="flex:1;" data-action="goto-register">'+t('registerBtn')+'</button>'
           + '    </div>'
           + (state.pendingLogin ? ''
             + '<div class="totp-mask"><div class="totp-box"><h3 style="margin-top:0;">'+t('totpVerify')+'</h3><div class="tiny" style="margin-bottom:16px;">'+t('totpVerifySub')+'</div>'
@@ -867,23 +952,23 @@ export function startNodewardenApp(runtimeConfig) {
         return ''
           + '<div class="auth-page">'
           + '  <div class="lang-switch" data-action="toggle-lang">'+t('langSwitch')+'</div>'
-          + '  <div class="auth-card">'
-          + '    <div class="auth-header">'
-          + '      <div class="auth-logo"></div>'
-          + '      <div class="auth-title">'+t('register')+'</div>'
+          + '  <div class="auth-card unlock-card">'
+          + '    <div class="auth-header" style="margin-bottom:20px;">'
+          + '      <div class="auth-title" style="margin-bottom:4px;">'+t('register')+'</div>'
           + '      <div class="auth-subtitle">'+t('brand')+'</div>'
           + '    </div>'
           +      renderMsg()
           + '    <form id="registerForm">'
           + '      <div class="form-group"><label class="form-label">'+t('name')+'</label><input class="form-input" name="name" value="'+esc(state.registerName)+'" required autofocus /></div>'
           + '      <div class="form-group"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(state.registerEmail)+'" required /></div>'
-          + '      <div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="password" value="'+esc(state.registerPassword)+'" minlength="12" required /></div>'
-          + '      <div class="form-group"><label class="form-label">'+t('confirmPwd')+'</label><input class="form-input" type="password" name="password2" value="'+esc(state.registerPassword2)+'" minlength="12" required /></div>'
+          + '      <div class="form-group unlock-pwd-wrap"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input unlock-pwd-input" type="'+(state.registerShowPassword?'text':'password')+'" name="password" value="'+esc(state.registerPassword)+'" minlength="12" required /><button class="unlock-eye-btn" type="button" data-action="register-toggle-password" aria-label="Toggle password visibility">&#128065;</button></div>'
+          + '      <div class="form-group unlock-pwd-wrap"><label class="form-label">'+t('confirmPwd')+'</label><input class="form-input unlock-pwd-input" type="'+(state.registerShowPassword2?'text':'password')+'" name="password2" value="'+esc(state.registerPassword2)+'" minlength="12" required /><button class="unlock-eye-btn" type="button" data-action="register2-toggle-password" aria-label="Toggle password visibility">&#128065;</button></div>'
           + '      <div class="form-group"><label class="form-label">'+t('inviteCode')+'</label><input class="form-input" name="inviteCode" value="'+esc(state.inviteCode)+'" /></div>'
-          + '      <button class="btn btn-primary" type="submit" style="width:100%; margin-top:16px;">'+t('registerBtn')+'</button>'
+          + '      <button class="btn btn-primary unlock-main-btn" type="submit">'+t('registerBtn')+'</button>'
           + '    </form>'
-          + '    <div class="auth-footer">'
-          + '      <a href="#" data-action="goto-login">'+t('backToLogin')+'</a>'
+          + '    <div class="unlock-or">or</div>'
+          + '    <div style="display:flex; gap:8px;">'
+          + '      <button class="btn btn-secondary unlock-secondary-btn" style="flex:1;" data-action="goto-login">'+t('backToLogin')+'</button>'
           + '    </div>'
           + '  </div>'
           + '</div>';
@@ -894,20 +979,20 @@ export function startNodewardenApp(runtimeConfig) {
         return ''
           + '<div class="auth-page">'
           + '  <div class="lang-switch" data-action="toggle-lang">'+t('langSwitch')+'</div>'
-          + '  <div class="auth-card">'
-          + '    <div class="auth-header">'
-          + '      <div class="auth-logo"></div>'
-          + '      <div class="auth-title">Unlock Vault</div>'
+          + '  <div class="auth-card unlock-card">'
+          + '    <div class="auth-header" style="margin-bottom:20px;">'
+          + '      <div class="auth-title" style="margin-bottom:4px;">Unlock Vault</div>'
           + '      <div class="auth-subtitle">'+esc(email)+'</div>'
           + '    </div>'
           +      renderMsg()
           + (state.unlockError?('<div class="alert alert-danger">'+esc(state.unlockError)+'</div>'):'')
           + '    <form id="unlockForm">'
-          + '      <div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="password" value="'+esc(state.unlockPassword)+'" required autofocus /></div>'
-          + '      <button class="btn btn-primary" type="submit" style="width:100%; margin-top:16px;">Unlock</button>'
+          + '      <div class="form-group unlock-pwd-wrap"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input unlock-pwd-input" type="'+(state.unlockShowPassword?'text':'password')+'" name="password" value="'+esc(state.unlockPassword)+'" required autofocus /><button class="unlock-eye-btn" type="button" data-action="unlock-toggle-password" aria-label="Toggle password visibility">&#128065;</button></div>'
+          + '      <button class="btn btn-primary unlock-main-btn" type="submit">Unlock</button>'
           + '    </form>'
-          + '    <div style="display:flex; gap:8px; margin-top:16px;">'
-          + '      <button class="btn btn-secondary" style="flex:1;" data-action="logout">Log Out</button>'
+          + '    <div class="unlock-or">or</div>'
+          + '    <div style="display:flex; gap:8px;">'
+          + '      <button class="btn btn-secondary unlock-secondary-btn" style="flex:1;" data-action="logout">Log Out</button>'
           + '    </div>'
           + '  </div>'
           + '</div>';
@@ -991,9 +1076,9 @@ export function startNodewardenApp(runtimeConfig) {
             + '<div style="margin-top:10px;"><label><input type="checkbox" data-action="draft-change" data-field="reprompt" '+(de.reprompt?'checked':'')+' /> Master password reprompt</label></div>'
             + '</div>'
             + '<div class="card"><div class="card-title">Fields</div>'+efsHtml+'<button class="link-btn" data-action="draft-field-open">'+t('addField')+'</button></div>'
-            + '<div class="detail-actions"><div><button class="btn btn-primary" data-action="detail-save">Confirm</button><button class="btn btn-secondary" data-action="detail-cancel">Cancel</button></div><button class="btn btn-danger" data-action="detail-delete">🗑</button></div>';
+            + '<div class="detail-actions"><div><button class="btn btn-primary" data-action="detail-save">Confirm</button><button class="btn btn-secondary" data-action="detail-cancel">Cancel</button></div><button class="btn btn-danger btn-danger-icon" data-action="detail-delete" aria-label="Delete item">🗑</button></div>';
           } else detail=renderReadOnlyTypeDetails(c0, folderLabel, created, updated)
-            + '<div class="detail-actions"><div><button class="btn btn-secondary" data-action="detail-edit">Edit</button></div><button class="btn btn-danger" data-action="detail-delete">🗑</button></div>';
+            + '<div class="detail-actions"><div><button class="btn btn-secondary" data-action="detail-edit">Edit</button></div><button class="btn btn-danger btn-danger-icon" data-action="detail-delete" aria-label="Delete item">🗑</button></div>';
         }
 
         return ''
@@ -1016,9 +1101,9 @@ export function startNodewardenApp(runtimeConfig) {
       function renderTotpDisableModal(){
         if(!state.totpDisableOpen) return '';
         return ''
-          + '<div class="totp-mask"><div class="totp-box"><h3 style="margin-top:0;">'+t('disableTotp')+'</h3><div class="tiny" style="margin-bottom:16px;">'+t('totpDisableSub')+'</div>'
-          + (state.totpDisableError?'<div class="alert alert-danger" style="margin-bottom:16px;">'+esc(state.totpDisableError)+'</div>':'')
-          + '<form id="totpDisableForm"><div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="masterPassword" value="'+esc(state.totpDisablePassword)+'" required autofocus /></div><div style="display:flex; gap:8px; margin-top:16px;"><button class="btn btn-danger" type="submit" style="flex:1;">'+t('disableTotp')+'</button><button class="btn btn-secondary" type="button" data-action="totp-disable-cancel" style="flex:1;">'+t('cancel')+'</button></div></form>'
+          + '<div class="dialog-mask"><div class="dialog-card form-dialog"><div class="dialog-icon">⚠</div><h3 class="dialog-title">'+t('disableTotp')+'</h3><div class="dialog-msg">'+t('totpDisableSub')+'</div>'
+          + (state.totpDisableError?'<div class="dialog-error">'+esc(state.totpDisableError)+'</div>':'')
+          + '<form id="totpDisableForm"><div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="masterPassword" value="'+esc(state.totpDisablePassword)+'" required autofocus /></div><button class="btn btn-danger dialog-btn" type="submit">'+t('disableTotp')+'</button><button class="btn btn-secondary dialog-btn" type="button" data-action="totp-disable-cancel">'+t('cancel')+'</button></form>'
           + '</div></div>';
       }
 
@@ -1096,7 +1181,7 @@ export function startNodewardenApp(runtimeConfig) {
           + '</div>'
           + '<div class="app-body">'
           + (showFolders?('  <aside class="sidebar">'
-            + '<div class="sidebar-block"><div class="sidebar-title">'+t('filter')+'</div><input class="search-input" data-action="vault-search" placeholder="'+t('searchVault')+'" value="'+esc(state.vaultQuery)+'" /></div>'
+            + '<div class="sidebar-block"><div class="sidebar-title">'+t('searchVault')+'</div><input class="search-input" data-action="vault-search" placeholder="'+t('searchVault')+'" value="'+esc(state.vaultQuery)+'" /></div>'
             + '<div class="sidebar-block"><div class="sidebar-title">'+t('allItems')+'</div>'+typeTree+'</div>'
             + '<div class="sidebar-block"><div class="sidebar-title">'+t('folders')+'</div>'+folders+'</div>'
             + '</aside>'):'')
@@ -1105,11 +1190,39 @@ export function startNodewardenApp(runtimeConfig) {
       }
 
       function render(){
-        if(state.phase==='loading'){ app.innerHTML='<div class="auth-page" style="align-items:center; justify-content:center;"><div style="display:flex; flex-direction:column; align-items:center; gap:16px;"><div class="auth-logo" style="margin:0;"></div><div style="color:var(--text-secondary); font-weight:500;">'+t('loading')+'</div></div></div>'; return; }
-        if(state.phase==='register'){ app.innerHTML=renderRegisterScreen(); return; }
-        if(state.phase==='login'){ app.innerHTML=renderLoginScreen(); return; }
-        if(state.phase==='locked'){ app.innerHTML=renderLockedScreen(); return; }
-        app.innerHTML=renderApp();
+        var active = document.activeElement;
+        var keepSearchFocus = false;
+        var keepSearchSelStart = 0;
+        var keepSearchSelEnd = 0;
+        if (active instanceof HTMLInputElement && active.getAttribute('data-action') === 'vault-search') {
+          keepSearchFocus = true;
+          keepSearchSelStart = active.selectionStart == null ? 0 : active.selectionStart;
+          keepSearchSelEnd = active.selectionEnd == null ? keepSearchSelStart : active.selectionEnd;
+        }
+        if(state.phase==='loading'){ app.innerHTML='<div class="auth-page" style="align-items:center; justify-content:center;"><div style="display:flex; flex-direction:column; align-items:center; gap:16px;"><div class="auth-logo" style="margin:0;"></div><div style="color:var(--text-secondary); font-weight:500;">'+t('loading')+'</div></div></div>' + renderToasts() + renderDialog(); return; }
+        if(state.phase==='register'){ app.innerHTML=renderRegisterScreen() + renderToasts() + renderDialog(); return; }
+        if(state.phase==='login'){ app.innerHTML=renderLoginScreen() + renderToasts() + renderDialog(); return; }
+        if(state.phase==='locked'){ app.innerHTML=renderLockedScreen() + renderToasts() + renderDialog(); return; }
+        var prevContent = app.querySelector('.content');
+        var prevSidebar = app.querySelector('.sidebar');
+        var prevVaultList = app.querySelector('.vault-list');
+        var contentTop = prevContent ? prevContent.scrollTop : 0;
+        var sidebarTop = prevSidebar ? prevSidebar.scrollTop : 0;
+        var vaultListTop = prevVaultList ? prevVaultList.scrollTop : 0;
+        app.innerHTML=renderApp() + renderToasts() + renderDialog();
+        var nextContent = app.querySelector('.content');
+        var nextSidebar = app.querySelector('.sidebar');
+        var nextVaultList = app.querySelector('.vault-list');
+        if(nextContent) nextContent.scrollTop = contentTop;
+        if(nextSidebar) nextSidebar.scrollTop = sidebarTop;
+        if(nextVaultList) nextVaultList.scrollTop = vaultListTop;
+        if (keepSearchFocus) {
+          var nextSearch = app.querySelector('input[data-action="vault-search"]');
+          if (nextSearch instanceof HTMLInputElement) {
+            nextSearch.focus();
+            try { nextSearch.setSelectionRange(keepSearchSelStart, keepSearchSelEnd); } catch (_) {}
+          }
+        }
         updateLiveTotpDisplay();
         renderTotpSetupQr();
       }
@@ -1245,12 +1358,12 @@ export function startNodewardenApp(runtimeConfig) {
         }
       }
 
-      async function onBulkDelete(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); if(!window.confirm('Delete selected '+ids.length+' items?')) return; for(var i=0;i<ids.length;i++) await authFetch('/api/ciphers/'+encodeURIComponent(ids[i]),{method:'DELETE'}); state.selectedMap={}; await loadVault(); render(); setMsg('Deleted selected items.', 'ok'); }
-      async function onBulkMove(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); var opts=['0) No folder']; for(var i=0;i<state.folders.length;i++){ var f=state.folders[i]; var label=(f.decName||f.name||f.id); opts.push(String(i+1)+') '+String(label)); } var pick=window.prompt('Move selected items to:\n'+opts.join('\n')+'\n\nInput number (empty to cancel):','0'); if(pick===null) return; pick=String(pick).trim(); if(!pick) return; var idx=Number(pick); if(!Number.isInteger(idx)||idx<0||idx>state.folders.length) return setMsg('Invalid folder selection.', 'err'); var folderId=idx===0?null:state.folders[idx-1].id; var r=await authFetch('/api/ciphers/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids,folderId:folderId})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Bulk move failed.', 'err'); await loadVault(); render(); setMsg('Moved selected items.', 'ok'); }
+      async function onBulkDelete(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); var ok=await askConfirm({title:'Delete items',message:'Are you sure you want to delete '+ids.length+' selected items?',okText:'Yes',cancelText:'No',danger:true}); if(!ok) return; for(var i=0;i<ids.length;i++) await authFetch('/api/ciphers/'+encodeURIComponent(ids[i]),{method:'DELETE'}); state.selectedMap={}; await loadVault(); render(); setMsg('Deleted selected items.', 'ok'); }
+      async function onBulkMove(){ var ids=[]; for(var k in state.selectedMap){ if(state.selectedMap[k]) ids.push(k);} if(ids.length===0) return setMsg('Select items first.', 'err'); var folderId=await askMoveFolder(); if(folderId===undefined) return; var r=await authFetch('/api/ciphers/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids,folderId:folderId})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Bulk move failed.', 'err'); await loadVault(); render(); setMsg('Moved selected items.', 'ok'); }
 
       async function onCreateInvite(form){ var fd=new FormData(form); var h=Number(fd.get('hours')||168); var r=await authFetch('/api/admin/invites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expiresInHours:h})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Create invite failed.', 'err'); await loadAdminData(); render(); setMsg('Invite created.', 'ok'); }
       async function onToggleUserStatus(id,status){ var n=status==='active'?'banned':'active'; var r=await authFetch('/api/admin/users/'+encodeURIComponent(id)+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:n})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Update user status failed.', 'err'); await loadAdminData(); render(); setMsg('User status updated.', 'ok'); }
-      async function onDeleteUser(id){ if(!window.confirm('Delete this user and all user data?')) return; var r=await authFetch('/api/admin/users/'+encodeURIComponent(id),{method:'DELETE'}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Delete user failed.', 'err'); await loadAdminData(); render(); setMsg('User deleted.', 'ok'); }
+      async function onDeleteUser(id){ var ok=await askConfirm({title:'Delete user',message:'Delete this user and all user data?',okText:'Yes',cancelText:'No',danger:true}); if(!ok) return; var r=await authFetch('/api/admin/users/'+encodeURIComponent(id),{method:'DELETE'}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Delete user failed.', 'err'); await loadAdminData(); render(); setMsg('User deleted.', 'ok'); }
       async function onRevokeInvite(code){ var r=await authFetch('/api/admin/invites/'+encodeURIComponent(code),{method:'DELETE'}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Revoke invite failed.', 'err'); await loadAdminData(); render(); setMsg('Invite revoked.', 'ok'); }
 
       app.addEventListener('submit', function(ev){
@@ -1267,12 +1380,36 @@ export function startNodewardenApp(runtimeConfig) {
         if(form.id==='inviteForm') return void onCreateInvite(form);
       });
 
-      app.addEventListener('click', function(ev){
+      app.addEventListener('click', async function(ev){
         var n=ev.target; while(n&&n!==app&&!n.getAttribute('data-action')) n=n.parentElement; if(!n||n===app) return; var a=n.getAttribute('data-action'); if(!a) return;
+        ev.preventDefault();
+        if(a==='toast-close'){ dismissToast(n.getAttribute('data-id')||''); return; }
+        if(a==='dialog-cancel'){ closeDialog(false); return; }
+        if(a==='dialog-confirm'){
+          if(state.dialog&&state.dialog.type==='move'){
+            var sel=state.dialog.selectedFolderId;
+            closeDialog(sel==='__none__'?null:sel);
+            return;
+          }
+          closeDialog(true);
+          return;
+        }
         if(a==='toggle-lang'){ state.lang = state.lang === 'zh' ? 'en' : 'zh'; render(); return; }
         if(a==='goto-login'){ state.phase='login'; clearMsg(); render(); return; }
         if(a==='goto-register'){ state.phase='register'; clearMsg(); render(); return; }
-        if(a==='logout'){ if(window.confirm('Log out now?')) logout(); return; }
+        if(a==='unlock-toggle-password' || a==='login-toggle-password' || a==='register-toggle-password' || a==='register2-toggle-password'){
+          var wrap = n.parentElement;
+          var input = wrap ? wrap.querySelector('input.unlock-pwd-input') : null;
+          if(!(input instanceof HTMLInputElement)) return;
+          var nextIsText = input.type !== 'text';
+          input.type = nextIsText ? 'text' : 'password';
+          if(a==='unlock-toggle-password') state.unlockShowPassword = nextIsText;
+          if(a==='login-toggle-password') state.loginShowPassword = nextIsText;
+          if(a==='register-toggle-password') state.registerShowPassword = nextIsText;
+          if(a==='register2-toggle-password') state.registerShowPassword2 = nextIsText;
+          return;
+        }
+        if(a==='logout'){ var okLogout=await askConfirm({title:'Log out',message:'Are you sure you want to log out?',okText:'Yes',cancelText:'No'}); if(okLogout) logout(); return; }
         if(a==='lock'){ lockVault(true, true); return; }
         if(a==='totp-cancel'){ state.pendingLogin=null; state.loginTotpToken=''; state.loginTotpError=''; render(); return; }
         if(a==='totp-disable-cancel'){ state.totpDisableOpen=false; state.totpDisablePassword=''; state.totpDisableError=''; render(); return; }
@@ -1309,7 +1446,14 @@ export function startNodewardenApp(runtimeConfig) {
         if(a==='bulk-delete') return void onBulkDelete();
         if(a==='bulk-move') return void onBulkMove();
         if(a==='vault-refresh'){ loadVault().then(function(){ render(); setMsg('Vault refreshed.', 'ok'); }).catch(function(e){ setMsg('Refresh failed: '+(e&&e.message?e.message:String(e)), 'err'); }); return; }
-        if(a==='totp-secret-refresh'){ state.totpSetupSecret=randomBase32Secret(32); render(); return; }
+        if(a==='totp-secret-refresh'){
+          state.totpSetupSecret=randomBase32Secret(32);
+          var f=document.getElementById('totpEnableForm');
+          var s=f?f.querySelector('input[name=\"secret\"]'):null;
+          if(s instanceof HTMLInputElement) s.value=state.totpSetupSecret;
+          renderTotpSetupQr();
+          return;
+        }
         if(a==='totp-secret-copy'){ navigator.clipboard.writeText(currentTotpSecret()).then(function(){ setMsg('TOTP secret copied.', 'ok'); }).catch(function(){ setMsg('Copy failed.', 'err'); }); return; }
         if(a==='totp-disable'){ onDisableTotp(); return; }
         if(a==='admin-refresh'){ loadAdminData().then(function(){ render(); setMsg('Admin data refreshed.', 'ok'); }).catch(function(e){ setMsg('Refresh failed: '+(e&&e.message?e.message:String(e)), 'err'); }); return; }
@@ -1327,7 +1471,7 @@ export function startNodewardenApp(runtimeConfig) {
           state.vaultQuery=String(n.value||'');
           if(ev.isComposing||state.vaultSearchComposing) return;
           if(state.vaultSearchTimer) clearTimeout(state.vaultSearchTimer);
-          state.vaultSearchTimer=setTimeout(function(){ syncSelectedWithFilter(); render(); }, 120);
+          state.vaultSearchTimer=setTimeout(function(){ state.vaultSearchTimer=0; syncSelectedWithFilter(); render(); }, 120);
           return;
         }
         if(a==='draft-change'&&state.detailDraft){
@@ -1353,6 +1497,7 @@ export function startNodewardenApp(runtimeConfig) {
         if(!(n instanceof HTMLSelectElement)) return;
         var a=n.getAttribute('data-action');
         if(a==='field-modal-type'){ state.fieldModalType=String(n.value||'text'); return; }
+        if(a==='dialog-move-folder' && state.dialog && state.dialog.type==='move'){ state.dialog.selectedFolderId=String(n.value||'__none__'); return; }
       });
 
       app.addEventListener('compositionstart', function(ev){
@@ -1365,7 +1510,7 @@ export function startNodewardenApp(runtimeConfig) {
           state.vaultSearchComposing=false;
           state.vaultQuery=String(n.value||'');
           if(state.vaultSearchTimer) clearTimeout(state.vaultSearchTimer);
-          state.vaultSearchTimer=setTimeout(function(){ syncSelectedWithFilter(); render(); }, 60);
+          state.vaultSearchTimer=setTimeout(function(){ state.vaultSearchTimer=0; syncSelectedWithFilter(); render(); }, 60);
         }
       });
 

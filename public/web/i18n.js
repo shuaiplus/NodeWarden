@@ -21,7 +21,7 @@ export const I18N = {
     allItems: 'All Items',
     noFolder: 'No Folder',
     searchVault: 'Search vault',
-    filter: 'Filter',
+    filter: 'Search',
     typeAll: 'All items',
     typeLogin: 'Logins',
     typeCard: 'Cards',
@@ -214,4 +214,3 @@ export const I18N = {
     langSwitch: 'English',
   },
 };
-

@@ -166,6 +166,197 @@
     }
     .alert-success { background: var(--success-bg); color: var(--success); border-color: #BADBCC; }
     .alert-danger { background: var(--danger-bg); color: var(--danger); border-color: #F5C2C7; }
+    .toast-stack {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 1200;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: min(420px, calc(100vw - 24px));
+    }
+    .toast-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      border: 1px solid #c9e9d6;
+      background: #dff4e5;
+      color: #0f5132;
+      padding: 14px 14px;
+      overflow: hidden;
+    }
+    .toast-item.error {
+      border-color: #f5c2c7;
+      background: #f8d7da;
+      color: #842029;
+    }
+    .toast-item.warning {
+      border-color: #ffe69c;
+      background: #fff3cd;
+      color: #664d03;
+    }
+    .toast-text {
+      font-size: 15px;
+      font-weight: 600;
+      padding-right: 10px;
+    }
+    .toast-close {
+      border: none;
+      background: transparent;
+      color: inherit;
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+      opacity: 0.8;
+    }
+    .toast-close:hover { opacity: 1; }
+    .toast-bar {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 3px;
+      width: 100%;
+      background: rgba(0,0,0,0.12);
+      transform-origin: left center;
+      animation: toastBar 4.5s linear forwards;
+    }
+    @keyframes toastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    .dialog-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.45);
+      z-index: 1300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .dialog-card {
+      width: min(540px, 100%);
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
+      padding: 24px 24px;
+      text-align: center;
+    }
+    .dialog-icon {
+      font-size: 34px;
+      line-height: 1;
+      color: #f4b400;
+      margin-bottom: 12px;
+    }
+    .dialog-title {
+      margin: 0 0 8px 0;
+      font-size: 34px;
+      line-height: 1.15;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    .dialog-msg {
+      margin: 0 auto 18px auto;
+      color: #334155;
+      font-size: 20px;
+      max-width: 90%;
+    }
+    .dialog-btn {
+      width: 100%;
+      height: 56px;
+      border-radius: 999px;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    .form-dialog {
+      text-align: left;
+    }
+    .form-dialog .dialog-title {
+      font-size: 30px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .form-dialog .dialog-msg {
+      font-size: 16px;
+      max-width: 100%;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .form-dialog .dialog-btn {
+      font-size: 22px;
+    }
+    .dialog-error {
+      background: #f8d7da;
+      border: 1px solid #f5c2c7;
+      color: #842029;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      margin: 0 0 12px 0;
+    }
+    .unlock-card {
+      max-width: 620px;
+      padding: 30px 34px;
+    }
+    .unlock-pwd-wrap {
+      position: relative;
+      margin-bottom: 14px;
+    }
+    .unlock-pwd-input {
+      padding-right: 88px;
+      height: 48px;
+      border-radius: 10px;
+      border-color: #3f5b9e;
+    }
+    .auth-page .form-input {
+      height: 48px;
+      border-radius: 10px;
+      border-color: #3f5b9e;
+      padding: 10px 12px;
+    }
+    .auth-page .form-input:focus {
+      border-color: #3f5b9e;
+      box-shadow: none;
+    }
+    .unlock-eye-btn {
+      position: absolute;
+      right: 42px;
+      bottom: 8px;
+      width: 30px;
+      height: 30px;
+      border: none;
+      background: transparent;
+      color: #233a72;
+      font-size: 17px;
+      cursor: pointer;
+    }
+    .unlock-main-btn {
+      width: 100%;
+      margin-top: 8px;
+      height: 44px;
+      border-radius: 999px;
+    }
+    .unlock-secondary-btn {
+      width: 100%;
+      height: 44px;
+      border-radius: 999px;
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #fff;
+    }
+    .unlock-or {
+      text-align: center;
+      color: #1f2f4f;
+      font-size: 16px;
+      margin: 10px 0;
+      line-height: 1;
+    }
     .totp-qr-card {
       background:#fff;
       padding:16px;
@@ -322,6 +513,42 @@
       padding: 16px 18px;
       overflow-y: auto;
       background: #F8FAFC;
+    }
+    .content .btn {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 15px;
+    }
+    .content .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .content .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .content .btn-secondary {
+      background: #fff;
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .content .btn-secondary:hover { background: #edf3ff; }
+    .content .btn-danger {
+      background: #fff;
+      border-color: #e11d48;
+      color: #e11d48;
+    }
+    .content .btn-danger:hover { background: #fff1f2; }
+    .content .btn-danger-icon {
+      width: 42px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: #e11d48;
+      font-size: 26px;
+      line-height: 1;
+    }
+    .content .btn-danger-icon:hover {
+      border: 1px solid #fecdd3;
+      background: #fff1f2;
     }
     
     /* Vault Grid */
@@ -583,4 +810,3 @@
       }
       .vault-grid { grid-template-columns: 1fr; }
     }
-
