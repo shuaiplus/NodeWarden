@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
+import { Lock, LogOut } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
@@ -13,6 +14,7 @@ import {
   createCipher,
   createAuthedFetch,
   createInvite,
+  deleteAllInvites,
   deleteCipher,
   deleteUser,
   deriveLoginHash,
@@ -21,6 +23,7 @@ import {
   getFolders,
   getProfile,
   getSetupStatus,
+  getTotpStatus,
   getWebConfig,
   listAdminInvites,
   listAdminUsers,
@@ -34,6 +37,7 @@ import {
   updateCipher,
   unlockVaultKey,
   updateProfile,
+  verifyMasterPassword,
 } from '@/lib/api';
 import { base64ToBytes, decryptBw, decryptStr } from '@/lib/crypto';
 import type { AppPhase, Cipher, Folder, Profile, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
@@ -71,6 +75,7 @@ export default function App() {
     title: string;
     message: string;
     danger?: boolean;
+    showIcon?: boolean;
     onConfirm: () => void;
   } | null>(null);
 
@@ -266,17 +271,22 @@ export default function App() {
     navigate('/lock');
   }
 
+  function logoutNow() {
+    setConfirm(null);
+    setSession(null);
+    setProfile(null);
+    setPendingTotp(null);
+    setPhase(setupRegistered ? 'login' : 'register');
+    navigate('/login');
+  }
+
   function handleLogout() {
     setConfirm({
       title: 'Log Out',
       message: 'Are you sure you want to log out?',
+      showIcon: false,
       onConfirm: () => {
-        setConfirm(null);
-        setSession(null);
-        setProfile(null);
-        setPendingTotp(null);
-        setPhase(setupRegistered ? 'login' : 'register');
-        navigate('/login');
+        logoutNow();
       },
     });
   }
@@ -300,6 +310,11 @@ export default function App() {
     queryKey: ['admin-invites', session?.accessToken],
     queryFn: () => listAdminInvites(authedFetch),
     enabled: phase === 'app' && profile?.role === 'admin',
+  });
+  const totpStatusQuery = useQuery({
+    queryKey: ['totp-status', session?.accessToken],
+    queryFn: () => getTotpStatus(authedFetch),
+    enabled: phase === 'app' && !!session?.accessToken,
   });
 
   useEffect(() => {
@@ -486,8 +501,10 @@ export default function App() {
     try {
       const derived = await deriveLoginHash(profile.email, disableTotpPassword, defaultKdfIterations);
       await setTotp(authedFetch, { enabled: false, masterPasswordHash: derived.hash });
+      if (profile?.id) localStorage.removeItem(`nodewarden.totp.secret.${profile.id}`);
       setDisableTotpOpen(false);
       setDisableTotpPassword('');
+      await totpStatusQuery.refetch();
       pushToast('success', 'TOTP disabled');
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : 'Disable TOTP failed');
@@ -558,6 +575,11 @@ export default function App() {
     }
   }
 
+  async function verifyMasterPasswordAction(email: string, password: string) {
+    const derived = await deriveLoginHash(email, password, defaultKdfIterations);
+    await verifyMasterPassword(authedFetch, derived.hash);
+  }
+
   useEffect(() => {
     if (phase === 'app' && location === '/') navigate('/vault');
   }, [phase, location, navigate]);
@@ -588,7 +610,7 @@ export default function App() {
           onSubmitUnlock={() => void handleUnlock()}
           onGotoLogin={() => setPhase('login')}
           onGotoRegister={() => setPhase('register')}
-          onLogout={handleLogout}
+          onLogout={logoutNow}
         />
         <ToastHost toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />
 
@@ -598,6 +620,7 @@ export default function App() {
           message="Password is already verified."
           confirmText="Verify"
           cancelText="Cancel"
+          showIcon={false}
           onConfirm={() => void handleTotpVerify()}
           onCancel={() => {
             setPendingTotp(null);
@@ -637,10 +660,10 @@ export default function App() {
           <div className="topbar-actions">
             <span className="user-email">{profile?.email}</span>
             <button type="button" className="btn btn-secondary small" onClick={handleLock}>
-              Lock
+              <Lock size={14} className="btn-icon" /> Lock
             </button>
             <button type="button" className="btn btn-secondary small" onClick={handleLogout}>
-              Log Out
+              <LogOut size={14} className="btn-icon" /> Log Out
             </button>
           </div>
         </header>
@@ -651,27 +674,35 @@ export default function App() {
                 ciphers={decryptedCiphers}
                 folders={decryptedFolders}
                 loading={ciphersQuery.isFetching || foldersQuery.isFetching}
+                emailForReprompt={profile?.email || session?.email || ''}
                 onRefresh={refreshVault}
                 onCreate={createVaultItem}
                 onUpdate={updateVaultItem}
                 onDelete={deleteVaultItem}
                 onBulkDelete={bulkDeleteVaultItems}
                 onBulkMove={bulkMoveVaultItems}
+                onVerifyMasterPassword={verifyMasterPasswordAction}
+                onNotify={pushToast}
               />
             </Route>
             <Route path="/settings">
               {profile && (
                 <SettingsPage
                   profile={profile}
+                  totpEnabled={!!totpStatusQuery.data?.enabled}
                   onSaveProfile={saveProfileAction}
                   onChangePassword={changePasswordAction}
-                  onEnableTotp={enableTotpAction}
+                  onEnableTotp={async (secret, token) => {
+                    await enableTotpAction(secret, token);
+                    await totpStatusQuery.refetch();
+                  }}
                   onOpenDisableTotp={() => setDisableTotpOpen(true)}
                 />
               )}
             </Route>
             <Route path="/admin">
               <AdminPage
+                currentUserId={profile?.id || ''}
                 users={usersQuery.data || []}
                 invites={invitesQuery.data || []}
                 onRefresh={() => {
@@ -682,6 +713,21 @@ export default function App() {
                   await createInvite(authedFetch, hours);
                   await invitesQuery.refetch();
                   pushToast('success', 'Invite created');
+                }}
+                onDeleteAllInvites={async () => {
+                  setConfirm({
+                    title: 'Delete all invites',
+                    message: 'Delete all invite codes (active/inactive)?',
+                    danger: true,
+                    onConfirm: () => {
+                      setConfirm(null);
+                      void (async () => {
+                        await deleteAllInvites(authedFetch);
+                        await invitesQuery.refetch();
+                        pushToast('success', 'All invites deleted');
+                      })();
+                    },
+                  });
                 }}
                 onToggleUserStatus={async (userId, status) => {
                   await setUserStatus(authedFetch, userId, status === 'active' ? 'banned' : 'active');
@@ -722,6 +768,7 @@ export default function App() {
         title={confirm?.title || ''}
         message={confirm?.message || ''}
         danger={confirm?.danger}
+        showIcon={confirm?.showIcon}
         onConfirm={() => confirm?.onConfirm()}
         onCancel={() => setConfirm(null)}
       />
@@ -733,6 +780,7 @@ export default function App() {
         confirmText="Disable TOTP"
         cancelText="Cancel"
         danger
+        showIcon={false}
         onConfirm={() => void disableTotpAction()}
         onCancel={() => {
           setDisableTotpOpen(false);

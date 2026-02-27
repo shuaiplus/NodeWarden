@@ -66,6 +66,7 @@ import {
   handleAdminListUsers,
   handleAdminCreateInvite,
   handleAdminListInvites,
+  handleAdminDeleteAllInvites,
   handleAdminRevokeInvite,
   handleAdminSetUserStatus,
   handleAdminDeleteUser,
@@ -591,6 +592,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (path === '/api/admin/invites') {
       if (method === 'GET') return handleAdminListInvites(request, env, currentUser);
       if (method === 'POST') return handleAdminCreateInvite(request, env, currentUser);
+      if (method === 'DELETE') return handleAdminDeleteAllInvites(request, env, currentUser);
     }
 
     const adminInviteMatch = path.match(/^\/api\/admin\/invites\/([^/]+)$/i);

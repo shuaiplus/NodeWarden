@@ -138,6 +138,7 @@ export interface VaultDraftField {
 export interface VaultDraft {
   id?: string;
   type: number;
+  favorite: boolean;
   name: string;
   folderId: string;
   notes: string;

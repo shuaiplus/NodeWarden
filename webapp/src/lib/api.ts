@@ -307,6 +307,30 @@ export async function setTotp(
   }
 }
 
+export async function verifyMasterPassword(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  masterPasswordHash: string
+): Promise<void> {
+  const resp = await authedFetch('/api/accounts/verify-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ masterPasswordHash }),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Master password verify failed');
+  }
+}
+
+export async function getTotpStatus(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>
+): Promise<{ enabled: boolean }> {
+  const resp = await authedFetch('/api/accounts/totp');
+  if (!resp.ok) throw new Error('Failed to load TOTP status');
+  const body = (await parseJson<{ enabled?: boolean }>(resp)) || {};
+  return { enabled: !!body.enabled };
+}
+
 export async function listAdminUsers(authedFetch: (input: string, init?: RequestInit) => Promise<Response>): Promise<AdminUser[]> {
   const resp = await authedFetch('/api/admin/users');
   if (!resp.ok) throw new Error('Failed to load users');
@@ -333,6 +357,11 @@ export async function createInvite(authedFetch: (input: string, init?: RequestIn
 export async function revokeInvite(authedFetch: (input: string, init?: RequestInit) => Promise<Response>, code: string): Promise<void> {
   const resp = await authedFetch(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
   if (!resp.ok) throw new Error('Revoke invite failed');
+}
+
+export async function deleteAllInvites(authedFetch: (input: string, init?: RequestInit) => Promise<Response>): Promise<void> {
+  const resp = await authedFetch('/api/admin/invites', { method: 'DELETE' });
+  if (!resp.ok) throw new Error('Delete all invites failed');
 }
 
 export async function setUserStatus(
@@ -424,6 +453,7 @@ export async function createCipher(
 
   const payload: Record<string, unknown> = {
     type,
+    favorite: !!draft.favorite,
     folderId: asNullable(draft.folderId),
     reprompt: draft.reprompt ? 1 : 0,
     name: await encryptTextValue(draft.name, enc, mac),
@@ -508,7 +538,7 @@ export async function updateCipher(
     type,
     key: keys.key,
     folderId: asNullable(draft.folderId),
-    favorite: !!cipher.favorite,
+    favorite: !!draft.favorite,
     reprompt: draft.reprompt ? 1 : 0,
     name: await encryptTextValue(draft.name, keys.enc, keys.mac),
     notes: await encryptTextValue(draft.notes, keys.enc, keys.mac),

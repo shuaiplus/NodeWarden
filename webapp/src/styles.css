@@ -95,23 +95,33 @@ body,
   border-color: #2f5fd8;
 }
 
+.input:disabled {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .password-wrap {
   position: relative;
 }
 
 .password-wrap .input {
-  padding-right: 88px;
+  padding-right: 44px;
 }
 
 .eye-btn {
   position: absolute;
-  right: 42px;
+  right: 10px;
   bottom: 9px;
   width: 30px;
   height: 30px;
   border: none;
   background: transparent;
   cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: #334155;
 }
 
 .btn {
@@ -122,6 +132,14 @@ body,
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-icon {
+  flex-shrink: 0;
 }
 
 .btn.full {
@@ -164,6 +182,13 @@ body,
 
 .btn-danger:hover {
   background: #fff1f2;
+}
+
+.btn:disabled {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 .or {
@@ -219,7 +244,7 @@ body,
 }
 
 .user-email {
-  font-size: 13px;
+  font-size: 18px;
   opacity: 0.9;
 }
 
@@ -311,7 +336,7 @@ body,
   border-bottom: 1px solid var(--line);
   padding: 12px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
@@ -334,6 +359,7 @@ body,
   background: transparent;
   padding: 0;
   display: flex;
+  align-items: flex-start;
   gap: 10px;
   text-align: left;
   cursor: pointer;
@@ -345,6 +371,7 @@ body,
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .list-icon {
@@ -354,7 +381,14 @@ body,
 }
 
 .list-icon-fallback {
-  font-size: 20px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+}
+
+.list-icon-fallback svg {
+  width: 24px;
+  height: 24px;
 }
 
 .list-text {
@@ -400,6 +434,7 @@ body,
 .kv-line {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
   border-bottom: 1px solid #ecf0f5;
   padding: 10px 0;
@@ -413,8 +448,43 @@ body,
   color: #64748b;
 }
 
+.kv-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #ecf0f5;
+  padding: 10px 0;
+}
+
+.kv-row:last-child {
+  border-bottom: none;
+}
+
+.kv-label {
+  color: #64748b;
+}
+
+.kv-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.kv-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .notes {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: #334155;
   min-height: 48px;
 }
@@ -472,6 +542,12 @@ body,
   flex-wrap: wrap;
 }
 
+.muted-inline {
+  color: var(--muted);
+  align-self: center;
+  font-size: 14px;
+}
+
 .create-menu-wrap {
   position: relative;
 }
@@ -505,9 +581,34 @@ body,
 
 .uri-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.website-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.website-row .btn {
+  justify-self: start;
+  width: auto;
+}
+
+.cf-check {
+  margin-bottom: 0;
+}
+
+.cf-check.view {
+  margin: 0;
+}
+
+.cf-check input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
 }
 
 .field-type-pill {
@@ -522,6 +623,10 @@ body,
   padding: 0 10px;
 }
 
+.star-on {
+  background: #eef4ff;
+}
+
 .detail-actions {
   display: flex;
   justify-content: space-between;
@@ -533,6 +638,12 @@ body,
   margin-top: 10px;
   color: #b42318;
   font-weight: 600;
+}
+
+.status-ok {
+  margin: 2px 0 10px 0;
+  color: #0f766e;
+  font-weight: 700;
 }
 
 .kv-line strong {
@@ -566,6 +677,23 @@ body,
 
 .input.small {
   width: 120px;
+}
+
+.invite-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.invite-row-actions {
+  justify-content: flex-end;
+}
+
+.invite-actions-head {
+  text-align: right !important;
 }
 
 .dialog-mask {

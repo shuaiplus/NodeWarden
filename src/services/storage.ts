@@ -392,6 +392,11 @@ export class StorageService {
     return (result.meta.changes ?? 0) > 0;
   }
 
+  async deleteAllInvites(): Promise<number> {
+    const result = await this.db.prepare('DELETE FROM invites').run();
+    return Number(result.meta.changes ?? 0);
+  }
+
   async createAuditLog(log: AuditLog): Promise<void> {
     await this.db
       .prepare(

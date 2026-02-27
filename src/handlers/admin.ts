@@ -163,6 +163,26 @@ export async function handleAdminRevokeInvite(
   return new Response(null, { status: 204 });
 }
 
+// DELETE /api/admin/invites
+export async function handleAdminDeleteAllInvites(
+  request: Request,
+  env: Env,
+  actorUser: User
+): Promise<Response> {
+  void request;
+  if (!isAdmin(actorUser)) {
+    return errorResponse('Forbidden', 403);
+  }
+
+  const storage = new StorageService(env.DB);
+  const deleted = await storage.deleteAllInvites();
+  await writeAuditLog(storage, actorUser.id, 'admin.invite.delete_all', 'invite', null, {
+    deleted,
+  });
+
+  return jsonResponse({ deleted }, 200);
+}
+
 // PUT /api/admin/users/:id/status
 export async function handleAdminSetUserStatus(
   request: Request,

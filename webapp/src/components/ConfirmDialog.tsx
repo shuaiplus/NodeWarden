@@ -4,6 +4,7 @@ interface ConfirmDialogProps {
   open: boolean;
   title: string;
   message: string;
+  showIcon?: boolean;
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
@@ -17,7 +18,6 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
   return (
     <div className="dialog-mask">
       <div className="dialog-card">
-        <div className="dialog-icon">!</div>
         <h3 className="dialog-title">{props.title}</h3>
         <div className="dialog-message">{props.message}</div>
         {props.children}

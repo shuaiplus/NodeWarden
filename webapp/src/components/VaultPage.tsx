@@ -1,18 +1,42 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+﻿import { useEffect, useMemo, useState } from 'preact/hooks';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { calcTotpNow } from '@/lib/crypto';
+import {
+  CheckCheck,
+  Clipboard,
+  CreditCard,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  FileKey2,
+  FolderInput,
+  Globe,
+  KeyRound,
+  Pencil,
+  Plus,
+  RefreshCw,
+  ShieldUser,
+  Star,
+  StarOff,
+  StickyNote,
+  Trash2,
+  X,
+} from 'lucide-preact';
 import type { Cipher, CustomFieldType, Folder, VaultDraft, VaultDraftField } from '@/lib/types';
 
 interface VaultPageProps {
   ciphers: Cipher[];
   folders: Folder[];
   loading: boolean;
+  emailForReprompt: string;
   onRefresh: () => Promise<void>;
   onCreate: (draft: VaultDraft) => Promise<void>;
   onUpdate: (cipher: Cipher, draft: VaultDraft) => Promise<void>;
   onDelete: (cipher: Cipher) => Promise<void>;
   onBulkDelete: (ids: string[]) => Promise<void>;
   onBulkMove: (ids: string[], folderId: string | null) => Promise<void>;
+  onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
+  onNotify: (type: 'success' | 'error', text: string) => void;
 }
 
 type TypeFilter = 'all' | 'favorite' | 'login' | 'card' | 'identity' | 'note' | 'ssh';
@@ -34,7 +58,6 @@ const FIELD_TYPE_OPTIONS: Array<{ value: CustomFieldType; label: string }> = [
   { value: 0, label: 'Text' },
   { value: 1, label: 'Hidden' },
   { value: 2, label: 'Boolean' },
-  { value: 3, label: 'Linked' },
 ];
 
 function cipherTypeKey(type: number): TypeFilter {
@@ -54,13 +77,13 @@ function cipherTypeLabel(type: number): string {
   return 'Item';
 }
 
-function typeIconText(type: number): string {
-  if (type === 1) return 'L';
-  if (type === 3) return 'C';
-  if (type === 4) return 'I';
-  if (type === 2) return 'N';
-  if (type === 5) return 'S';
-  return 'V';
+function TypeIcon({ type }: { type: number }) {
+  if (type === 1) return <Globe size={18} />;
+  if (type === 3) return <CreditCard size={18} />;
+  if (type === 4) return <ShieldUser size={18} />;
+  if (type === 2) return <StickyNote size={18} />;
+  if (type === 5) return <KeyRound size={18} />;
+  return <FileKey2 size={18} />;
 }
 
 function parseFieldType(value: number | string | null | undefined): CustomFieldType {
@@ -72,8 +95,14 @@ function parseFieldType(value: number | string | null | undefined): CustomFieldT
 }
 
 function fieldTypeLabel(type: CustomFieldType): string {
+  if (type === 3) return 'Linked';
   const found = FIELD_TYPE_OPTIONS.find((x) => x.value === type);
   return found ? found.label : 'Text';
+}
+
+function toBooleanFieldValue(raw: string): boolean {
+  const v = String(raw || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
 function firstCipherUri(cipher: Cipher): string {
@@ -98,6 +127,7 @@ function hostFromUri(uri: string): string {
 function createEmptyDraft(type: number): VaultDraft {
   return {
     type,
+    favorite: false,
     name: '',
     folderId: '',
     notes: '',
@@ -140,6 +170,7 @@ function createEmptyDraft(type: number): VaultDraft {
 function draftFromCipher(cipher: Cipher): VaultDraft {
   const draft = createEmptyDraft(Number(cipher.type || 1));
   draft.id = cipher.id;
+  draft.favorite = !!cipher.favorite;
   draft.name = cipher.decName || '';
   draft.folderId = cipher.folderId || '';
   draft.notes = cipher.decNotes || '';
@@ -225,7 +256,11 @@ function VaultListIcon({ cipher }: { cipher: Cipher }) {
       />
     );
   }
-  return <span className="list-icon-fallback">{typeIconText(Number(cipher.type || 1))}</span>;
+  return (
+    <span className="list-icon-fallback">
+      <TypeIcon type={Number(cipher.type || 1)} />
+    </span>
+  );
 }
 
 function copyToClipboard(value: string): void {
@@ -263,7 +298,17 @@ export default function VaultPage(props: VaultPageProps) {
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveFolderId, setMoveFolderId] = useState('__none__');
   const [totpLive, setTotpLive] = useState<{ code: string; remain: number } | null>(null);
+  const [hiddenFieldVisibleMap, setHiddenFieldVisibleMap] = useState<Record<number, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [repromptOpen, setRepromptOpen] = useState(false);
+  const [repromptPassword, setRepromptPassword] = useState('');
+  const [repromptApprovedCipherId, setRepromptApprovedCipherId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRepromptApprovedCipherId(null);
+    setRepromptPassword('');
+    setRepromptOpen(false);
+  }, [selectedCipherId]);
 
   useEffect(() => {
     if (searchComposing) return;
@@ -376,6 +421,15 @@ export default function VaultPage(props: VaultPageProps) {
     setDraft((prev) => (prev ? { ...prev, customFields: nextFields } : prev));
   }
 
+  function patchDraftCustomField(index: number, patch: Partial<VaultDraftField>): void {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const next = [...prev.customFields];
+      next[index] = { ...next[index], ...patch };
+      return { ...prev, customFields: next };
+    });
+  }
+
   function updateDraftLoginUri(index: number, value: string): void {
     setDraft((prev) => {
       if (!prev) return prev;
@@ -459,6 +513,25 @@ export default function VaultPage(props: VaultPageProps) {
     }
   }
 
+  async function verifyReprompt(): Promise<void> {
+    if (!selectedCipher) return;
+    if (!repromptPassword) {
+      props.onNotify('error', 'Master password is required.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await props.onVerifyMasterPassword(props.emailForReprompt, repromptPassword);
+      setRepromptApprovedCipherId(selectedCipher.id);
+      setRepromptOpen(false);
+      setRepromptPassword('');
+    } catch (error) {
+      props.onNotify('error', error instanceof Error ? error.message : 'Unlock failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="vault-grid">
@@ -527,21 +600,10 @@ export default function VaultPage(props: VaultPageProps) {
         <section className="list-col">
           <div className="toolbar actions">
             <button type="button" className="btn btn-secondary small" disabled={busy || props.loading} onClick={() => void syncVault()}>
-              Sync
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary small"
-              disabled={!selectedCount || busy}
-              onClick={() => {
-                setMoveFolderId('__none__');
-                setMoveOpen(true);
-              }}
-            >
-              Move
+              <RefreshCw size={14} className="btn-icon" /> Sync
             </button>
             <button type="button" className="btn btn-danger small" disabled={!selectedCount || busy} onClick={() => setBulkDeleteOpen(true)}>
-              Delete ({selectedCount})
+              <Trash2 size={14} className="btn-icon" /> Delete ({selectedCount})
             </button>
             <button
               type="button"
@@ -553,14 +615,11 @@ export default function VaultPage(props: VaultPageProps) {
                 setSelectedMap(map);
               }}
             >
-              Select All
-            </button>
-            <button type="button" className="btn btn-secondary small" onClick={() => setSelectedMap({})}>
-              Cancel
+              <CheckCheck size={14} className="btn-icon" /> Select All
             </button>
             <div className="create-menu-wrap">
               <button type="button" className="btn btn-primary small" onClick={() => setCreateMenuOpen((x) => !x)}>
-                + Add
+                <Plus size={14} className="btn-icon" /> Add
               </button>
               {createMenuOpen && (
                 <div className="create-menu">
@@ -572,6 +631,24 @@ export default function VaultPage(props: VaultPageProps) {
                 </div>
               )}
             </div>
+            {selectedCount > 0 && (
+              <button
+                type="button"
+                className="btn btn-secondary small"
+                disabled={busy}
+                onClick={() => {
+                  setMoveFolderId('__none__');
+                  setMoveOpen(true);
+                }}
+              >
+                <FolderInput size={14} className="btn-icon" /> Move
+              </button>
+            )}
+            {selectedCount > 0 && (
+              <button type="button" className="btn btn-secondary small" onClick={() => setSelectedMap({})}>
+                <X size={14} className="btn-icon" /> Cancel
+              </button>
+            )}
           </div>
 
           <div className="list-panel">
@@ -588,7 +665,14 @@ export default function VaultPage(props: VaultPageProps) {
                     }))
                   }
                 />
-                <button type="button" className="row-main" onClick={() => setSelectedCipherId(cipher.id)}>
+                <button
+                  type="button"
+                  className="row-main"
+                  onClick={() => {
+                    setSelectedCipherId(cipher.id);
+                    setRepromptApprovedCipherId(null);
+                  }}
+                >
                   <div className="list-icon-wrap">
                     <VaultListIcon cipher={cipher} />
                   </div>
@@ -607,7 +691,17 @@ export default function VaultPage(props: VaultPageProps) {
           {isEditing && draft && (
             <>
               <div className="card">
-                <h3 className="detail-title">{isCreating ? `New ${cipherTypeLabel(draft.type)}` : `Edit ${cipherTypeLabel(draft.type)}`}</h3>
+                <div className="section-head">
+                  <h3 className="detail-title">{isCreating ? `New ${cipherTypeLabel(draft.type)}` : `Edit ${cipherTypeLabel(draft.type)}`}</h3>
+                  <button
+                    type="button"
+                    className={`btn btn-secondary small ${draft.favorite ? 'star-on' : ''}`}
+                    onClick={() => updateDraft({ favorite: !draft.favorite })}
+                  >
+                    {draft.favorite ? <Star size={14} className="btn-icon" /> : <StarOff size={14} className="btn-icon" />}
+                    Favorite
+                  </button>
+                </div>
                 <div className="field-grid">
                   <label className="field">
                     <span>Type</span>
@@ -666,11 +760,11 @@ export default function VaultPage(props: VaultPageProps) {
                   <div className="section-head">
                     <h4>Websites</h4>
                     <button type="button" className="btn btn-secondary small" onClick={() => updateDraft({ loginUris: [...draft.loginUris, ''] })}>
-                      + Add Website
+                      <Plus size={14} className="btn-icon" /> Add Website
                     </button>
                   </div>
                   {draft.loginUris.map((uri, index) => (
-                    <div key={`uri-${index}`} className="uri-row">
+                    <div key={`uri-${index}`} className="website-row">
                       <input className="input" value={uri} onInput={(e) => updateDraftLoginUri(index, (e.currentTarget as HTMLInputElement).value)} />
                       {draft.loginUris.length > 1 && (
                         <button
@@ -774,18 +868,38 @@ export default function VaultPage(props: VaultPageProps) {
                 <div className="section-head">
                   <h4>Custom Fields</h4>
                   <button type="button" className="btn btn-secondary small" onClick={() => setFieldModalOpen(true)}>
-                    + Add Field
+                    <Plus size={14} className="btn-icon" /> Add Field
                   </button>
                 </div>
-                {draft.customFields.map((field, index) => (
-                  <div key={`field-${index}`} className="uri-row">
-                    <input className="input" value={field.label} readOnly />
-                    <input className="input" value={field.value} readOnly />
-                    <span className="field-type-pill">{fieldTypeLabel(field.type)}</span>
+                {draft.customFields
+                  .map((field, originalIndex) => ({ field, originalIndex }))
+                  .filter((entry) => entry.field.type !== 3)
+                  .map(({ field, originalIndex }) => (
+                  <div key={`field-${originalIndex}`} className="uri-row">
+                    <input
+                      className="input"
+                      value={field.label}
+                      onInput={(e) => patchDraftCustomField(originalIndex, { label: (e.currentTarget as HTMLInputElement).value })}
+                    />
+                    {field.type === 2 ? (
+                      <label className="check-line cf-check">
+                        <input
+                          type="checkbox"
+                          checked={toBooleanFieldValue(field.value)}
+                          onInput={(e) => patchDraftCustomField(originalIndex, { value: (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false' })}
+                        />
+                      </label>
+                    ) : (
+                      <input
+                        className="input"
+                        value={field.value}
+                        onInput={(e) => patchDraftCustomField(originalIndex, { value: (e.currentTarget as HTMLInputElement).value })}
+                      />
+                    )}
                     <button
                       type="button"
                       className="btn btn-secondary small"
-                      onClick={() => updateDraftCustomFields(draft.customFields.filter((_, i) => i !== index))}
+                      onClick={() => updateDraftCustomFields(draft.customFields.filter((_, i) => i !== originalIndex))}
                     >
                       Remove
                     </button>
@@ -814,6 +928,19 @@ export default function VaultPage(props: VaultPageProps) {
 
           {!isEditing && selectedCipher && (
             <>
+              {Number(selectedCipher.reprompt || 0) === 1 && repromptApprovedCipherId !== selectedCipher.id && (
+                <div className="card">
+                  <h4>Master Password Reprompt</h4>
+                  <div className="detail-sub">This item requires master password every time before viewing details.</div>
+                  <div className="actions" style={{ marginTop: '10px' }}>
+                    <button type="button" className="btn btn-primary" onClick={() => setRepromptOpen(true)}>
+                      <Eye size={14} className="btn-icon" /> Unlock Details
+                    </button>
+                  </div>
+                </div>
+              )}
+              {(Number(selectedCipher.reprompt || 0) !== 1 || repromptApprovedCipherId === selectedCipher.id) && (
+                <>
               <div className="card">
                 <h3 className="detail-title">{selectedCipher.decName || '(No Name)'}</h3>
                 <div className="detail-sub">{folderName(selectedCipher.folderId)}</div>
@@ -822,35 +949,42 @@ export default function VaultPage(props: VaultPageProps) {
               {selectedCipher.login && (
                 <div className="card">
                   <h4>Login Credentials</h4>
-                  <div className="kv-line">
-                    <span>Username</span>
-                    <div className="actions">
+                  <div className="kv-row">
+                    <span className="kv-label">Username</span>
+                    <div className="kv-main">
                       <strong>{selectedCipher.login.decUsername || ''}</strong>
+                    </div>
+                    <div className="kv-actions">
                       <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(selectedCipher.login?.decUsername || '')}>
-                        Copy
+                        <Clipboard size={14} className="btn-icon" /> Copy
                       </button>
                     </div>
                   </div>
-                  <div className="kv-line">
-                    <span>Password</span>
-                    <div className="actions">
+                  <div className="kv-row">
+                    <span className="kv-label">Password</span>
+                    <div className="kv-main">
                       <strong>{showPassword ? selectedCipher.login.decPassword || '' : maskSecret(selectedCipher.login.decPassword || '')}</strong>
+                    </div>
+                    <div className="kv-actions">
                       <button type="button" className="btn btn-secondary small" onClick={() => setShowPassword((v) => !v)}>
+                        {showPassword ? <EyeOff size={14} className="btn-icon" /> : <Eye size={14} className="btn-icon" />}
                         {showPassword ? 'Hide' : 'Reveal'}
                       </button>
                       <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(selectedCipher.login?.decPassword || '')}>
-                        Copy
+                        <Clipboard size={14} className="btn-icon" /> Copy
                       </button>
                     </div>
                   </div>
                   {!!selectedCipher.login.decTotp && (
-                    <div className="kv-line">
-                      <span>TOTP</span>
-                      <div className="actions">
+                    <div className="kv-row">
+                      <span className="kv-label">TOTP</span>
+                      <div className="kv-main">
                         <strong>{totpLive ? formatTotp(totpLive.code) : '------'}</strong>
                         <span className="detail-sub">Refresh in: {totpLive ? `${totpLive.remain}s` : '--'}</span>
+                      </div>
+                      <div className="kv-actions">
                         <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(totpLive?.code || '')}>
-                          Copy
+                          <Clipboard size={14} className="btn-icon" /> Copy
                         </button>
                       </div>
                     </div>
@@ -865,15 +999,17 @@ export default function VaultPage(props: VaultPageProps) {
                     const value = uri.decUri || uri.uri || '';
                     if (!value.trim()) return null;
                     return (
-                      <div key={`view-uri-${index}`} className="kv-line">
-                        <span>Website</span>
-                        <div className="actions">
+                      <div key={`view-uri-${index}`} className="kv-row">
+                        <span className="kv-label">Website</span>
+                        <div className="kv-main">
                           <strong>{value}</strong>
+                        </div>
+                        <div className="kv-actions">
                           <button type="button" className="btn btn-secondary small" onClick={() => openUri(value)}>
-                            Open
+                            <ExternalLink size={14} className="btn-icon" /> Open
                           </button>
                           <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(value)}>
-                            Copy
+                            <Clipboard size={14} className="btn-icon" /> Copy
                           </button>
                         </div>
                       </div>
@@ -919,28 +1055,68 @@ export default function VaultPage(props: VaultPageProps) {
                 <div className="notes">{selectedCipher.decNotes || ''}</div>
               </div>
 
-              {(selectedCipher.fields || []).length > 0 && (
+              {(selectedCipher.fields || []).some((x) => parseFieldType(x.type) !== 3) && (
                 <div className="card">
                   <h4>Custom Fields</h4>
-                  {(selectedCipher.fields || []).map((field, index) => (
-                    <div key={`view-field-${index}`} className="kv-line">
-                      <span>{field.decName || 'Field'}</span>
-                      <strong>{field.decValue || ''}</strong>
-                    </div>
-                  ))}
+                  {(selectedCipher.fields || [])
+                    .filter((x) => parseFieldType(x.type) !== 3)
+                    .map((field, index) => {
+                      const fieldType = parseFieldType(field.type);
+                      const fieldName = field.decName || 'Field';
+                      const rawValue = field.decValue || '';
+                      const isHiddenVisible = !!hiddenFieldVisibleMap[index];
+                      if (fieldType === 2) {
+                        return (
+                          <div key={`view-field-${index}`} className="kv-row">
+                            <span className="kv-label">{fieldName}</span>
+                            <div className="kv-main">
+                              <label className="check-line cf-check view">
+                                <input type="checkbox" checked={toBooleanFieldValue(rawValue)} disabled />
+                              </label>
+                            </div>
+                            <div className="kv-actions" />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={`view-field-${index}`} className="kv-row">
+                          <span className="kv-label">{fieldName}</span>
+                          <div className="kv-main">
+                            <strong>{fieldType === 1 && !isHiddenVisible ? maskSecret(rawValue) : rawValue}</strong>
+                          </div>
+                          <div className="kv-actions">
+                            {fieldType === 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary small"
+                                onClick={() => setHiddenFieldVisibleMap((prev) => ({ ...prev, [index]: !prev[index] }))}
+                              >
+                                {isHiddenVisible ? <EyeOff size={14} className="btn-icon" /> : <Eye size={14} className="btn-icon" />}
+                                {isHiddenVisible ? 'Hide' : 'Reveal'}
+                              </button>
+                            )}
+                            <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(rawValue)}>
+                              <Clipboard size={14} className="btn-icon" /> Copy
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
 
               <div className="detail-actions">
                 <div className="actions">
                   <button type="button" className="btn btn-secondary" onClick={startEdit}>
-                    Edit
+                    <Pencil size={14} className="btn-icon" /> Edit
                   </button>
                 </div>
                 <button type="button" className="btn btn-danger" onClick={() => setPendingDelete(selectedCipher)}>
-                  Delete
+                  <Trash2 size={14} className="btn-icon" /> Delete
                 </button>
               </div>
+                </>
+              )}
             </>
           )}
 
@@ -965,7 +1141,7 @@ export default function VaultPage(props: VaultPageProps) {
             {
               type: fieldType,
               label: fieldLabel.trim(),
-              value: fieldValue,
+              value: fieldType === 2 ? (toBooleanFieldValue(fieldValue) ? 'true' : 'false') : fieldValue,
             },
           ]);
           setFieldModalOpen(false);
@@ -995,10 +1171,21 @@ export default function VaultPage(props: VaultPageProps) {
           <span>Field Label</span>
           <input className="input" value={fieldLabel} onInput={(e) => setFieldLabel((e.currentTarget as HTMLInputElement).value)} />
         </label>
-        <label className="field">
-          <span>Field Value</span>
-          <input className="input" value={fieldValue} onInput={(e) => setFieldValue((e.currentTarget as HTMLInputElement).value)} />
-        </label>
+        {fieldType === 2 ? (
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={toBooleanFieldValue(fieldValue)}
+              onInput={(e) => setFieldValue((e.currentTarget as HTMLInputElement).checked ? 'true' : 'false')}
+            />
+            Enabled
+          </label>
+        ) : (
+          <label className="field">
+            <span>Field Value</span>
+            <input className="input" value={fieldValue} onInput={(e) => setFieldValue((e.currentTarget as HTMLInputElement).value)} />
+          </label>
+        )}
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -1040,6 +1227,27 @@ export default function VaultPage(props: VaultPageProps) {
           </select>
         </label>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={repromptOpen}
+        title="Unlock Item"
+        message="Enter master password to view this item."
+        confirmText="Unlock"
+        cancelText="Cancel"
+        showIcon={false}
+        onConfirm={() => void verifyReprompt()}
+        onCancel={() => {
+          setRepromptOpen(false);
+          setRepromptPassword('');
+        }}
+      >
+        <label className="field">
+          <span>Master Password</span>
+          <input className="input" type="password" value={repromptPassword} onInput={(e) => setRepromptPassword((e.currentTarget as HTMLInputElement).value)} />
+        </label>
+      </ConfirmDialog>
     </>
   );
 }
+
+

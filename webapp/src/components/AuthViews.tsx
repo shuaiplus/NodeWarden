@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { Eye, EyeOff } from 'lucide-preact';
 
 interface LoginValues {
   email: string;
@@ -49,7 +50,7 @@ function PasswordField(props: {
           autoFocus={props.autoFocus}
         />
         <button type="button" className="eye-btn" onClick={() => setShow((v) => !v)}>
-          {show ? 'Hide' : 'Show'}
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
     </label>

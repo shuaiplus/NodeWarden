@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
+    "lucide-preact": "^0.575.0",
     "preact": "^10.28.4",
     "qrcode-generator": "^2.0.4",
     "wouter": "^3.9.0"
