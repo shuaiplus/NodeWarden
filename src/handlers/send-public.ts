@@ -237,7 +237,7 @@ function renderPublicSendPage(accessId: string, urlB64Key: string | null): strin
     }
 
     function base64ToBytes(base64) {
-      const normalized = base64.replace(/\s/g, '');
+      const normalized = base64.replace(/\\s/g, '');
       const binary = atob(normalized);
       const out = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) {
@@ -254,7 +254,7 @@ function renderPublicSendPage(accessId: string, urlB64Key: string | null): strin
 
     function normalizeUrlB64Key(value) {
       if (typeof value !== 'string') return '';
-      const trimmed = value.trim().replace(/^\/+|\/+$/g, '');
+      const trimmed = value.trim().replace(/^\\/+|\\/+$/g, '');
       return trimmed;
     }
 

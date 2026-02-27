@@ -19,7 +19,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         if (!hash.toLowerCase().startsWith('#/send/')) return;
 
         const raw = hash.slice('#/send/'.length);
-        const clean = raw.split('?')[0].replace(/^\/+|\/+$/g, '');
+        const clean = raw.split('?')[0].replace(/^\\/+|\\/+$/g, '');
         if (!clean) return;
 
         const parts = clean.split('/');
