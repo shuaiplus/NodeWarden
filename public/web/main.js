@@ -214,6 +214,25 @@ export function startNodewardenApp(runtimeConfig) {
       function randomBase32Secret(len){ var a='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; var b=crypto.getRandomValues(new Uint8Array(len)); var o=''; for(var i=0;i<b.length;i++) o+=a[b[i]%a.length]; return o; }
       function currentTotpSecret(){ if(!state.totpSetupSecret) state.totpSetupSecret=randomBase32Secret(32); return state.totpSetupSecret; }
       function buildTotpUri(secret){ var issuer='NodeWarden'; var account=state.profile&&state.profile.email?state.profile.email:'account'; return 'otpauth://totp/'+encodeURIComponent(issuer+':'+account)+'?secret='+encodeURIComponent(secret)+'&issuer='+encodeURIComponent(issuer)+'&algorithm=SHA1&digits=6&period=30'; }
+      function renderTotpSetupQr(){
+        if(state.phase!=='app'||state.tab!=='settings') return;
+        var box=document.getElementById('totp-qr-box');
+        if(!box) return;
+        var secret=currentTotpSecret();
+        var otpUri=buildTotpUri(secret);
+        try{
+          var qrf=window.qrcode;
+          if(typeof qrf!=='function') throw new Error('qrcode-generator unavailable');
+          var qr=qrf(0,'M');
+          qr.addData(otpUri);
+          qr.make();
+          var dataUrl=qr.createDataURL(4,2);
+          if(!dataUrl) throw new Error('qrcode data url unavailable');
+          box.innerHTML='<img src="'+esc(dataUrl)+'" alt="TOTP QR" width="180" height="180" style="display:block; width:180px; height:180px;" />';
+        }catch(_){
+          box.innerHTML='<div class="totp-qr-fallback"><div>QR unavailable</div><div class="tiny">Use secret key below</div></div>';
+        }
+      }
       function buildSymmetricKeyBytes(){
         if(!state.session||!state.session.symEncKey||!state.session.symMacKey) return null;
         try{
@@ -833,13 +852,12 @@ export function startNodewardenApp(runtimeConfig) {
       function renderSettingsTab(){
         var p=state.profile||{};
         var secret=currentTotpSecret();
-        var qr='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(buildTotpUri(secret));
         return ''
           + renderMsg()
           + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:600; color:var(--text-primary);">'+t('settings')+'</h2>'
           + '<div class="panel"><h3 style="margin-top:0;">'+t('profile')+'</h3><form id="profileForm"><div style="display:flex; gap:16px; margin-bottom:16px;"><div class="form-group" style="flex:1;"><label class="form-label">'+t('name')+'</label><input class="form-input" name="name" value="'+esc(p.name||'')+'" /></div><div class="form-group" style="flex:1;"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(p.email||'')+'" required /></div></div><button class="btn btn-primary" type="submit">'+t('saveProfile')+'</button></form></div>'
           + '<div class="panel"><h3 style="margin-top:0;">'+t('changePwd')+'</h3><form id="passwordForm"><div class="form-group"><label class="form-label">'+t('currentPwd')+'</label><input class="form-input" type="password" name="currentPassword" required /></div><div style="display:flex; gap:16px; margin-bottom:16px;"><div class="form-group" style="flex:1;"><label class="form-label">'+t('newPwd')+'</label><input class="form-input" type="password" name="newPassword" minlength="12" required /></div><div class="form-group" style="flex:1;"><label class="form-label">'+t('confirmPwd')+'</label><input class="form-input" type="password" name="newPassword2" minlength="12" required /></div></div><button class="btn btn-danger" type="submit">'+t('changePwd')+'</button><div class="tiny" style="margin-top:8px;">After success, current sessions are revoked and you must log in again.</div></form></div>'
-          + '<div class="panel"><h3 style="margin-top:0;">'+t('totpSetup')+'</h3><div style="display:flex; gap:24px; margin-bottom:24px; flex-wrap:wrap;"><div style="background:#fff; padding:16px; border:1px solid var(--border-color); border-radius:8px;"><img src="'+esc(qr)+'" alt="TOTP QR" style="display:block;" /></div><div style="flex:1; min-width:250px;"><form id="totpEnableForm"><div class="form-group"><label class="form-label">'+t('secret')+'</label><input class="form-input" name="secret" value="'+esc(secret)+'" /></div><div class="form-group"><label class="form-label">'+t('verifyCode')+'</label><input class="form-input" name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div style="display:flex; gap:8px;"><button class="btn btn-primary" type="submit">'+t('enableTotp')+'</button><button class="btn btn-secondary" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn btn-secondary" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><button class="btn btn-danger" type="button" data-action="totp-disable">'+t('disableTotp')+'</button><div class="tiny" style="margin-top:8px;">Disable action prompts for master password.</div></div>';
+          + '<div class="panel"><h3 style="margin-top:0;">'+t('totpSetup')+'</h3><div style="display:flex; gap:24px; margin-bottom:24px; flex-wrap:wrap;"><div class="totp-qr-card"><div id="totp-qr-box"><div class="totp-qr-fallback"><div>QR loading...</div><div class="tiny">Use secret key below</div></div></div></div><div style="flex:1; min-width:250px;"><form id="totpEnableForm"><div class="form-group"><label class="form-label">'+t('secret')+'</label><input class="form-input" name="secret" value="'+esc(secret)+'" /></div><div class="form-group"><label class="form-label">'+t('verifyCode')+'</label><input class="form-input" name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div style="display:flex; gap:8px;"><button class="btn btn-primary" type="submit">'+t('enableTotp')+'</button><button class="btn btn-secondary" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn btn-secondary" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><button class="btn btn-danger" type="button" data-action="totp-disable">'+t('disableTotp')+'</button><div class="tiny" style="margin-top:8px;">Disable action prompts for master password.</div></div>';
       }
       function renderTotpDisableModal(){
         if(!state.totpDisableOpen) return '';
@@ -937,6 +955,7 @@ export function startNodewardenApp(runtimeConfig) {
         if(state.phase==='login'){ app.innerHTML=renderLoginScreen(); return; }
         app.innerHTML=renderApp();
         updateLiveTotpDisplay();
+        renderTotpSetupQr();
       }
 
       async function init(){

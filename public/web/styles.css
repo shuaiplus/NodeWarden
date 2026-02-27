@@ -166,6 +166,30 @@
     }
     .alert-success { background: var(--success-bg); color: var(--success); border-color: #BADBCC; }
     .alert-danger { background: var(--danger-bg); color: var(--danger); border-color: #F5C2C7; }
+    .totp-qr-card {
+      background:#fff;
+      padding:16px;
+      border:1px solid var(--border-color);
+      border-radius:8px;
+      width: 200px;
+      min-height: 200px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .totp-qr-fallback {
+      width:100%;
+      min-height:168px;
+      border:1px dashed var(--border-color);
+      border-radius:8px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      color:var(--text-secondary);
+      text-align:center;
+      padding:8px;
+    }
     
     /* App Layout */
     .navbar {
@@ -560,5 +584,4 @@
       }
       .vault-grid { grid-template-columns: 1fr; }
     }
-
 

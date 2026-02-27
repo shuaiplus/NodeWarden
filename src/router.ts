@@ -235,6 +235,13 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     // Known device check (no auth required)
     if (path === '/api/devices/knowndevice' && method === 'GET') {
+      const rateLimit = new RateLimitService(env.DB);
+      const clientIp = getClientIdentifier(request);
+      const probeLimit = await rateLimit.consumeKnownDeviceProbeBudget(clientIp + ':known-device');
+      if (!probeLimit.allowed) {
+        // Keep compatibility simple: do not error, just answer "unknown device".
+        return jsonResponse(false);
+      }
       return handleKnownDevice(request, env);
     }
 
