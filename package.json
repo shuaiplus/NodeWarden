@@ -7,7 +7,11 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev -c wrangler.toml",
+    "dev": "npm run web:build && wrangler dev -c wrangler.toml",
+    "dev:worker": "wrangler dev -c wrangler.toml",
+    "web:dev": "vite --config webapp/vite.config.ts",
+    "web:build": "vite build --config webapp/vite.config.ts",
+    "web:typecheck": "tsc -p webapp/tsconfig.json --noEmit",
     "deploymy": "wrangler deploy -c wrangler.my.toml",
     "deploy": "wrangler deploy"
   },
@@ -33,9 +37,17 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260131.0",
+    "@preact/preset-vite": "^2.10.3",
     "@types/node": "^25.2.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "vite": "^7.3.1",
     "wrangler": "^4.61.1"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "preact": "^10.28.4",
+    "qrcode-generator": "^2.0.4",
+    "wouter": "^3.9.0"
   }
 }

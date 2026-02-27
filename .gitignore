@@ -11,6 +11,9 @@ tests/selfcheck.ts
 # Build output
 dist/
 build/
+public/
+public2/
+
 
 # IDE
 .vscode/
