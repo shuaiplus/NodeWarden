@@ -367,7 +367,6 @@
       border-radius: 5px;
       object-fit: contain;
       flex-shrink: 0;
-      border: 1px solid #d9dfe8;
       background: #fff;
     }
     .vault-item-icon-wrap { width:24px; height:24px; position:relative; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }

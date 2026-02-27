@@ -27,9 +27,25 @@ export async function pbkdf2(passwordOrBytes, saltOrBytes, iterations, keyLen) {
 }
 
 export async function hkdfExpand(prk, info, length) {
-  var key = await crypto.subtle.importKey('raw', prk, 'HKDF', false, ['deriveBits']);
-  var bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode(info) }, key, length * 8);
-  return new Uint8Array(bits);
+  var enc = new TextEncoder();
+  var key = await crypto.subtle.importKey('raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  var infoBytes = enc.encode(info || '');
+  var result = new Uint8Array(length);
+  var prev = new Uint8Array(0);
+  var off = 0;
+  var cnt = 1;
+  while (off < length) {
+    var inp = new Uint8Array(prev.length + infoBytes.length + 1);
+    inp.set(prev, 0);
+    inp.set(infoBytes, prev.length);
+    inp[inp.length - 1] = cnt & 0xff;
+    prev = new Uint8Array(await crypto.subtle.sign('HMAC', key, inp));
+    var c = Math.min(prev.length, length - off);
+    result.set(prev.slice(0, c), off);
+    off += c;
+    cnt += 1;
+  }
+  return result;
 }
 
 export async function hmacSha256(keyBytes, dataBytes) {
@@ -132,4 +148,3 @@ export async function calcTotpNow(rawSecret) {
   var code = (bin % 1000000).toString().padStart(6, '0');
   return { code: code, remain: remain };
 }
-

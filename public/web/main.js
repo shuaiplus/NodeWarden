@@ -48,7 +48,13 @@ export function startNodewardenApp(runtimeConfig) {
         totpSetupToken: '',
         totpDisableOpen: false,
         totpDisablePassword: '',
-        totpDisableError: ''
+        totpDisableError: '',
+        unlockPassword: '',
+        unlockError: '',
+        lockTimeoutMinutes: 15,
+        lockLastActiveTs: Date.now(),
+        lockCheckTimer: 0,
+        lockChannel: null
       };
       var NO_FOLDER_FILTER = '__none__';
       var i18n = I18N;
@@ -59,11 +65,40 @@ export function startNodewardenApp(runtimeConfig) {
         return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
       function sessionKey() { return 'nodewarden.web.session.v2'; }
+      function lockSettingsKey() { return 'nodewarden.web.lock.v1'; }
       function setMsg(t, ty) { state.msg = t || ''; state.msgType = ty || 'ok'; render(); }
       function clearMsg() { state.msg = ''; }
       function renderMsg() { return state.msg ? '<div class="alert alert-' + (state.msgType === 'err' ? 'danger' : 'success') + '">' + esc(state.msg) + '</div>' : ''; }
-      function saveSession() { if (state.session) localStorage.setItem(sessionKey(), JSON.stringify(state.session)); else localStorage.removeItem(sessionKey()); }
-      function loadSession() { try { var r = localStorage.getItem(sessionKey()); if (!r) return null; var p = JSON.parse(r); if (!p || !p.accessToken || !p.refreshToken) return null; return p; } catch (e) { return null; } }
+      function saveSession() {
+        if (!state.session) { localStorage.removeItem(sessionKey()); return; }
+        var persisted = {
+          accessToken: state.session.accessToken || '',
+          refreshToken: state.session.refreshToken || '',
+          email: state.session.email || ''
+        };
+        localStorage.setItem(sessionKey(), JSON.stringify(persisted));
+      }
+      function loadSession() {
+        try {
+          var r = localStorage.getItem(sessionKey());
+          if (!r) return null;
+          var p = JSON.parse(r);
+          if (!p || !p.accessToken || !p.refreshToken) return null;
+          return { accessToken: p.accessToken, refreshToken: p.refreshToken, email: p.email || '' };
+        } catch (e) { return null; }
+      }
+      function saveLockSettings() {
+        localStorage.setItem(lockSettingsKey(), JSON.stringify({ lockTimeoutMinutes: Number(state.lockTimeoutMinutes) || 0 }));
+      }
+      function loadLockSettings() {
+        try {
+          var r = localStorage.getItem(lockSettingsKey());
+          if (!r) return;
+          var p = JSON.parse(r);
+          var mins = Number(p && p.lockTimeoutMinutes);
+          if (Number.isFinite(mins) && mins >= 0) state.lockTimeoutMinutes = mins;
+        } catch (_) {}
+      }
       async function jsonOrNull(resp){ var t=await resp.text(); if(!t) return null; try{ return JSON.parse(t);} catch(e){ return null; } }
       async function decryptVault(){
         if(!state.session||!state.session.symEncKey||!state.session.symMacKey) return;
@@ -112,8 +147,101 @@ export function startNodewardenApp(runtimeConfig) {
         return { hash: bytesToBase64(h), masterKey: mk, kdfIterations: it };
       }
 
+      function clearVaultMemory() {
+        state.ciphers = [];
+        state.folders = [];
+        state.folderFilterId = '';
+        state.selectedCipherId = '';
+        state.selectedMap = {};
+        state.detailMode = 'view';
+        state.detailDraft = null;
+        state.showSelectedPassword = false;
+      }
+
+      function markUserActivity() {
+        if (state.phase === 'app') state.lockLastActiveTs = Date.now();
+      }
+
+      function ensureLockChannel() {
+        if (state.lockChannel || typeof BroadcastChannel === 'undefined') return;
+        try {
+          state.lockChannel = new BroadcastChannel('nodewarden-lock-v1');
+          state.lockChannel.onmessage = function (ev) {
+            var msg = ev && ev.data;
+            if (!msg || msg.type !== 'lock') return;
+            if (state.phase === 'app') lockVault(false, false);
+          };
+        } catch (_) {}
+      }
+
+      function ensureAutoLockTicker() {
+        if (state.lockCheckTimer) return;
+        state.lockCheckTimer = setInterval(function () {
+          if (state.phase !== 'app') return;
+          var mins = Number(state.lockTimeoutMinutes) || 0;
+          if (mins <= 0) return;
+          if ((Date.now() - state.lockLastActiveTs) >= mins * 60 * 1000) {
+            lockVault(true, true);
+          }
+        }, 5000);
+      }
+
+      function lockVault(showMsg, broadcast) {
+        if (state.session) {
+          delete state.session.symEncKey;
+          delete state.session.symMacKey;
+        }
+        clearVaultMemory();
+        state.pendingLogin = null;
+        state.loginTotpToken = '';
+        state.loginTotpError = '';
+        state.unlockPassword = '';
+        state.unlockError = '';
+        state.phase = 'locked';
+        if (broadcast !== false && state.lockChannel) {
+          try { state.lockChannel.postMessage({ type: 'lock', at: Date.now() }); } catch (_) {}
+        }
+        if (showMsg) setMsg('Vault locked.', 'ok');
+        else render();
+      }
+
+      async function onUnlock(form) {
+        clearMsg();
+        state.unlockError = '';
+        var fd = new FormData(form);
+        state.unlockPassword = String(fd.get('password') || '');
+        if (!state.unlockPassword) {
+          state.unlockError = 'Please input master password.';
+          render();
+          return;
+        }
+        try {
+          var email = String(state.profile && state.profile.email ? state.profile.email : state.session && state.session.email ? state.session.email : '').toLowerCase();
+          if (!email) throw new Error('email missing');
+          var d = await deriveLoginHash(email, state.unlockPassword);
+          var ek = await hkdfExpand(d.masterKey, 'enc', 32);
+          var em = await hkdfExpand(d.masterKey, 'mac', 32);
+          var symKeyBytes = await decryptBw(state.profile.key, ek, em);
+          if (!symKeyBytes || symKeyBytes.length < 64) throw new Error('invalid key');
+          state.session.symEncKey = bytesToBase64(symKeyBytes.slice(0, 32));
+          state.session.symMacKey = bytesToBase64(symKeyBytes.slice(32, 64));
+          state.unlockPassword = '';
+          state.unlockError = '';
+          await loadVault();
+          await loadAdminData();
+          state.phase = 'app';
+          state.tab = 'vault';
+          state.lockLastActiveTs = Date.now();
+          render();
+          setMsg('Unlocked.', 'ok');
+        } catch (e) {
+          state.unlockError = 'Unlock failed. Master password is incorrect.';
+          render();
+        }
+      }
+
       function logout(){
-        state.session=null; state.profile=null; state.ciphers=[]; state.folders=[]; state.users=[]; state.invites=[]; state.folderFilterId=''; state.selectedCipherId=''; state.selectedMap={}; state.pendingLogin=null; state.loginTotpToken=''; state.loginTotpError=''; state.totpDisableOpen=false; state.totpDisablePassword=''; state.totpDisableError=''; state.phase='login'; saveSession(); clearMsg(); render();
+        state.session=null; state.profile=null; state.ciphers=[]; state.folders=[]; state.users=[]; state.invites=[]; state.folderFilterId=''; state.selectedCipherId=''; state.selectedMap={}; state.pendingLogin=null; state.loginTotpToken=''; state.loginTotpError=''; state.totpDisableOpen=false; state.totpDisablePassword=''; state.totpDisableError=''; state.unlockPassword=''; state.unlockError=''; state.phase='login'; saveSession(); clearMsg(); render();
       }
 
       async function authFetch(path, options){
@@ -179,7 +307,7 @@ export function startNodewardenApp(runtimeConfig) {
         try{
           var x=await calcTotpNow(raw);
           if(!x){ vEl.textContent='N/A'; rEl.textContent=''; return; }
-          vEl.textContent=x.token;
+          vEl.textContent=x.code;
           rEl.textContent=t('totpLiveIn')+': '+x.remain+'s';
         }catch(e){
           vEl.textContent='N/A';
@@ -761,6 +889,30 @@ export function startNodewardenApp(runtimeConfig) {
           + '</div>';
       }
 
+      function renderLockedScreen(){
+        var email = String(state.profile && state.profile.email ? state.profile.email : state.session && state.session.email ? state.session.email : '');
+        return ''
+          + '<div class="auth-page">'
+          + '  <div class="lang-switch" data-action="toggle-lang">'+t('langSwitch')+'</div>'
+          + '  <div class="auth-card">'
+          + '    <div class="auth-header">'
+          + '      <div class="auth-logo"></div>'
+          + '      <div class="auth-title">Unlock Vault</div>'
+          + '      <div class="auth-subtitle">'+esc(email)+'</div>'
+          + '    </div>'
+          +      renderMsg()
+          + (state.unlockError?('<div class="alert alert-danger">'+esc(state.unlockError)+'</div>'):'')
+          + '    <form id="unlockForm">'
+          + '      <div class="form-group"><label class="form-label">'+t('masterPwd')+'</label><input class="form-input" type="password" name="password" value="'+esc(state.unlockPassword)+'" required autofocus /></div>'
+          + '      <button class="btn btn-primary" type="submit" style="width:100%; margin-top:16px;">Unlock</button>'
+          + '    </form>'
+          + '    <div style="display:flex; gap:8px; margin-top:16px;">'
+          + '      <button class="btn btn-secondary" style="flex:1;" data-action="logout">Log Out</button>'
+          + '    </div>'
+          + '  </div>'
+          + '</div>';
+      }
+
       function renderVaultTab(){
         var list=filteredCiphers();
         function renderFolderOptions(selectedId){
@@ -852,9 +1004,11 @@ export function startNodewardenApp(runtimeConfig) {
       function renderSettingsTab(){
         var p=state.profile||{};
         var secret=currentTotpSecret();
+        var lockMins = Number(state.lockTimeoutMinutes)||0;
         return ''
           + renderMsg()
           + '<h2 style="margin:0 0 24px 0; font-size:24px; font-weight:600; color:var(--text-primary);">'+t('settings')+'</h2>'
+          + '<div class="panel"><h3 style="margin-top:0;">Vault Lock</h3><form id="lockForm"><div class="form-group"><label class="form-label">Auto-lock timeout</label><select class="form-input" name="lockTimeoutMinutes"><option value="0"'+(lockMins===0?' selected':'')+'>Never</option><option value="1"'+(lockMins===1?' selected':'')+'>1 minute</option><option value="5"'+(lockMins===5?' selected':'')+'>5 minutes</option><option value="15"'+(lockMins===15?' selected':'')+'>15 minutes</option><option value="30"'+(lockMins===30?' selected':'')+'>30 minutes</option><option value="60"'+(lockMins===60?' selected':'')+'>60 minutes</option></select></div><button class="btn btn-primary" type="submit">Save Lock Settings</button></form></div>'
           + '<div class="panel"><h3 style="margin-top:0;">'+t('profile')+'</h3><form id="profileForm"><div style="display:flex; gap:16px; margin-bottom:16px;"><div class="form-group" style="flex:1;"><label class="form-label">'+t('name')+'</label><input class="form-input" name="name" value="'+esc(p.name||'')+'" /></div><div class="form-group" style="flex:1;"><label class="form-label">'+t('email')+'</label><input class="form-input" type="email" name="email" value="'+esc(p.email||'')+'" required /></div></div><button class="btn btn-primary" type="submit">'+t('saveProfile')+'</button></form></div>'
           + '<div class="panel"><h3 style="margin-top:0;">'+t('changePwd')+'</h3><form id="passwordForm"><div class="form-group"><label class="form-label">'+t('currentPwd')+'</label><input class="form-input" type="password" name="currentPassword" required /></div><div style="display:flex; gap:16px; margin-bottom:16px;"><div class="form-group" style="flex:1;"><label class="form-label">'+t('newPwd')+'</label><input class="form-input" type="password" name="newPassword" minlength="12" required /></div><div class="form-group" style="flex:1;"><label class="form-label">'+t('confirmPwd')+'</label><input class="form-input" type="password" name="newPassword2" minlength="12" required /></div></div><button class="btn btn-danger" type="submit">'+t('changePwd')+'</button><div class="tiny" style="margin-top:8px;">After success, current sessions are revoked and you must log in again.</div></form></div>'
           + '<div class="panel"><h3 style="margin-top:0;">'+t('totpSetup')+'</h3><div style="display:flex; gap:24px; margin-bottom:24px; flex-wrap:wrap;"><div class="totp-qr-card"><div id="totp-qr-box"><div class="totp-qr-fallback"><div>QR loading...</div><div class="tiny">Use secret key below</div></div></div></div><div style="flex:1; min-width:250px;"><form id="totpEnableForm"><div class="form-group"><label class="form-label">'+t('secret')+'</label><input class="form-input" name="secret" value="'+esc(secret)+'" /></div><div class="form-group"><label class="form-label">'+t('verifyCode')+'</label><input class="form-input" name="token" maxlength="6" value="'+esc(state.totpSetupToken)+'" /></div><div style="display:flex; gap:8px;"><button class="btn btn-primary" type="submit">'+t('enableTotp')+'</button><button class="btn btn-secondary" type="button" data-action="totp-secret-refresh">Regenerate</button><button class="btn btn-secondary" type="button" data-action="totp-secret-copy">Copy Secret</button></div></form></div></div><button class="btn btn-danger" type="button" data-action="totp-disable">'+t('disableTotp')+'</button><div class="tiny" style="margin-top:8px;">Disable action prompts for master password.</div></div>';
@@ -936,6 +1090,7 @@ export function startNodewardenApp(runtimeConfig) {
           + '  <div class="nav-user">'
           + '    <div class="lang-switch" data-action="toggle-lang" style="position:static; margin-right:16px;">'+t('langSwitch')+'</div>'
           + '    <span style="margin-right:16px; color:var(--text-secondary);">'+esc(state.profile&&state.profile.email?state.profile.email:'')+'</span>'
+          + '    <button class="btn btn-secondary" data-action="lock" style="margin-right:8px;">Lock</button>'
           + '    <button class="btn btn-secondary" data-action="logout">'+t('logout')+'</button>'
           + '  </div>'
           + '</div>'
@@ -953,6 +1108,7 @@ export function startNodewardenApp(runtimeConfig) {
         if(state.phase==='loading'){ app.innerHTML='<div class="auth-page" style="align-items:center; justify-content:center;"><div style="display:flex; flex-direction:column; align-items:center; gap:16px;"><div class="auth-logo" style="margin:0;"></div><div style="color:var(--text-secondary); font-weight:500;">'+t('loading')+'</div></div></div>'; return; }
         if(state.phase==='register'){ app.innerHTML=renderRegisterScreen(); return; }
         if(state.phase==='login'){ app.innerHTML=renderLoginScreen(); return; }
+        if(state.phase==='locked'){ app.innerHTML=renderLockedScreen(); return; }
         app.innerHTML=renderApp();
         updateLiveTotpDisplay();
         renderTotpSetupQr();
@@ -960,10 +1116,13 @@ export function startNodewardenApp(runtimeConfig) {
 
       async function init(){
         var url=new URL(window.location.href); state.inviteCode=(url.searchParams.get('invite')||'').trim(); state.session=loadSession();
+        loadLockSettings();
         ensureTotpTicker();
+        ensureLockChannel();
+        ensureAutoLockTicker();
         var st=await fetch('/setup/status'); var setup=await jsonOrNull(st); var registered=!!(setup&&setup.registered);
         if(state.session){
-          try{ await loadProfile(); await loadVault(); await loadAdminData(); state.phase='app'; state.tab='vault'; render(); return; } catch(e){ state.session=null; saveSession(); }
+          try{ await loadProfile(); state.phase='locked'; state.tab='vault'; render(); return; } catch(e){ state.session=null; saveSession(); }
         }
         state.phase=registered?'login':'register'; render();
       }
@@ -1019,10 +1178,19 @@ export function startNodewardenApp(runtimeConfig) {
         try{
           var ek=await hkdfExpand(masterKey,'enc',32); var em=await hkdfExpand(masterKey,'mac',32);
           var symKeyBytes=await decryptBw(state.profile.key,ek,em);
-          if(symKeyBytes){ state.session.symEncKey=bytesToBase64(symKeyBytes.slice(0,32)); state.session.symMacKey=bytesToBase64(symKeyBytes.slice(32,64)); saveSession(); }
+          if(symKeyBytes){ state.session.symEncKey=bytesToBase64(symKeyBytes.slice(0,32)); state.session.symMacKey=bytesToBase64(symKeyBytes.slice(32,64)); }
         }catch(e){ console.warn('Key derivation failed:',e); }
-        await loadVault(); await loadAdminData(); state.phase='app'; state.tab='vault';
+        await loadVault(); await loadAdminData(); state.phase='app'; state.tab='vault'; state.lockLastActiveTs=Date.now();
         setMsg('Login success.', 'ok');
+      }
+      async function onSaveLockSettings(form){
+        var fd=new FormData(form);
+        var mins=Number(fd.get('lockTimeoutMinutes')||0);
+        if(!Number.isFinite(mins)||mins<0) mins=15;
+        state.lockTimeoutMinutes=mins;
+        saveLockSettings();
+        state.lockLastActiveTs=Date.now();
+        setMsg('Lock settings saved.', 'ok');
       }
       async function onSaveProfile(form){ var fd=new FormData(form); var n=String(fd.get('name')||'').trim(); var em=String(fd.get('email')||'').trim().toLowerCase(); var r=await authFetch('/api/accounts/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,email:em})}); var j=await jsonOrNull(r); if(!r.ok) return setMsg((j&&(j.error||j.error_description))||'Save profile failed.', 'err'); state.profile=j; render(); setMsg('Profile updated.', 'ok'); }
       async function onChangePassword(form){
@@ -1090,6 +1258,8 @@ export function startNodewardenApp(runtimeConfig) {
         if(form.id==='registerForm') return void onRegister(form);
         if(form.id==='loginForm') return void onLoginPassword(form);
         if(form.id==='loginTotpForm') return void onLoginTotp(form);
+        if(form.id==='unlockForm') return void onUnlock(form);
+        if(form.id==='lockForm') return void onSaveLockSettings(form);
         if(form.id==='profileForm') return void onSaveProfile(form);
         if(form.id==='passwordForm') return void onChangePassword(form);
         if(form.id==='totpEnableForm') return void onEnableTotp(form);
@@ -1103,6 +1273,7 @@ export function startNodewardenApp(runtimeConfig) {
         if(a==='goto-login'){ state.phase='login'; clearMsg(); render(); return; }
         if(a==='goto-register'){ state.phase='register'; clearMsg(); render(); return; }
         if(a==='logout'){ if(window.confirm('Log out now?')) logout(); return; }
+        if(a==='lock'){ lockVault(true, true); return; }
         if(a==='totp-cancel'){ state.pendingLogin=null; state.loginTotpToken=''; state.loginTotpError=''; render(); return; }
         if(a==='totp-disable-cancel'){ state.totpDisableOpen=false; state.totpDisablePassword=''; state.totpDisableError=''; render(); return; }
         if(a==='tab'){ state.tab=n.getAttribute('data-tab')||'vault'; clearMsg(); render(); return; }
@@ -1196,6 +1367,10 @@ export function startNodewardenApp(runtimeConfig) {
           if(state.vaultSearchTimer) clearTimeout(state.vaultSearchTimer);
           state.vaultSearchTimer=setTimeout(function(){ syncSelectedWithFilter(); render(); }, 60);
         }
+      });
+
+      ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
+        window.addEventListener(evt, markUserActivity, { passive: true });
       });
 
       init();
