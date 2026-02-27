@@ -625,6 +625,8 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
                     <span id="copyTotpBtnText">Copy</span>
                   </button>
                 </div>
+                <p class="hint" id="t_s5_uri_hint" style="margin-top:10px;"></p>
+                <div class="server" id="totpUri"></div>
                 <div class="totp-preview" id="totpPreview">
                   <div class="totp-code" id="totpCodeDisplay">------</div>
                   <div class="totp-expire" id="totpExpireText"></div>
@@ -678,6 +680,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" referrerpolicy="no-referrer"></script>
   <script>
     const JWT_STATE = ${jwtStateJson};
 
@@ -755,6 +758,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         s5Enable1: '打开 Cloudflare 控制台 -> Workers 和 Pages -> NodeWarden -> 设置 -> 变量和机密。',
         s5Enable2: '新增 Secret：TOTP_SECRET，值填写下方生成的 Base32 密钥。',
         s5QrTitle: '扫描二维码',
+        s5UriHint: '如需手动导入，请复制以下 otpauth 链接：',
         copyCode: '复制验证码',
         totpExpire: '秒后过期',
         s6Title: '最终页面',
@@ -841,6 +845,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         s5Enable1: 'Open Cloudflare Dashboard -> Workers & Pages -> your service -> Settings -> Variables and Secrets.',
         s5Enable2: 'Add Secret: TOTP_SECRET, using the generated Base32 seed below.',
         s5QrTitle: 'Scan QR code',
+        s5UriHint: 'For manual import, copy this otpauth URI:',
         copyCode: 'Copy code',
         totpExpire: 's left',
         s6Title: 'Final step',
@@ -951,6 +956,7 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
       setText('t_s5_enable_1', t('s5Enable1'));
       setText('t_s5_enable_2', t('s5Enable2'));
       setText('t_s5_qr_title', t('s5QrTitle'));
+      setText('t_s5_uri_hint', t('s5UriHint'));
       setText('refreshTotpBtnText', t('refresh'));
       setText('copyTotpBtnText', t('copy'));
       setText('copyTotpCodeBtnText', t('copyCode'));
@@ -1039,16 +1045,50 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         + '&algorithm=SHA1&digits=6&period=30';
     }
 
+    function renderTotpQrPlaceholder() {
+      const qr = document.getElementById('totpQr');
+      if (!qr) return;
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="170" height="170" viewBox="0 0 170 170" role="img" aria-label="Local-only TOTP setup">'
+        + '<rect width="170" height="170" fill="#ffffff"/>'
+        + '<rect x="10" y="10" width="150" height="150" rx="10" fill="#f8fafc" stroke="#d5dae1"/>'
+        + '<path d="M85 46a16 16 0 0 0-16 16v8h32v-8a16 16 0 0 0-16-16Zm-9 24v-8a9 9 0 1 1 18 0v8h-18Zm-7 8h32v30H69V78Zm16 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" fill="#111418"/>'
+        + '<text x="85" y="130" text-anchor="middle" font-size="10" font-family="Arial, sans-serif" fill="#344054">LOCAL ONLY</text>'
+        + '<text x="85" y="143" text-anchor="middle" font-size="9" font-family="Arial, sans-serif" fill="#667085">Use seed / otpauth URI</text>'
+        + '</svg>';
+      qr.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+
+    function renderTotpQrFromUri(uri) {
+      const qr = document.getElementById('totpQr');
+      if (!qr) return;
+
+      try {
+        if (typeof qrcode === 'function') {
+          const qrCode = qrcode(0, 'M');
+          qrCode.addData(uri, 'Byte');
+          qrCode.make();
+          qr.src = qrCode.createDataURL(4, 0);
+          return;
+        }
+      } catch {
+        // Fallback to local placeholder if runtime QR generation fails.
+      }
+
+      renderTotpQrPlaceholder();
+    }
+
+    function renderTotpUri(uri) {
+      const uriEl = document.getElementById('totpUri');
+      if (uriEl) uriEl.textContent = uri;
+    }
+
     function renderTotpHelper(seed) {
       const seedEl = document.getElementById('totpSeed');
       if (seedEl) seedEl.value = seed;
 
       const uri = buildTotpUri(seed);
-      const qr = document.getElementById('totpQr');
-      if (qr) {
-        const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=' + encodeURIComponent(uri);
-        qr.src = qrUrl;
-      }
+      renderTotpUri(uri);
+      renderTotpQrFromUri(uri);
 
       const preview = document.getElementById('totpPreview');
       if (preview) preview.style.display = 'flex';
@@ -1067,8 +1107,8 @@ export function renderRegisterPageHTML(jwtState: JwtSecretState | null): string 
         const seed = el ? el.value.trim() : '';
         if (!seed) return;
         const uri = buildTotpUri(seed);
-        const qr = document.getElementById('totpQr');
-        if (qr) qr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=' + encodeURIComponent(uri);
+        renderTotpUri(uri);
+        renderTotpQrFromUri(uri);
         const preview = document.getElementById('totpPreview');
         if (preview) preview.style.display = 'flex';
         startTotpTick();

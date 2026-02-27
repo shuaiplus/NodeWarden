@@ -15,6 +15,8 @@ const CONFIG = {
   API_WRITE_REQUESTS_PER_MINUTE: LIMITS.rateLimit.apiWriteRequestsPerMinute,
   // Dedicated budget for GET /api/sync reads.
   SYNC_READ_REQUESTS_PER_MINUTE: LIMITS.rateLimit.syncReadRequestsPerMinute,
+  // Dedicated budget for public known-device probes.
+  KNOWN_DEVICE_PROBE_REQUESTS_PER_MINUTE: LIMITS.rateLimit.knownDeviceProbeRequestsPerMinute,
   API_WINDOW_SECONDS: LIMITS.rateLimit.apiWindowSeconds,
 };
 
@@ -222,14 +224,27 @@ export class RateLimitService {
       CONFIG.API_WINDOW_SECONDS
     );
   }
+
+  // Read budget for unauthenticated GET /api/devices/knowndevice.
+  async consumeKnownDeviceProbeBudget(identifier: string): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
+    return this.consumeFixedWindowBudget(
+      identifier,
+      CONFIG.KNOWN_DEVICE_PROBE_REQUESTS_PER_MINUTE,
+      CONFIG.API_WINDOW_SECONDS
+    );
+  }
 }
 
 export function getClientIdentifier(request: Request): string {
+  return getClientIp(request) || 'unknown';
+}
+
+export function getClientIp(request: Request): string | null {
   const cfIp = request.headers.get('CF-Connecting-IP');
   if (cfIp) return cfIp;
 
   const forwardedFor = request.headers.get('X-Forwarded-For');
   if (forwardedFor) return forwardedFor.split(',')[0].trim();
 
-  return 'unknown';
+  return null;
 }

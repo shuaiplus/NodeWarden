@@ -1,6 +1,6 @@
 import { Env, DEFAULT_DEV_SECRET } from './types';
 import { AuthService } from './services/auth';
-import { RateLimitService, getClientIdentifier } from './services/ratelimit';
+import { RateLimitService, getClientIdentifier, getClientIp } from './services/ratelimit';
 import { handleCors, errorResponse, jsonResponse } from './utils/response';
 import { LIMITS } from './config/limits';
 
@@ -212,8 +212,26 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return new Response(null, { status: 200 });
     }
 
-    // Known device check (no auth required)
+    // Known device check (no auth required, but strictly rate-limited)
     if (path === '/api/devices/knowndevice' && method === 'GET') {
+      const rateLimit = new RateLimitService(env.DB);
+      const clientIp = getClientIp(request) || 'unknown-ip';
+      const rateLimitCheck = await rateLimit.consumeKnownDeviceProbeBudget(clientIp + ':known-device');
+
+      if (!rateLimitCheck.allowed) {
+        return new Response(JSON.stringify({
+          error: 'Too many requests',
+          error_description: `Known-device probe rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+        }), {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': rateLimitCheck.retryAfterSeconds!.toString(),
+            'X-RateLimit-Remaining': '0',
+          },
+        });
+      }
+
       return handleKnownDevice(request, env);
     }
 
