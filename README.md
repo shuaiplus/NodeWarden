@@ -30,7 +30,7 @@ English：[`README_EN.md`](./README_EN.md)
 | 组织/集合/成员权限 | ✅ | ❌ | 没必要实现 |
 | 登录 2FA（TOTP/WebAuthn/Duo/Email） | ✅ | ⚠️ 部分支持 | 仅支持 TOTP（通过 `TOTP_SECRET`） |
 | SSO / SCIM / 企业目录 | ✅ | ❌ | 没必要实现 |
-| Send | ✅ | ❌ | 基本没人用 |
+| Send | ✅ | ✅ | 基于 Cloudflare R2 和 D1 |
 | 紧急访问 | ✅ | ❌ | 没必要实现 |
 | 管理后台 / 计费订阅 | ✅ | ❌ | 纯免费 |
 | 推送通知完整链路 | ✅ | ❌ | 没必要实现 |
