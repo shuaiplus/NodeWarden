@@ -235,14 +235,15 @@ body,
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   font-size: 34px;
   font-weight: 800;
   color: #1e293b;
 }
 
-.brand-icon {
-  color: #334155;
+.brand-logo {
+  width: 57px;
+  height: 57px;
+  object-fit: contain;
 }
 
 .topbar-actions {

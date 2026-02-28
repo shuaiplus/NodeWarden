@@ -672,7 +672,7 @@ export default function App() {
         <div className="app-shell">
           <header className="topbar">
             <div className="brand">
-              <Shield size={20} className="brand-icon" />
+              <img src="/logo-64.png" alt="NodeWarden logo" className="brand-logo" />
               <span>NodeWarden</span>
             </div>
             <div className="topbar-actions">

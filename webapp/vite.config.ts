@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(rootDir, '../public'),
+    outDir: path.resolve(rootDir, '../dist'),
     emptyOutDir: false,
     sourcemap: true,
   },
@@ -28,8 +28,6 @@ export default defineConfig({
       '/config': 'http://127.0.0.1:8787',
       '/notifications': 'http://127.0.0.1:8787',
       '/.well-known': 'http://127.0.0.1:8787',
-      '/favicon.ico': 'http://127.0.0.1:8787',
-      '/favicon.svg': 'http://127.0.0.1:8787',
     },
   },
 });
