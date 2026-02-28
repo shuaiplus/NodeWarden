@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  A NodeWarden server running on Cloudflare Workers, compatible with official clients.
+  A third-party Bitwarden server running on Cloudflare Workers, fully compatible with official clients.
 </p>
 
 [![Powered by Cloudflare](https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
