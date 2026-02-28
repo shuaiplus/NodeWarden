@@ -62,6 +62,25 @@ export async function hkdfExpand(prk: Uint8Array, info: string, length: number):
   return result;
 }
 
+export async function hkdf(
+  ikm: Uint8Array,
+  salt: string | Uint8Array,
+  info: string | Uint8Array,
+  outputByteSize: number
+): Promise<Uint8Array> {
+  const saltBytes = typeof salt === 'string' ? new TextEncoder().encode(salt) : salt;
+  const infoBytes = typeof info === 'string' ? new TextEncoder().encode(info) : info;
+  const params: HkdfParams = {
+    name: 'HKDF',
+    salt: toBufferSource(saltBytes),
+    info: toBufferSource(infoBytes),
+    hash: 'SHA-256',
+  };
+  const key = await crypto.subtle.importKey('raw', toBufferSource(ikm), 'HKDF', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(params, key, outputByteSize * 8);
+  return new Uint8Array(bits);
+}
+
 async function hmacSha256(keyBytes: Uint8Array, dataBytes: Uint8Array): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey('raw', toBufferSource(keyBytes), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return new Uint8Array(await crypto.subtle.sign('HMAC', key, toBufferSource(dataBytes)));
@@ -75,6 +94,30 @@ async function encryptAesCbc(data: Uint8Array, key: Uint8Array, iv: Uint8Array):
 async function decryptAesCbc(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey('raw', toBufferSource(key), { name: 'AES-CBC' }, false, ['decrypt']);
   return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv: toBufferSource(iv) }, cryptoKey, toBufferSource(data)));
+}
+
+export async function encryptBwFileData(data: Uint8Array, encKey: Uint8Array, macKey: Uint8Array): Promise<Uint8Array> {
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const cipher = await encryptAesCbc(data, encKey, iv);
+  const mac = await hmacSha256(macKey, concatBytes(iv, cipher));
+  const out = new Uint8Array(1 + iv.length + mac.length + cipher.length);
+  out[0] = 2; // EncryptionType.AesCbc256_HmacSha256_B64
+  out.set(iv, 1);
+  out.set(mac, 1 + iv.length);
+  out.set(cipher, 1 + iv.length + mac.length);
+  return out;
+}
+
+export async function decryptBwFileData(encrypted: Uint8Array, encKey: Uint8Array, macKey: Uint8Array): Promise<Uint8Array> {
+  if (!encrypted || encrypted.length < 1 + 16 + 32 + 1) throw new Error('Invalid encrypted file data');
+  const encType = encrypted[0];
+  if (encType !== 2) throw new Error('Unsupported file encryption type');
+  const iv = encrypted.slice(1, 17);
+  const mac = encrypted.slice(17, 49);
+  const cipher = encrypted.slice(49);
+  const expected = await hmacSha256(macKey, concatBytes(iv, cipher));
+  if (bytesToBase64(expected) !== bytesToBase64(mac)) throw new Error('MAC mismatch');
+  return decryptAesCbc(cipher, encKey, iv);
 }
 
 export async function encryptBw(data: Uint8Array, encKey: Uint8Array, macKey: Uint8Array): Promise<string> {

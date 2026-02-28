@@ -169,7 +169,7 @@ export default function SendsPage(props: SendsPageProps) {
   }
 
   function copyAccessUrl(send: Send): void {
-    const url = send.shareUrl || `${window.location.origin}/send/${send.accessId}`;
+    const url = send.shareUrl || `${window.location.origin}/#/send/${send.accessId}`;
     void navigator.clipboard.writeText(url);
     props.onNotify('success', 'Link copied');
   }

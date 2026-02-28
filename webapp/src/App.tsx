@@ -47,13 +47,28 @@ import {
   updateProfile,
   verifyMasterPassword,
 } from '@/lib/api';
-import { base64ToBytes, decryptBw, decryptStr } from '@/lib/crypto';
+import { base64ToBytes, decryptBw, decryptStr, hkdf } from '@/lib/crypto';
 import type { AppPhase, Cipher, Folder, Profile, Send, SendDraft, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
 
 interface PendingTotp {
   email: string;
   passwordHash: string;
   masterKey: Uint8Array;
+}
+
+const SEND_KEY_SALT = 'bitwarden-send';
+const SEND_KEY_PURPOSE = 'send';
+
+function buildPublicSendUrl(origin: string, accessId: string, keyPart: string): string {
+  return `${origin}/#/send/${accessId}/${keyPart}`;
+}
+
+async function deriveSendKeyParts(sendKeyMaterial: Uint8Array): Promise<{ enc: Uint8Array; mac: Uint8Array }> {
+  if (sendKeyMaterial.length >= 64) {
+    return { enc: sendKeyMaterial.slice(0, 32), mac: sendKeyMaterial.slice(32, 64) };
+  }
+  const derived = await hkdf(sendKeyMaterial, SEND_KEY_SALT, SEND_KEY_PURPOSE, 64);
+  return { enc: derived.slice(0, 32), mac: derived.slice(32, 64) };
 }
 
 export default function App() {
@@ -460,14 +475,20 @@ export default function App() {
             try {
               if (send.key) {
                 const sendKeyRaw = await decryptBw(send.key, encKey, macKey);
-                const sendEnc = sendKeyRaw.slice(0, 32);
-                const sendMac = sendKeyRaw.slice(32, 64);
-                nextSend.decName = await decryptField(send.name || '', sendEnc, sendMac);
-                nextSend.decNotes = await decryptField(send.notes || '', sendEnc, sendMac);
-                nextSend.decText = await decryptField(send.text?.text || '', sendEnc, sendMac);
+                const derived = await deriveSendKeyParts(sendKeyRaw);
+                nextSend.decName = await decryptField(send.name || '', derived.enc, derived.mac);
+                nextSend.decNotes = await decryptField(send.notes || '', derived.enc, derived.mac);
+                nextSend.decText = await decryptField(send.text?.text || '', derived.enc, derived.mac);
+                if (send.file?.fileName) {
+                  const decFileName = await decryptField(send.file.fileName, derived.enc, derived.mac);
+                  nextSend.file = {
+                    ...(send.file || {}),
+                    fileName: decFileName || send.file.fileName,
+                  };
+                }
                 const shareKey = await buildSendShareKey(send.key, session.symEncKey!, session.symMacKey!);
                 nextSend.decShareKey = shareKey;
-                nextSend.shareUrl = `${window.location.origin}/send/${send.accessId}/${shareKey}`;
+                nextSend.shareUrl = buildPublicSendUrl(window.location.origin, send.accessId, shareKey);
               } else {
                 nextSend.decName = '';
                 nextSend.decNotes = '';
@@ -637,7 +658,7 @@ export default function App() {
       await sendsQuery.refetch();
       if (autoCopyLink && created.key && session.symEncKey && session.symMacKey) {
         const keyPart = await buildSendShareKey(created.key, session.symEncKey, session.symMacKey);
-        const shareUrl = `${window.location.origin}/send/${created.accessId}/${keyPart}`;
+        const shareUrl = buildPublicSendUrl(window.location.origin, created.accessId, keyPart);
         await navigator.clipboard.writeText(shareUrl);
       }
       pushToast('success', 'Send created');
@@ -654,7 +675,7 @@ export default function App() {
       await sendsQuery.refetch();
       if (autoCopyLink && updated.key && session.symEncKey && session.symMacKey) {
         const keyPart = await buildSendShareKey(updated.key, session.symEncKey, session.symMacKey);
-        const shareUrl = `${window.location.origin}/send/${updated.accessId}/${keyPart}`;
+        const shareUrl = buildPublicSendUrl(window.location.origin, updated.accessId, keyPart);
         await navigator.clipboard.writeText(shareUrl);
       }
       pushToast('success', 'Send updated');
@@ -709,11 +730,16 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    if (phase === 'app' && location === '/') navigate('/vault');
-  }, [phase, location, navigate]);
+  const hashPathRaw = typeof window !== 'undefined' ? window.location.hash || '' : '';
+  const hashPath = hashPathRaw.startsWith('#') ? hashPathRaw.slice(1) : hashPathRaw;
+  const effectiveLocation = hashPath.startsWith('/send/') ? hashPath : location;
+  const publicSendMatch = effectiveLocation.match(/^\/send\/([^/]+)(?:\/([^/]+))?\/?$/i);
+  const isPublicSendRoute = !!publicSendMatch;
 
-  const publicSendMatch = location.match(/^\/send\/([^/]+)(?:\/([^/]+))?\/?$/i);
+  useEffect(() => {
+    if (phase === 'app' && location === '/' && !isPublicSendRoute) navigate('/vault');
+  }, [phase, location, isPublicSendRoute, navigate]);
+
   if (publicSendMatch) {
     return (
       <>

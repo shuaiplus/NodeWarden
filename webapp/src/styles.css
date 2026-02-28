@@ -46,7 +46,7 @@ html {
 }
 
 .public-send-page {
-  min-height: 100vh;
+  min-height: 80vh;
   align-items: center;
   justify-items: center;
 }

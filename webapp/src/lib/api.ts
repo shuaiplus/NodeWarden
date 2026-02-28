@@ -1,4 +1,4 @@
-import { base64ToBytes, bytesToBase64, decryptBw, decryptStr, encryptBw, hkdfExpand, pbkdf2 } from './crypto';
+import { base64ToBytes, bytesToBase64, decryptBw, decryptBwFileData, decryptStr, encryptBw, encryptBwFileData, hkdf, hkdfExpand, pbkdf2 } from './crypto';
 import type {
   AdminInvite,
   AdminUser,
@@ -673,19 +673,29 @@ function base64UrlToBytes(value: string): Uint8Array {
   return base64ToBytes(padded);
 }
 
+const SEND_KEY_SALT = 'bitwarden-send';
+const SEND_KEY_PURPOSE = 'send';
+const SEND_KEY_SEED_BYTES = 16;
+const SEND_PASSWORD_ITERATIONS = 100000;
+
 async function parseErrorMessage(resp: Response, fallback: string): Promise<string> {
   const body = await parseJson<TokenError>(resp);
   return body?.error_description || body?.error || fallback;
 }
 
-function toSendKeyParts(sendKeyBytes: Uint8Array): { enc: Uint8Array; mac: Uint8Array } {
-  if (sendKeyBytes.length >= 64) {
-    return { enc: sendKeyBytes.slice(0, 32), mac: sendKeyBytes.slice(32, 64) };
+async function toSendKeyParts(sendKeyMaterial: Uint8Array): Promise<{ enc: Uint8Array; mac: Uint8Array }> {
+  // Legacy compatibility: early NodeWarden builds stored a full 64-byte key material.
+  if (sendKeyMaterial.length >= 64) {
+    return { enc: sendKeyMaterial.slice(0, 32), mac: sendKeyMaterial.slice(32, 64) };
   }
-  const merged = new Uint8Array(64);
-  merged.set(sendKeyBytes.slice(0, 32), 0);
-  merged.set(sendKeyBytes.slice(0, 32), 32);
-  return { enc: merged.slice(0, 32), mac: merged.slice(32, 64) };
+  // Official behavior: send URL key is seed material; derive 64-byte key via HKDF.
+  const derived = await hkdf(sendKeyMaterial, SEND_KEY_SALT, SEND_KEY_PURPOSE, 64);
+  return { enc: derived.slice(0, 32), mac: derived.slice(32, 64) };
+}
+
+async function hashSendPasswordB64(password: string, sendKeyMaterial: Uint8Array): Promise<string> {
+  const hash = await pbkdf2(password, sendKeyMaterial, SEND_PASSWORD_ITERATIONS, 32);
+  return bytesToBase64(hash);
 }
 
 function parseMaxAccessCountRaw(value: string): number | null {
@@ -704,9 +714,9 @@ export async function createSend(
   if (!session.symEncKey || !session.symMacKey) throw new Error('Vault key unavailable');
   const userEnc = base64ToBytes(session.symEncKey);
   const userMac = base64ToBytes(session.symMacKey);
-  const sendKeyRaw = crypto.getRandomValues(new Uint8Array(64));
-  const sendKeyForUser = await encryptBw(sendKeyRaw, userEnc, userMac);
-  const sendKey = toSendKeyParts(sendKeyRaw);
+  const sendKeyMaterial = crypto.getRandomValues(new Uint8Array(SEND_KEY_SEED_BYTES));
+  const sendKeyForUser = await encryptBw(sendKeyMaterial, userEnc, userMac);
+  const sendKey = await toSendKeyParts(sendKeyMaterial);
   const nameCipher = await encryptTextValue(draft.name || '', sendKey.enc, sendKey.mac);
   const notesCipher = await encryptTextValue(draft.notes || '', sendKey.enc, sendKey.mac);
 
@@ -714,6 +724,7 @@ export async function createSend(
   const expirationIso = toIsoDateFromDays(draft.expirationDays, false);
   const maxAccessCount = parseMaxAccessCountRaw(draft.maxAccessCount);
   const password = String(draft.password || '');
+  const passwordHash = password ? await hashSendPasswordB64(password, sendKeyMaterial) : null;
 
   if (draft.type === 'text') {
     const text = String(draft.text || '').trim();
@@ -730,7 +741,7 @@ export async function createSend(
         hidden: false,
       },
       maxAccessCount,
-      password: password || null,
+      password: passwordHash,
       hideEmail: false,
       disabled: !!draft.disabled,
       deletionDate: deletionIso,
@@ -749,6 +760,10 @@ export async function createSend(
   }
 
   if (!draft.file) throw new Error('File is required');
+  const fileNameCipher = await encryptTextValue(draft.file.name, sendKey.enc, sendKey.mac);
+  if (!fileNameCipher) throw new Error('Invalid file name');
+  const plainFileBytes = new Uint8Array(await draft.file.arrayBuffer());
+  const encryptedFileBytes = await encryptBwFileData(plainFileBytes, sendKey.enc, sendKey.mac);
 
   const fileResp = await authedFetch('/api/sends/file/v2', {
     method: 'POST',
@@ -759,11 +774,11 @@ export async function createSend(
       notes: notesCipher,
       key: sendKeyForUser,
       file: {
-        fileName: draft.file.name,
+        fileName: fileNameCipher,
       },
-      fileLength: draft.file.size,
+      fileLength: encryptedFileBytes.byteLength,
       maxAccessCount,
-      password: password || null,
+      password: passwordHash,
       hideEmail: false,
       disabled: !!draft.disabled,
       deletionDate: deletionIso,
@@ -772,20 +787,20 @@ export async function createSend(
   });
   if (!fileResp.ok) throw new Error(await parseErrorMessage(fileResp, 'Create file send failed'));
 
-  const uploadInfo = await parseJson<{ url?: string }>(fileResp);
+  const uploadInfo = await parseJson<{ url?: string; sendResponse?: Send }>(fileResp);
   const uploadUrl = uploadInfo?.url;
   if (!uploadUrl) throw new Error('Create file send failed: missing upload URL');
 
   const formData = new FormData();
-  formData.set('data', draft.file, draft.file.name);
+  const encryptedBlob = new Blob([encryptedFileBytes as unknown as BlobPart], { type: 'application/octet-stream' });
+  formData.set('data', encryptedBlob, fileNameCipher);
   const uploadResp = await authedFetch(uploadUrl, {
     method: 'POST',
     body: formData,
   });
   if (!uploadResp.ok) throw new Error(await parseErrorMessage(uploadResp, 'Upload send file failed'));
-  const fileBody = await parseJson<{ sendResponse?: Send }>(fileResp);
-  if (!fileBody?.sendResponse?.id) throw new Error('Create file send failed');
-  return fileBody.sendResponse;
+  if (!uploadInfo?.sendResponse?.id) throw new Error('Create file send failed');
+  return uploadInfo.sendResponse;
 }
 
 export async function updateSend(
@@ -798,8 +813,8 @@ export async function updateSend(
   if (!send.key) throw new Error('Send key unavailable');
   const userEnc = base64ToBytes(session.symEncKey);
   const userMac = base64ToBytes(session.symMacKey);
-  const sendKeyRaw = await decryptBw(send.key, userEnc, userMac);
-  const sendKey = toSendKeyParts(sendKeyRaw);
+  const sendKeyMaterial = await decryptBw(send.key, userEnc, userMac);
+  const sendKey = await toSendKeyParts(sendKeyMaterial);
   const nameCipher = await encryptTextValue(draft.name || '', sendKey.enc, sendKey.mac);
   const notesCipher = await encryptTextValue(draft.notes || '', sendKey.enc, sendKey.mac);
 
@@ -813,6 +828,9 @@ export async function updateSend(
 
   const textCipher = await encryptTextValue(String(draft.text || ''), sendKey.enc, sendKey.mac);
 
+  const passwordRaw = String(draft.password || '');
+  const passwordHash = passwordRaw ? await hashSendPasswordB64(passwordRaw, sendKeyMaterial) : null;
+
   const payload = {
     id: send.id,
     type: draft.type === 'file' ? 1 : 0,
@@ -824,7 +842,7 @@ export async function updateSend(
       hidden: false,
     },
     maxAccessCount,
-    password: String(draft.password || '') || null,
+    password: passwordHash,
     hideEmail: false,
     disabled: !!draft.disabled,
     deletionDate: deletionIso,
@@ -850,8 +868,29 @@ export async function deleteSend(
   if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Delete send failed'));
 }
 
-export async function accessPublicSend(accessId: string, password?: string): Promise<any> {
-  const payload = password ? { password } : {};
+async function buildPublicSendAccessPayload(password?: string, keyPart?: string | null): Promise<Record<string, unknown>> {
+  const payload: Record<string, unknown> = {};
+  const plainPassword = String(password || '').trim();
+  if (!plainPassword) return payload;
+  payload.password = plainPassword;
+
+  // Official clients send a PBKDF2 hash bound to send key material.
+  if (keyPart) {
+    try {
+      const sendKeyMaterial = base64UrlToBytes(keyPart);
+      const passwordHashB64 = await hashSendPasswordB64(plainPassword, sendKeyMaterial);
+      payload.passwordHash = passwordHashB64;
+      payload.password_hash_b64 = passwordHashB64;
+      payload.passwordHashB64 = passwordHashB64;
+    } catch {
+      // Fallback to plain password for legacy compatibility.
+    }
+  }
+  return payload;
+}
+
+export async function accessPublicSend(accessId: string, keyPart?: string | null, password?: string): Promise<any> {
+  const payload = await buildPublicSendAccessPayload(password, keyPart);
   const resp = await fetch(`/api/sends/access/${encodeURIComponent(accessId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -866,8 +905,8 @@ export async function accessPublicSend(accessId: string, password?: string): Pro
   return (await parseJson<any>(resp)) || null;
 }
 
-export async function accessPublicSendFile(sendId: string, fileId: string, password?: string): Promise<string> {
-  const payload = password ? { password } : {};
+export async function accessPublicSendFile(sendId: string, fileId: string, keyPart?: string | null, password?: string): Promise<string> {
+  const payload = await buildPublicSendAccessPayload(password, keyPart);
   const resp = await fetch(`/api/sends/${encodeURIComponent(sendId)}/access/file/${encodeURIComponent(fileId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -885,8 +924,8 @@ export async function accessPublicSendFile(sendId: string, fileId: string, passw
 }
 
 export async function decryptPublicSend(accessData: any, urlSafeKey: string): Promise<any> {
-  const sendKeyRaw = base64UrlToBytes(urlSafeKey);
-  const sendKey = toSendKeyParts(sendKeyRaw);
+  const sendKeyMaterial = base64UrlToBytes(urlSafeKey);
+  const sendKey = await toSendKeyParts(sendKeyMaterial);
   const out: any = { ...accessData };
   out.decName = await decryptStr(accessData?.name || '', sendKey.enc, sendKey.mac);
   if (accessData?.text?.text) {
@@ -902,8 +941,18 @@ export async function decryptPublicSend(accessData: any, urlSafeKey: string): Pr
   return out;
 }
 
+export async function decryptPublicSendFileBytes(
+  encryptedBytes: ArrayBuffer | Uint8Array,
+  urlSafeKey: string
+): Promise<Uint8Array> {
+  const sendKeyMaterial = base64UrlToBytes(urlSafeKey);
+  const sendKey = await toSendKeyParts(sendKeyMaterial);
+  const encrypted = encryptedBytes instanceof Uint8Array ? encryptedBytes : new Uint8Array(encryptedBytes);
+  return decryptBwFileData(encrypted, sendKey.enc, sendKey.mac);
+}
+
 export function buildSendShareKey(sendKeyEncrypted: string, userEncB64: string, userMacB64: string): Promise<string> {
   const userEnc = base64ToBytes(userEncB64);
   const userMac = base64ToBytes(userMacB64);
-  return decryptBw(sendKeyEncrypted, userEnc, userMac).then((raw) => bytesToBase64Url(raw));
+  return decryptBw(sendKeyEncrypted, userEnc, userMac).then((keyMaterial) => bytesToBase64Url(keyMaterial));
 }

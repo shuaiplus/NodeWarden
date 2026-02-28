@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Download, Eye, Lock } from 'lucide-preact';
-import { accessPublicSend, accessPublicSendFile, decryptPublicSend } from '@/lib/api';
+import { accessPublicSend, accessPublicSendFile, decryptPublicSend, decryptPublicSendFileBytes } from '@/lib/api';
 
 interface PublicSendPageProps {
   accessId: string;
@@ -19,7 +19,7 @@ export default function PublicSendPage(props: PublicSendPageProps) {
     setBusy(true);
     setError('');
     try {
-      const data = await accessPublicSend(props.accessId, pass);
+      const data = await accessPublicSend(props.accessId, props.keyPart, pass);
       if (!props.keyPart) {
         setError('This link is missing decryption key.');
         setSendData(null);
@@ -48,10 +48,22 @@ export default function PublicSendPage(props: PublicSendPageProps) {
     setBusy(true);
     setError('');
     try {
-      const url = await accessPublicSendFile(sendData.id, sendData.file.id, password || undefined);
+      const url = await accessPublicSendFile(sendData.id, sendData.file.id, props.keyPart, password || undefined);
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('Download failed');
-      const blob = await resp.blob();
+      const encryptedBytes = await resp.arrayBuffer();
+      let blob: Blob;
+      if (props.keyPart) {
+        try {
+          const decryptedBytes = await decryptPublicSendFileBytes(encryptedBytes, props.keyPart);
+          blob = new Blob([decryptedBytes as unknown as BlobPart], { type: 'application/octet-stream' });
+        } catch {
+          // Legacy compatibility: early web-created file sends uploaded plaintext bytes.
+          blob = new Blob([encryptedBytes], { type: 'application/octet-stream' });
+        }
+      } else {
+        blob = new Blob([encryptedBytes], { type: 'application/octet-stream' });
+      }
       const obj = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = obj;

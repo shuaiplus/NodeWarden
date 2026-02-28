@@ -195,6 +195,14 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
+function isLikelyHashB64(value: string): boolean {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  if (!/^[A-Za-z0-9+/_=-]+$/.test(raw)) return false;
+  const decoded = base64UrlDecode(raw);
+  return !!decoded && decoded.length === 32;
+}
+
 async function setSendPassword(send: Send, password: string | null): Promise<void> {
   if (!password) {
     send.passwordHash = null;
@@ -203,6 +211,16 @@ async function setSendPassword(send: Send, password: string | null): Promise<voi
     if (send.authType === SendAuthType.Password) {
       send.authType = SendAuthType.None;
     }
+    return;
+  }
+
+  // Official client behavior: request.password already contains PBKDF2 hash (base64).
+  // Keep it as-is to remain interoperable.
+  if (isLikelyHashB64(password)) {
+    send.passwordHash = password.trim();
+    send.passwordSalt = null;
+    send.passwordIterations = null;
+    send.authType = SendAuthType.Password;
     return;
   }
 
@@ -216,8 +234,13 @@ async function setSendPassword(send: Send, password: string | null): Promise<voi
 }
 
 export async function verifySendPassword(send: Send, password: string): Promise<boolean> {
-  if (!send.passwordHash || !send.passwordSalt || !send.passwordIterations) {
+  if (!send.passwordHash) {
     return false;
+  }
+
+  // Official client behavior: password is already a hash in base64.
+  if (!send.passwordSalt || !send.passwordIterations) {
+    return verifySendPasswordHashB64(send, password);
   }
 
   const salt = base64UrlDecode(send.passwordSalt);
@@ -360,14 +383,30 @@ async function validatePublicSendAccess(send: Send, body: unknown): Promise<Resp
   if (!send.passwordHash) return null;
 
   const passwordRaw = getAliasedProp(body, ['password', 'Password']);
-  if (typeof passwordRaw.value !== 'string') {
-    return errorResponse('Password not provided', 401);
-  }
+  const passwordHashB64Raw = getAliasedProp(body, [
+    'password_hash_b64',
+    'passwordHashB64',
+    'passwordHash',
+    'password_hash',
+  ]);
 
-  const validPassword = await verifySendPassword(send, passwordRaw.value);
-  if (!validPassword) {
-    return errorResponse('Invalid password', 400);
+  let validPassword = false;
+  if (send.passwordSalt && send.passwordIterations) {
+    if (typeof passwordRaw.value !== 'string') {
+      return errorResponse('Password not provided', 401);
+    }
+    validPassword = await verifySendPassword(send, passwordRaw.value);
+  } else {
+    const candidate =
+      typeof passwordHashB64Raw.value === 'string'
+        ? passwordHashB64Raw.value
+        : typeof passwordRaw.value === 'string'
+          ? passwordRaw.value
+          : '';
+    if (!candidate) return errorResponse('Password not provided', 401);
+    validPassword = verifySendPasswordHashB64(send, candidate);
   }
+  if (!validPassword) return errorResponse('Invalid password', 400);
 
   return null;
 }
@@ -1153,12 +1192,12 @@ export async function handleDownloadSendFile(
 
 export async function issueSendAccessToken(
   env: Env,
-  sendId: string,
+  sendIdOrAccessId: string,
   passwordHashB64?: string | null,
   password?: string | null
 ): Promise<{ token: string } | { error: Response }> {
   const storage = new StorageService(env.DB);
-  const send = await storage.getSend(sendId);
+  const send = await resolveSendFromIdOrAccessId(storage, sendIdOrAccessId);
 
   if (!send || !isSendAvailable(send)) {
     return {
