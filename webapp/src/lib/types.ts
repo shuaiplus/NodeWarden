@@ -127,6 +127,52 @@ export interface Cipher {
   decNotes?: string;
 }
 
+export interface SendTextData {
+  text?: string | null;
+  hidden?: boolean;
+}
+
+export interface Send {
+  id: string;
+  accessId: string;
+  type: number;
+  name?: string | null;
+  notes?: string | null;
+  text?: SendTextData | null;
+  key?: string | null;
+  maxAccessCount?: number | null;
+  accessCount?: number;
+  disabled?: boolean;
+  revisionDate?: string;
+  expirationDate?: string | null;
+  deletionDate?: string;
+  decName?: string;
+  decNotes?: string;
+  decText?: string;
+  decShareKey?: string;
+  shareUrl?: string;
+  file?: {
+    id?: string;
+    fileName?: string;
+    size?: string | number;
+    sizeName?: string;
+  } | null;
+}
+
+export interface SendDraft {
+  id?: string;
+  type: 'text' | 'file';
+  name: string;
+  notes: string;
+  text: string;
+  file: File | null;
+  deletionDays: string;
+  expirationDays: string;
+  maxAccessCount: string;
+  password: string;
+  disabled: boolean;
+}
+
 export type CustomFieldType = 0 | 1 | 2 | 3;
 
 export interface VaultDraftField {

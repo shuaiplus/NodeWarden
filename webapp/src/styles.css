@@ -42,6 +42,12 @@ body,
   padding: 24px;
 }
 
+.public-send-page {
+  min-height: 100vh;
+  align-items: center;
+  justify-items: center;
+}
+
 .auth-card {
   width: min(640px, 100%);
   background: var(--panel);
@@ -85,6 +91,46 @@ body,
   background: #fff;
 }
 
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 42px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #365fa8 50%),
+    linear-gradient(135deg, #365fa8 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 3px),
+    calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+input[type='file'].input {
+  height: auto;
+  min-height: 48px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+input[type='file'].input::file-selector-button {
+  height: 32px;
+  border: 1px solid #3f5b9e;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: #eef4ff;
+  color: #1f4ea0;
+  font-weight: 700;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+input[type='file'].input::file-selector-button:hover {
+  background: #dfeaff;
+  border-color: #2f5fd8;
+}
+
 .textarea {
   min-height: 110px;
   height: auto;
@@ -113,6 +159,19 @@ body,
 
 .password-wrap .input {
   padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #275ac2;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
 }
 
 .eye-btn {
@@ -720,6 +779,10 @@ body,
   gap: 10px;
 }
 
+.field-span-2 {
+  grid-column: 1 / -1;
+}
+
 .totp-grid {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -850,6 +913,22 @@ body,
   margin: 12px 0;
 }
 
+.detail-delete-btn {
+  margin-left: auto;
+}
+
+.send-options {
+  display: grid;
+  gap: 8px;
+  color: #3a4a64;
+}
+
+.send-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .local-error {
   margin-top: 10px;
   color: #b42318;
@@ -904,12 +983,19 @@ body,
   margin-bottom: 10px;
 }
 
-.invite-row-actions {
-  justify-content: flex-end;
+.invite-create-group {
+  align-items: flex-end;
 }
 
-.invite-actions-head {
-  text-align: right !important;
+.invite-hours-field {
+  margin: 0;
+}
+
+.invite-hours-field > span {
+  margin-bottom: 6px;
+  color: #5f6f85;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .dialog-mask {

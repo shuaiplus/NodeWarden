@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { CircleHelp, LogOut, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
+import { CircleHelp, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
 import VaultPage from '@/components/VaultPage';
+import SendsPage from '@/components/SendsPage';
+import PublicSendPage from '@/components/PublicSendPage';
 import SettingsPage from '@/components/SettingsPage';
 import AdminPage from '@/components/AdminPage';
 import HelpPage from '@/components/HelpPage';
@@ -15,8 +17,10 @@ import {
   createCipher,
   createAuthedFetch,
   createInvite,
+  createSend,
   deleteAllInvites,
   deleteCipher,
+  deleteSend,
   deleteUser,
   deriveLoginHash,
   bulkMoveCiphers,
@@ -24,6 +28,7 @@ import {
   getFolders,
   getProfile,
   getSetupStatus,
+  getSends,
   getTotpStatus,
   getWebConfig,
   listAdminInvites,
@@ -36,12 +41,14 @@ import {
   setTotp,
   setUserStatus,
   updateCipher,
+  updateSend,
+  buildSendShareKey,
   unlockVaultKey,
   updateProfile,
   verifyMasterPassword,
 } from '@/lib/api';
 import { base64ToBytes, decryptBw, decryptStr } from '@/lib/crypto';
-import type { AppPhase, Cipher, Folder, Profile, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
+import type { AppPhase, Cipher, Folder, Profile, Send, SendDraft, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
 
 interface PendingTotp {
   email: string;
@@ -83,6 +90,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [decryptedFolders, setDecryptedFolders] = useState<Folder[]>([]);
   const [decryptedCiphers, setDecryptedCiphers] = useState<Cipher[]>([]);
+  const [decryptedSends, setDecryptedSends] = useState<Send[]>([]);
 
   function setSession(next: SessionState | null) {
     setSessionState(next);
@@ -302,6 +310,11 @@ export default function App() {
     queryFn: () => getFolders(authedFetch),
     enabled: phase === 'app' && !!session?.symEncKey && !!session?.symMacKey,
   });
+  const sendsQuery = useQuery({
+    queryKey: ['sends', session?.accessToken],
+    queryFn: () => getSends(authedFetch),
+    enabled: phase === 'app' && !!session?.symEncKey && !!session?.symMacKey,
+  });
   const usersQuery = useQuery({
     queryKey: ['admin-users', session?.accessToken],
     queryFn: () => listAdminUsers(authedFetch),
@@ -322,9 +335,10 @@ export default function App() {
     if (!session?.symEncKey || !session?.symMacKey) {
       setDecryptedFolders([]);
       setDecryptedCiphers([]);
+      setDecryptedSends([]);
       return;
     }
-    if (!foldersQuery.data || !ciphersQuery.data) return;
+    if (!foldersQuery.data || !ciphersQuery.data || !sendsQuery.data) return;
 
     let active = true;
     (async () => {
@@ -440,9 +454,36 @@ export default function App() {
           })
         );
 
+        const sends = await Promise.all(
+          sendsQuery.data.map(async (send) => {
+            const nextSend: Send = { ...send };
+            try {
+              if (send.key) {
+                const sendKeyRaw = await decryptBw(send.key, encKey, macKey);
+                const sendEnc = sendKeyRaw.slice(0, 32);
+                const sendMac = sendKeyRaw.slice(32, 64);
+                nextSend.decName = await decryptField(send.name || '', sendEnc, sendMac);
+                nextSend.decNotes = await decryptField(send.notes || '', sendEnc, sendMac);
+                nextSend.decText = await decryptField(send.text?.text || '', sendEnc, sendMac);
+                const shareKey = await buildSendShareKey(send.key, session.symEncKey!, session.symMacKey!);
+                nextSend.decShareKey = shareKey;
+                nextSend.shareUrl = `${window.location.origin}/send/${send.accessId}/${shareKey}`;
+              } else {
+                nextSend.decName = '';
+                nextSend.decNotes = '';
+                nextSend.decText = '';
+              }
+            } catch {
+              nextSend.decName = '(Decrypt failed)';
+            }
+            return nextSend;
+          })
+        );
+
         if (!active) return;
         setDecryptedFolders(folders);
         setDecryptedCiphers(ciphers);
+        setDecryptedSends(sends);
       } catch (error) {
         if (!active) return;
         pushToast('error', error instanceof Error ? error.message : 'Decrypt failed');
@@ -452,7 +493,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [session?.symEncKey, session?.symMacKey, foldersQuery.data, ciphersQuery.data]);
+  }, [session?.symEncKey, session?.symMacKey, foldersQuery.data, ciphersQuery.data, sendsQuery.data]);
 
   async function saveProfileAction(name: string, email: string) {
     try {
@@ -526,7 +567,7 @@ export default function App() {
   }
 
   async function refreshVault() {
-    await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch()]);
+    await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch(), sendsQuery.refetch()]);
     pushToast('success', 'Vault synced');
   }
 
@@ -589,6 +630,64 @@ export default function App() {
     }
   }
 
+  async function createSendItem(draft: SendDraft, autoCopyLink: boolean) {
+    if (!session) return;
+    try {
+      const created = await createSend(authedFetch, session, draft);
+      await sendsQuery.refetch();
+      if (autoCopyLink && created.key && session.symEncKey && session.symMacKey) {
+        const keyPart = await buildSendShareKey(created.key, session.symEncKey, session.symMacKey);
+        const shareUrl = `${window.location.origin}/send/${created.accessId}/${keyPart}`;
+        await navigator.clipboard.writeText(shareUrl);
+      }
+      pushToast('success', 'Send created');
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : 'Create send failed');
+      throw error;
+    }
+  }
+
+  async function updateSendItem(send: Send, draft: SendDraft, autoCopyLink: boolean) {
+    if (!session) return;
+    try {
+      const updated = await updateSend(authedFetch, session, send, draft);
+      await sendsQuery.refetch();
+      if (autoCopyLink && updated.key && session.symEncKey && session.symMacKey) {
+        const keyPart = await buildSendShareKey(updated.key, session.symEncKey, session.symMacKey);
+        const shareUrl = `${window.location.origin}/send/${updated.accessId}/${keyPart}`;
+        await navigator.clipboard.writeText(shareUrl);
+      }
+      pushToast('success', 'Send updated');
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : 'Update send failed');
+      throw error;
+    }
+  }
+
+  async function deleteSendItem(send: Send) {
+    try {
+      await deleteSend(authedFetch, send.id);
+      await sendsQuery.refetch();
+      pushToast('success', 'Send deleted');
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : 'Delete send failed');
+      throw error;
+    }
+  }
+
+  async function bulkDeleteSendItems(ids: string[]) {
+    try {
+      for (const id of ids) {
+        await deleteSend(authedFetch, id);
+      }
+      await sendsQuery.refetch();
+      pushToast('success', 'Deleted selected sends');
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : 'Bulk delete sends failed');
+      throw error;
+    }
+  }
+
   async function verifyMasterPasswordAction(email: string, password: string) {
     const derived = await deriveLoginHash(email, password, defaultKdfIterations);
     await verifyMasterPassword(authedFetch, derived.hash);
@@ -613,6 +712,16 @@ export default function App() {
   useEffect(() => {
     if (phase === 'app' && location === '/') navigate('/vault');
   }, [phase, location, navigate]);
+
+  const publicSendMatch = location.match(/^\/send\/([^/]+)(?:\/([^/]+))?\/?$/i);
+  if (publicSendMatch) {
+    return (
+      <>
+        <PublicSendPage accessId={decodeURIComponent(publicSendMatch[1])} keyPart={publicSendMatch[2] ? decodeURIComponent(publicSendMatch[2]) : null} />
+        <ToastHost toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />
+      </>
+    );
+  }
 
   if (phase === 'loading') {
     return (
@@ -695,6 +804,10 @@ export default function App() {
                 <Vault size={16} />
                 <span>My Vault</span>
               </Link>
+              <Link href="/sends" className={`side-link ${location === '/sends' ? 'active' : ''}`}>
+                <SendIcon size={16} />
+                <span>Sends</span>
+              </Link>
               {profile?.role === 'admin' && (
                 <Link href="/admin" className={`side-link ${location === '/admin' ? 'active' : ''}`}>
                   <ShieldUser size={16} />
@@ -712,6 +825,18 @@ export default function App() {
             </aside>
             <main className="content">
               <Switch>
+                <Route path="/sends">
+                  <SendsPage
+                    sends={decryptedSends}
+                    loading={sendsQuery.isFetching}
+                    onRefresh={refreshVault}
+                    onCreate={createSendItem}
+                    onUpdate={updateSendItem}
+                    onDelete={deleteSendItem}
+                    onBulkDelete={bulkDeleteSendItems}
+                    onNotify={pushToast}
+                  />
+                </Route>
                 <Route path="/vault">
                   <VaultPage
                     ciphers={decryptedCiphers}

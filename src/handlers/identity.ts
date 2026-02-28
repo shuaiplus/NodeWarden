@@ -7,6 +7,7 @@ import { LIMITS } from '../config/limits';
 import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
 import { createRefreshToken } from '../utils/jwt';
 import { readAuthRequestDeviceInfo } from '../utils/device';
+import { issueSendAccessToken } from './sends';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
@@ -247,6 +248,40 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
     return jsonResponse(response);
 
+  } else if (grantType === 'send_access') {
+    const sendId = String(body.send_id || body.sendId || '').trim();
+    if (!sendId) {
+      return jsonResponse(
+        {
+          error: 'invalid_request',
+          error_description: 'send_id is required',
+          send_access_error_type: 'invalid_send_id',
+          ErrorModel: {
+            Message: 'send_id is required',
+            Object: 'error',
+          },
+        },
+        400
+      );
+    }
+
+    const passwordHashB64 = String(
+      body.password_hash_b64 || body.passwordHashB64 || body.passwordHash || body.password_hash || ''
+    ).trim() || null;
+    const password = String(body.password || '').trim() || null;
+
+    const result = await issueSendAccessToken(env, sendId, passwordHashB64, password);
+    if ('error' in result) {
+      return result.error;
+    }
+
+    return jsonResponse({
+      access_token: result.token,
+      expires_in: LIMITS.auth.sendAccessTokenTtlSeconds,
+      token_type: 'Bearer',
+      scope: 'api.send',
+      unofficialServer: true,
+    });
   } else if (grantType === 'refresh_token') {
     // Refresh token
     const refreshToken = body.refresh_token;

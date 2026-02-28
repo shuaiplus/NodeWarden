@@ -77,18 +77,20 @@ export default function AdminPage(props: AdminPageProps) {
           </button>
         </div>
         <div className="invite-toolbar">
-          <div className="actions">
-            <input
-              className="input small"
-              type="number"
-              value={inviteHours}
-              min={1}
-              max={720}
-              onInput={(e) => setInviteHours(Number((e.currentTarget as HTMLInputElement).value || 168))}
-            />
-            <span className="muted-inline">hours</span>
+          <div className="actions invite-create-group">
+            <label className="field invite-hours-field">
+              <span>邀请码有效时长（小时）</span>
+              <input
+                className="input small"
+                type="number"
+                value={inviteHours}
+                min={1}
+                max={720}
+                onInput={(e) => setInviteHours(Number((e.currentTarget as HTMLInputElement).value || 168))}
+              />
+            </label>
             <button type="button" className="btn btn-primary" onClick={() => void props.onCreateInvite(inviteHours)}>
-              Create Invite
+              创建时效邀请码
             </button>
           </div>
           <button type="button" className="btn btn-danger" onClick={() => void props.onDeleteAllInvites()}>

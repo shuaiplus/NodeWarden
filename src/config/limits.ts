@@ -15,6 +15,9 @@
     // Attachment download token lifetime in seconds.
     // 附件下载令牌有效期（秒）。
     fileDownloadTokenTtlSeconds: 300,
+    // Send access token lifetime in seconds.
+    // Send 访问令牌有效期（秒）。
+    sendAccessTokenTtlSeconds: 300,
     // Minimum required JWT secret length.
     // JWT 密钥最小长度要求。
     jwtSecretMinLength: 32,
@@ -72,6 +75,14 @@
     // Max attachment upload size in bytes.
     // 附件上传大小上限（字节）。
     maxFileSizeBytes: 100 * 1024 * 1024,
+  },
+  send: {
+    // Max file size allowed for Send file uploads.
+    // Send 文件上传大小上限。
+    maxFileSizeBytes: 550_502_400,
+    // Max days allowed between now and deletion date.
+    // 允许的最远删除日期（距当前天数）。
+    maxDeletionDays: 31,
   },
   pagination: {
     // Default page size when client does not specify pageSize.

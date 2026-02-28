@@ -2,6 +2,7 @@ import { Env, SyncResponse, CipherResponse, FolderResponse, ProfileResponse } fr
 import { StorageService } from '../services/storage';
 import { errorResponse } from '../utils/response';
 import { cipherToResponse } from './ciphers';
+import { sendToResponse } from './sends';
 import { LIMITS } from '../config/limits';
 import { isTotpEnabled } from '../utils/totp';
 
@@ -61,6 +62,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
 
   const ciphers = await storage.getAllCiphers(userId);
   const folders = await storage.getAllFolders(userId);
+  const sends = await storage.getAllSends(userId);
   const attachmentsByCipher = await storage.getAttachmentsByUserId(userId);
 
   // Build profile response
@@ -116,7 +118,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
           object: 'domains',
         },
     policies: [],
-    sends: [],
+    sends: sends.map(sendToResponse),
     // PascalCase for desktop/browser clients
     UserDecryptionOptions: {
       HasMasterPassword: true,

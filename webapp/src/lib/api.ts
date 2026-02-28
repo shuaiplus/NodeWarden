@@ -1,4 +1,4 @@
-import { base64ToBytes, bytesToBase64, decryptBw, encryptBw, hkdfExpand, pbkdf2 } from './crypto';
+import { base64ToBytes, bytesToBase64, decryptBw, decryptStr, encryptBw, hkdfExpand, pbkdf2 } from './crypto';
 import type {
   AdminInvite,
   AdminUser,
@@ -7,6 +7,8 @@ import type {
   ListResponse,
   Profile,
   SessionState,
+  Send,
+  SendDraft,
   SetupStatusResponse,
   TokenError,
   TokenSuccess,
@@ -252,6 +254,13 @@ export async function getCiphers(authedFetch: (input: string, init?: RequestInit
   const resp = await authedFetch('/api/ciphers');
   if (!resp.ok) throw new Error('Failed to load ciphers');
   const body = await parseJson<ListResponse<Cipher>>(resp);
+  return body?.data || [];
+}
+
+export async function getSends(authedFetch: (input: string, init?: RequestInit) => Promise<Response>): Promise<Send[]> {
+  const resp = await authedFetch('/api/sends');
+  if (!resp.ok) throw new Error('Failed to load sends');
+  const body = await parseJson<ListResponse<Send>>(resp);
   return body?.data || [];
 }
 
@@ -636,4 +645,265 @@ export async function bulkMoveCiphers(
     body: JSON.stringify({ ids, folderId }),
   });
   if (!resp.ok) throw new Error('Bulk move failed');
+}
+
+function toIsoDateFromDays(value: string, required: boolean): string | null {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    if (required) throw new Error('Deletion days is required');
+    return null;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    if (required) throw new Error('Invalid deletion days');
+    throw new Error('Invalid expiration days');
+  }
+  if (!required && n === 0) return null;
+  const date = new Date(Date.now() + Math.floor(n) * 24 * 60 * 60 * 1000);
+  return date.toISOString();
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const raw = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = raw + '='.repeat((4 - (raw.length % 4)) % 4);
+  return base64ToBytes(padded);
+}
+
+async function parseErrorMessage(resp: Response, fallback: string): Promise<string> {
+  const body = await parseJson<TokenError>(resp);
+  return body?.error_description || body?.error || fallback;
+}
+
+function toSendKeyParts(sendKeyBytes: Uint8Array): { enc: Uint8Array; mac: Uint8Array } {
+  if (sendKeyBytes.length >= 64) {
+    return { enc: sendKeyBytes.slice(0, 32), mac: sendKeyBytes.slice(32, 64) };
+  }
+  const merged = new Uint8Array(64);
+  merged.set(sendKeyBytes.slice(0, 32), 0);
+  merged.set(sendKeyBytes.slice(0, 32), 32);
+  return { enc: merged.slice(0, 32), mac: merged.slice(32, 64) };
+}
+
+function parseMaxAccessCountRaw(value: string): number | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new Error('Invalid max access count');
+  return Math.floor(n);
+}
+
+export async function createSend(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  session: SessionState,
+  draft: SendDraft
+): Promise<Send> {
+  if (!session.symEncKey || !session.symMacKey) throw new Error('Vault key unavailable');
+  const userEnc = base64ToBytes(session.symEncKey);
+  const userMac = base64ToBytes(session.symMacKey);
+  const sendKeyRaw = crypto.getRandomValues(new Uint8Array(64));
+  const sendKeyForUser = await encryptBw(sendKeyRaw, userEnc, userMac);
+  const sendKey = toSendKeyParts(sendKeyRaw);
+  const nameCipher = await encryptTextValue(draft.name || '', sendKey.enc, sendKey.mac);
+  const notesCipher = await encryptTextValue(draft.notes || '', sendKey.enc, sendKey.mac);
+
+  const deletionIso = toIsoDateFromDays(draft.deletionDays, true)!;
+  const expirationIso = toIsoDateFromDays(draft.expirationDays, false);
+  const maxAccessCount = parseMaxAccessCountRaw(draft.maxAccessCount);
+  const password = String(draft.password || '');
+
+  if (draft.type === 'text') {
+    const text = String(draft.text || '').trim();
+    if (!text) throw new Error('Send text is required');
+    const textCipher = await encryptTextValue(text, sendKey.enc, sendKey.mac);
+
+    const payload = {
+      type: 0,
+      name: nameCipher,
+      notes: notesCipher,
+      key: sendKeyForUser,
+      text: {
+        text: textCipher,
+        hidden: false,
+      },
+      maxAccessCount,
+      password: password || null,
+      hideEmail: false,
+      disabled: !!draft.disabled,
+      deletionDate: deletionIso,
+      expirationDate: expirationIso,
+    };
+
+    const resp = await authedFetch('/api/sends', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Create send failed'));
+    const body = await parseJson<Send>(resp);
+    if (!body?.id) throw new Error('Create send failed');
+    return body;
+  }
+
+  if (!draft.file) throw new Error('File is required');
+
+  const fileResp = await authedFetch('/api/sends/file/v2', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 1,
+      name: nameCipher,
+      notes: notesCipher,
+      key: sendKeyForUser,
+      file: {
+        fileName: draft.file.name,
+      },
+      fileLength: draft.file.size,
+      maxAccessCount,
+      password: password || null,
+      hideEmail: false,
+      disabled: !!draft.disabled,
+      deletionDate: deletionIso,
+      expirationDate: expirationIso,
+    }),
+  });
+  if (!fileResp.ok) throw new Error(await parseErrorMessage(fileResp, 'Create file send failed'));
+
+  const uploadInfo = await parseJson<{ url?: string }>(fileResp);
+  const uploadUrl = uploadInfo?.url;
+  if (!uploadUrl) throw new Error('Create file send failed: missing upload URL');
+
+  const formData = new FormData();
+  formData.set('data', draft.file, draft.file.name);
+  const uploadResp = await authedFetch(uploadUrl, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!uploadResp.ok) throw new Error(await parseErrorMessage(uploadResp, 'Upload send file failed'));
+  const fileBody = await parseJson<{ sendResponse?: Send }>(fileResp);
+  if (!fileBody?.sendResponse?.id) throw new Error('Create file send failed');
+  return fileBody.sendResponse;
+}
+
+export async function updateSend(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  session: SessionState,
+  send: Send,
+  draft: SendDraft
+): Promise<Send> {
+  if (!session.symEncKey || !session.symMacKey) throw new Error('Vault key unavailable');
+  if (!send.key) throw new Error('Send key unavailable');
+  const userEnc = base64ToBytes(session.symEncKey);
+  const userMac = base64ToBytes(session.symMacKey);
+  const sendKeyRaw = await decryptBw(send.key, userEnc, userMac);
+  const sendKey = toSendKeyParts(sendKeyRaw);
+  const nameCipher = await encryptTextValue(draft.name || '', sendKey.enc, sendKey.mac);
+  const notesCipher = await encryptTextValue(draft.notes || '', sendKey.enc, sendKey.mac);
+
+  const deletionIso = toIsoDateFromDays(draft.deletionDays, true)!;
+  const expirationIso = toIsoDateFromDays(draft.expirationDays, false);
+  const maxAccessCount = parseMaxAccessCountRaw(draft.maxAccessCount);
+
+  if (draft.type === 'file' && draft.file) {
+    throw new Error('Updating file content is not supported yet');
+  }
+
+  const textCipher = await encryptTextValue(String(draft.text || ''), sendKey.enc, sendKey.mac);
+
+  const payload = {
+    id: send.id,
+    type: draft.type === 'file' ? 1 : 0,
+    name: nameCipher,
+    notes: notesCipher,
+    key: send.key,
+    text: {
+      text: textCipher,
+      hidden: false,
+    },
+    maxAccessCount,
+    password: String(draft.password || '') || null,
+    hideEmail: false,
+    disabled: !!draft.disabled,
+    deletionDate: deletionIso,
+    expirationDate: expirationIso,
+  };
+
+  const resp = await authedFetch(`/api/sends/${encodeURIComponent(send.id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Update send failed'));
+  const body = await parseJson<Send>(resp);
+  if (!body?.id) throw new Error('Update send failed');
+  return body;
+}
+
+export async function deleteSend(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  sendId: string
+): Promise<void> {
+  const resp = await authedFetch(`/api/sends/${encodeURIComponent(sendId)}`, { method: 'DELETE' });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Delete send failed'));
+}
+
+export async function accessPublicSend(accessId: string, password?: string): Promise<any> {
+  const payload = password ? { password } : {};
+  const resp = await fetch(`/api/sends/access/${encodeURIComponent(accessId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    const message = await parseErrorMessage(resp, 'Failed to access send');
+    const error = new Error(message) as Error & { status?: number };
+    error.status = resp.status;
+    throw error;
+  }
+  return (await parseJson<any>(resp)) || null;
+}
+
+export async function accessPublicSendFile(sendId: string, fileId: string, password?: string): Promise<string> {
+  const payload = password ? { password } : {};
+  const resp = await fetch(`/api/sends/${encodeURIComponent(sendId)}/access/file/${encodeURIComponent(fileId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    const message = await parseErrorMessage(resp, 'Failed to access send file');
+    const error = new Error(message) as Error & { status?: number };
+    error.status = resp.status;
+    throw error;
+  }
+  const body = await parseJson<{ url?: string }>(resp);
+  if (!body?.url) throw new Error('Missing file URL');
+  return body.url;
+}
+
+export async function decryptPublicSend(accessData: any, urlSafeKey: string): Promise<any> {
+  const sendKeyRaw = base64UrlToBytes(urlSafeKey);
+  const sendKey = toSendKeyParts(sendKeyRaw);
+  const out: any = { ...accessData };
+  out.decName = await decryptStr(accessData?.name || '', sendKey.enc, sendKey.mac);
+  if (accessData?.text?.text) {
+    out.decText = await decryptStr(accessData.text.text, sendKey.enc, sendKey.mac);
+  }
+  if (accessData?.file?.fileName) {
+    try {
+      out.decFileName = await decryptStr(accessData.file.fileName, sendKey.enc, sendKey.mac);
+    } catch {
+      out.decFileName = String(accessData.file.fileName);
+    }
+  }
+  return out;
+}
+
+export function buildSendShareKey(sendKeyEncrypted: string, userEncB64: string, userMacB64: string): Promise<string> {
+  const userEnc = base64ToBytes(userEncB64);
+  const userMac = base64ToBytes(userMacB64);
+  return decryptBw(sendKeyEncrypted, userEnc, userMac).then((raw) => bytesToBase64Url(raw));
 }

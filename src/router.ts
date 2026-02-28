@@ -44,6 +44,25 @@ import {
   handleDeleteFolder 
 } from './handlers/folders';
 
+// Send handlers
+import {
+  handleGetSends,
+  handleGetSend,
+  handleCreateSend,
+  handleCreateFileSendV2,
+  handleGetSendFileUpload,
+  handleUploadSendFile,
+  handleUpdateSend,
+  handleDeleteSend,
+  handleRemoveSendPassword,
+  handleRemoveSendAuth,
+  handleAccessSend,
+  handleAccessSendFile,
+  handleAccessSendV2,
+  handleAccessSendFileV2,
+  handleDownloadSendFile,
+} from './handlers/sends';
+
 // Sync handler
 import { handleSync } from './handlers/sync';
 
@@ -229,6 +248,38 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return handlePublicDownloadAttachment(request, env, cipherId, attachmentId);
     }
 
+    // Public Send access endpoints
+    const sendAccessMatch = path.match(/^\/api\/sends\/access\/([^/]+)$/i);
+    if (sendAccessMatch && method === 'POST') {
+      const accessId = sendAccessMatch[1];
+      return handleAccessSend(request, env, accessId);
+    }
+
+    const sendAccessV2Match = path === '/api/sends/access';
+    if (sendAccessV2Match && method === 'POST') {
+      return handleAccessSendV2(request, env);
+    }
+
+    const sendAccessFileV2Match = path.match(/^\/api\/sends\/access\/file\/([a-f0-9-]+)$/i);
+    if (sendAccessFileV2Match && method === 'POST') {
+      const fileId = sendAccessFileV2Match[1];
+      return handleAccessSendFileV2(request, env, fileId);
+    }
+
+    const sendAccessFileMatch = path.match(/^\/api\/sends\/([^/]+)\/access\/file\/([a-f0-9-]+)$/i);
+    if (sendAccessFileMatch && method === 'POST') {
+      const idOrAccessId = sendAccessFileMatch[1];
+      const fileId = sendAccessFileMatch[2];
+      return handleAccessSendFile(request, env, idOrAccessId, fileId);
+    }
+
+    const sendDownloadMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)\/([a-f0-9-]+)$/i);
+    if (sendDownloadMatch && method === 'GET') {
+      const sendId = sendDownloadMatch[1];
+      const fileId = sendDownloadMatch[2];
+      return handleDownloadSendFile(request, env, sendId, fileId);
+    }
+
     // Notifications hub (stub - no auth required, return 200 for connection)
     if (path.startsWith('/notifications/')) {
       return new Response(null, { status: 200 });
@@ -295,6 +346,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         featureStates: {
           'duo-redirect': true,
           'email-verification': true,
+          'pm-19051-send-email-verification': false,
           'unauth-ui-refresh': true,
         },
         object: 'config',
@@ -547,10 +599,40 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       }
     }
 
-    // Sends endpoint (stub - not implemented)
-    if (path === '/api/sends' || path.startsWith('/api/sends/')) {
-      if (method === 'GET') {
-        return jsonResponse({ data: [], object: 'list', continuationToken: null });
+    // Send endpoints
+    if (path === '/api/sends') {
+      if (method === 'GET') return handleGetSends(request, env, userId);
+      if (method === 'POST') return handleCreateSend(request, env, userId);
+    }
+
+    if (path === '/api/sends/file/v2' && method === 'POST') {
+      return handleCreateFileSendV2(request, env, userId);
+    }
+
+    const sendMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)(\/.*)?$/i);
+    if (sendMatch) {
+      const sendId = sendMatch[1];
+      const subPath = sendMatch[2] || '';
+
+      if (subPath === '' || subPath === '/') {
+        if (method === 'GET') return handleGetSend(request, env, userId, sendId);
+        if (method === 'PUT') return handleUpdateSend(request, env, userId, sendId);
+        if (method === 'DELETE') return handleDeleteSend(request, env, userId, sendId);
+      }
+
+      if (subPath === '/remove-password' && method === 'PUT') {
+        return handleRemoveSendPassword(request, env, userId, sendId);
+      }
+
+      if (subPath === '/remove-auth' && method === 'PUT') {
+        return handleRemoveSendAuth(request, env, userId, sendId);
+      }
+
+      const sendFileUploadMatch = subPath.match(/^\/file\/([a-f0-9-]+)$/i);
+      if (sendFileUploadMatch) {
+        const fileId = sendFileUploadMatch[1];
+        if (method === 'GET') return handleGetSendFileUpload(request, env, userId, sendId, fileId);
+        if (method === 'POST') return handleUploadSendFile(request, env, userId, sendId, fileId);
       }
     }
 

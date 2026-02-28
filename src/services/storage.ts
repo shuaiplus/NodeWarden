@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, SendAuthType } from '../types';
 import { LIMITS } from '../config/limits';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -38,6 +38,17 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'size_name TEXT NOT NULL, key TEXT, ' +
   'FOREIGN KEY (cipher_id) REFERENCES ciphers(id) ON DELETE CASCADE)',
   'CREATE INDEX IF NOT EXISTS idx_attachments_cipher ON attachments(cipher_id)',
+
+  'CREATE TABLE IF NOT EXISTS sends (' +
+  'id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type INTEGER NOT NULL, name TEXT NOT NULL, notes TEXT, data TEXT NOT NULL, ' +
+  'key TEXT NOT NULL, password_hash TEXT, password_salt TEXT, password_iterations INTEGER, auth_type INTEGER NOT NULL DEFAULT 2, emails TEXT, ' +
+  'max_access_count INTEGER, access_count INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0, hide_email INTEGER, ' +
+  'created_at TEXT NOT NULL, updated_at TEXT NOT NULL, expiration_date TEXT, deletion_date TEXT NOT NULL, ' +
+  'FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)',
+  'CREATE INDEX IF NOT EXISTS idx_sends_user_updated ON sends(user_id, updated_at)',
+  'CREATE INDEX IF NOT EXISTS idx_sends_user_deletion ON sends(user_id, deletion_date)',
+  'ALTER TABLE sends ADD COLUMN auth_type INTEGER NOT NULL DEFAULT 2',
+  'ALTER TABLE sends ADD COLUMN emails TEXT',
 
   'CREATE TABLE IF NOT EXISTS refresh_tokens (' +
   'token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL, ' +
@@ -766,6 +777,104 @@ export class StorageService {
     const tokenKey = await this.refreshTokenKey(token);
     await this.db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(token).run();
     await this.db.prepare('DELETE FROM refresh_tokens WHERE token = ?').bind(tokenKey).run();
+  }
+
+  // --- Sends ---
+
+  private mapSendRow(row: any): Send {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      type: row.type,
+      name: row.name,
+      notes: row.notes,
+      data: row.data,
+      key: row.key,
+      passwordHash: row.password_hash,
+      passwordSalt: row.password_salt,
+      passwordIterations: row.password_iterations,
+      authType: row.auth_type ?? SendAuthType.None,
+      emails: row.emails ?? null,
+      maxAccessCount: row.max_access_count,
+      accessCount: row.access_count,
+      disabled: !!row.disabled,
+      hideEmail: row.hide_email === null || row.hide_email === undefined ? null : !!row.hide_email,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      expirationDate: row.expiration_date,
+      deletionDate: row.deletion_date,
+    };
+  }
+
+  async getSend(id: string): Promise<Send | null> {
+    const row = await this.db
+      .prepare(
+        'SELECT id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date FROM sends WHERE id = ?'
+      )
+      .bind(id)
+      .first<any>();
+    if (!row) return null;
+    return this.mapSendRow(row);
+  }
+
+  async saveSend(send: Send): Promise<void> {
+    const stmt = this.db.prepare(
+      'INSERT INTO sends(id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date) ' +
+      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(id) DO UPDATE SET ' +
+      'user_id=excluded.user_id, type=excluded.type, name=excluded.name, notes=excluded.notes, data=excluded.data, key=excluded.key, ' +
+      'password_hash=excluded.password_hash, password_salt=excluded.password_salt, password_iterations=excluded.password_iterations, auth_type=excluded.auth_type, emails=excluded.emails, ' +
+      'max_access_count=excluded.max_access_count, access_count=excluded.access_count, disabled=excluded.disabled, hide_email=excluded.hide_email, ' +
+      'updated_at=excluded.updated_at, expiration_date=excluded.expiration_date, deletion_date=excluded.deletion_date'
+    );
+
+    await this.safeBind(
+      stmt,
+      send.id,
+      send.userId,
+      Number(send.type) || 0,
+      send.name,
+      send.notes,
+      send.data,
+      send.key,
+      send.passwordHash,
+      send.passwordSalt,
+      send.passwordIterations,
+      send.authType,
+      send.emails,
+      send.maxAccessCount,
+      send.accessCount,
+      send.disabled ? 1 : 0,
+      send.hideEmail === null || send.hideEmail === undefined ? null : (send.hideEmail ? 1 : 0),
+      send.createdAt,
+      send.updatedAt,
+      send.expirationDate,
+      send.deletionDate
+    ).run();
+  }
+
+  async deleteSend(id: string, userId: string): Promise<void> {
+    await this.db.prepare('DELETE FROM sends WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  }
+
+  async getAllSends(userId: string): Promise<Send[]> {
+    const res = await this.db
+      .prepare(
+        'SELECT id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date FROM sends WHERE user_id = ? ORDER BY updated_at DESC'
+      )
+      .bind(userId)
+      .all<any>();
+    return (res.results || []).map(row => this.mapSendRow(row));
+  }
+
+  async getSendsPage(userId: string, limit: number, offset: number): Promise<Send[]> {
+    const res = await this.db
+      .prepare(
+        'SELECT id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date FROM sends WHERE user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?'
+      )
+      .bind(userId, limit, offset)
+      .all<any>();
+    return (res.results || []).map(row => this.mapSendRow(row));
   }
 
   async deleteRefreshTokensByUserId(userId: string): Promise<void> {
