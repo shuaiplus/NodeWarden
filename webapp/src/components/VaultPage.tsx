@@ -1,6 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { calcTotpNow } from '@/lib/crypto';
+import { computeSshFingerprint, generateDefaultSshKeyMaterial } from '@/lib/ssh';
 import {
   CheckCheck,
   Clipboard,
@@ -10,6 +11,7 @@ import {
   ExternalLink,
   FileKey2,
   Folder as FolderIcon,
+  FolderPlus,
   FolderOpen,
   FolderX,
   FolderInput,
@@ -41,6 +43,7 @@ interface VaultPageProps {
   onBulkMove: (ids: string[], folderId: string | null) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onNotify: (type: 'success' | 'error', text: string) => void;
+  onCreateFolder: (name: string) => Promise<void>;
 }
 
 type TypeFilter = 'all' | 'favorite' | 'login' | 'card' | 'identity' | 'note' | 'ssh';
@@ -57,6 +60,15 @@ const CREATE_TYPE_OPTIONS: TypeOption[] = [
   { type: 2, label: 'Note' },
   { type: 5, label: 'SSH Key' },
 ];
+
+function CreateTypeIcon({ type }: { type: number }) {
+  if (type === 1) return <Globe size={15} />;
+  if (type === 3) return <CreditCard size={15} />;
+  if (type === 4) return <ShieldUser size={15} />;
+  if (type === 2) return <StickyNote size={15} />;
+  if (type === 5) return <KeyRound size={15} />;
+  return <FileKey2 size={15} />;
+}
 
 const FIELD_TYPE_OPTIONS: Array<{ value: CustomFieldType; label: string }> = [
   { value: 0, label: 'Text' },
@@ -301,12 +313,17 @@ export default function VaultPage(props: VaultPageProps) {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveFolderId, setMoveFolderId] = useState('__none__');
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   const [totpLive, setTotpLive] = useState<{ code: string; remain: number } | null>(null);
   const [hiddenFieldVisibleMap, setHiddenFieldVisibleMap] = useState<Record<number, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [repromptOpen, setRepromptOpen] = useState(false);
   const [repromptPassword, setRepromptPassword] = useState('');
   const [repromptApprovedCipherId, setRepromptApprovedCipherId] = useState<string | null>(null);
+  const createMenuRef = useRef<HTMLDivElement | null>(null);
+  const sshSeedTicketRef = useRef(0);
+  const sshFingerprintTicketRef = useRef(0);
 
   useEffect(() => {
     const onQuickAdd = () => {
@@ -315,6 +332,25 @@ export default function VaultPage(props: VaultPageProps) {
     window.addEventListener('nodewarden:add-item', onQuickAdd);
     return () => window.removeEventListener('nodewarden:add-item', onQuickAdd);
   }, []);
+
+  useEffect(() => {
+    const onPointerDown = (event: Event) => {
+      if (!createMenuOpen) return;
+      const target = event.target as Node | null;
+      if (createMenuRef.current && target && !createMenuRef.current.contains(target)) {
+        setCreateMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCreateMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [createMenuOpen]);
 
   useEffect(() => {
     setRepromptApprovedCipherId(null);
@@ -327,6 +363,11 @@ export default function VaultPage(props: VaultPageProps) {
     const timer = window.setTimeout(() => setSearchQuery(searchInput.trim().toLowerCase()), 90);
     return () => window.clearTimeout(timer);
   }, [searchInput, searchComposing]);
+
+  useEffect(() => {
+    if (!isEditing || !draft || draft.type !== 5) return;
+    void recalculateSshFingerprint(draft.sshPublicKey);
+  }, [isEditing, draft?.id, draft?.type]);
 
   const filteredCiphers = useMemo(() => {
     return props.ciphers.filter((cipher) => {
@@ -407,6 +448,7 @@ export default function VaultPage(props: VaultPageProps) {
     setSelectedCipherId('');
     setShowPassword(false);
     setLocalError('');
+    if (type === 5) void seedSshDefaults();
   }
 
   function startEdit(): void {
@@ -427,6 +469,46 @@ export default function VaultPage(props: VaultPageProps) {
 
   function updateDraft(patch: Partial<VaultDraft>): void {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
+  async function seedSshDefaults(force = false): Promise<void> {
+    const ticket = ++sshSeedTicketRef.current;
+    try {
+      const generated = await generateDefaultSshKeyMaterial();
+      if (ticket !== sshSeedTicketRef.current) return;
+      setDraft((prev) => {
+        if (!prev || prev.type !== 5) return prev;
+        if (!force && (prev.sshPrivateKey.trim() || prev.sshPublicKey.trim())) return prev;
+        return {
+          ...prev,
+          sshPrivateKey: generated.privateKey,
+          sshPublicKey: generated.publicKey,
+          sshFingerprint: generated.fingerprint,
+        };
+      });
+    } catch {
+      // Browser may not support Ed25519 generation; user can still paste keys manually.
+    }
+  }
+
+  async function recalculateSshFingerprint(publicKey: string): Promise<void> {
+    const ticket = ++sshFingerprintTicketRef.current;
+    const fingerprint = await computeSshFingerprint(publicKey);
+    if (ticket !== sshFingerprintTicketRef.current) return;
+    setDraft((prev) => {
+      if (!prev || prev.type !== 5) return prev;
+      if (prev.sshPublicKey !== publicKey) return prev;
+      if (prev.sshFingerprint === fingerprint) return prev;
+      return { ...prev, sshFingerprint: fingerprint };
+    });
+  }
+
+  function updateSshPublicKey(nextValue: string): void {
+    setDraft((prev) => {
+      if (!prev || prev.type !== 5) return prev;
+      return { ...prev, sshPublicKey: nextValue };
+    });
+    void recalculateSshFingerprint(nextValue);
   }
 
   function updateDraftCustomFields(nextFields: VaultDraftField[]): void {
@@ -453,16 +535,24 @@ export default function VaultPage(props: VaultPageProps) {
 
   async function saveDraft(): Promise<void> {
     if (!draft) return;
-    if (!draft.name.trim()) {
+    let nextDraft = draft;
+    if (nextDraft.type === 5) {
+      const computedFingerprint = await computeSshFingerprint(nextDraft.sshPublicKey);
+      if (computedFingerprint !== nextDraft.sshFingerprint) {
+        nextDraft = { ...nextDraft, sshFingerprint: computedFingerprint };
+        setDraft(nextDraft);
+      }
+    }
+    if (!nextDraft.name.trim()) {
       setLocalError('Item name is required.');
       return;
     }
     setBusy(true);
     try {
       if (isCreating) {
-        await props.onCreate(draft);
+        await props.onCreate(nextDraft);
       } else if (selectedCipher) {
-        await props.onUpdate(selectedCipher, draft);
+        await props.onUpdate(selectedCipher, nextDraft);
       }
       setIsCreating(false);
       setIsEditing(false);
@@ -544,57 +634,62 @@ export default function VaultPage(props: VaultPageProps) {
     }
   }
 
+  async function confirmCreateFolder(): Promise<void> {
+    if (!newFolderName.trim()) {
+      props.onNotify('error', 'Folder name is required');
+      return;
+    }
+    setBusy(true);
+    try {
+      await props.onCreateFolder(newFolderName);
+      setCreateFolderOpen(false);
+      setNewFolderName('');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="vault-grid">
         <aside className="sidebar">
           <div className="sidebar-block">
-            <div className="sidebar-title">Search</div>
-            <input
-              className="search-input"
-              placeholder="Search vault"
-              value={searchInput}
-              onInput={(e) => setSearchInput((e.currentTarget as HTMLInputElement).value)}
-              onCompositionStart={() => setSearchComposing(true)}
-              onCompositionEnd={(e) => {
-                setSearchComposing(false);
-                setSearchInput((e.currentTarget as HTMLInputElement).value);
-              }}
-            />
-          </div>
-
-          <div className="sidebar-block">
             <div className="sidebar-title">Types</div>
             <button type="button" className={`tree-btn ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
-              <LayoutGrid size={14} className="tree-icon" /> All Items
+              <LayoutGrid size={14} className="tree-icon" /> <span className="tree-label">All Items</span>
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'favorite' ? 'active' : ''}`} onClick={() => setTypeFilter('favorite')}>
-              <Star size={14} className="tree-icon" /> Favorites
+              <Star size={14} className="tree-icon" /> <span className="tree-label">Favorites</span>
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'login' ? 'active' : ''}`} onClick={() => setTypeFilter('login')}>
-              <Globe size={14} className="tree-icon" /> Login
+              <Globe size={14} className="tree-icon" /> <span className="tree-label">Login</span>
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'card' ? 'active' : ''}`} onClick={() => setTypeFilter('card')}>
-              <CreditCard size={14} className="tree-icon" /> Card
+              <CreditCard size={14} className="tree-icon" /> <span className="tree-label">Card</span>
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'identity' ? 'active' : ''}`} onClick={() => setTypeFilter('identity')}>
-              <ShieldUser size={14} className="tree-icon" /> Identity
+              <ShieldUser size={14} className="tree-icon" /> <span className="tree-label">Identity</span>
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'note' ? 'active' : ''}`} onClick={() => setTypeFilter('note')}>
-              <StickyNote size={14} className="tree-icon" /> Note
+              <StickyNote size={14} className="tree-icon" /> <span className="tree-label">Note</span>
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'ssh' ? 'active' : ''}`} onClick={() => setTypeFilter('ssh')}>
-              <KeyRound size={14} className="tree-icon" /> SSH Key
+              <KeyRound size={14} className="tree-icon" /> <span className="tree-label">SSH Key</span>
             </button>
           </div>
 
           <div className="sidebar-block">
-            <div className="sidebar-title">Folders</div>
+            <div className="sidebar-title-row">
+              <div className="sidebar-title">Folders</div>
+              <button type="button" className="folder-add-btn" onClick={() => setCreateFolderOpen(true)}>
+                <FolderPlus size={14} />
+              </button>
+            </div>
             <button type="button" className={`tree-btn ${folderFilter === 'all' ? 'active' : ''}`} onClick={() => setFolderFilter('all')}>
-              <FolderOpen size={14} className="tree-icon" /> All
+              <FolderOpen size={14} className="tree-icon" /> <span className="tree-label">All</span>
             </button>
             <button type="button" className={`tree-btn ${folderFilter === 'none' ? 'active' : ''}`} onClick={() => setFolderFilter('none')}>
-              <FolderX size={14} className="tree-icon" /> No Folder
+              <FolderX size={14} className="tree-icon" /> <span className="tree-label">No Folder</span>
             </button>
             {props.folders.map((folder) => (
               <button
@@ -603,19 +698,35 @@ export default function VaultPage(props: VaultPageProps) {
                 className={`tree-btn ${folderFilter === folder.id ? 'active' : ''}`}
                 onClick={() => setFolderFilter(folder.id)}
               >
-                <FolderIcon size={14} className="tree-icon" /> {folder.decName || folder.name || folder.id}
+                <FolderIcon size={14} className="tree-icon" />
+                <span className="tree-label" title={folder.decName || folder.name || folder.id}>
+                  {folder.decName || folder.name || folder.id}
+                </span>
               </button>
             ))}
           </div>
         </aside>
 
         <section className="list-col">
-          <div className="toolbar actions">
+          <div className="list-head">
+            <input
+              className="search-input"
+              placeholder="Search your secure vault..."
+              value={searchInput}
+              onInput={(e) => setSearchInput((e.currentTarget as HTMLInputElement).value)}
+              onCompositionStart={() => setSearchComposing(true)}
+              onCompositionEnd={(e) => {
+                setSearchComposing(false);
+                setSearchInput((e.currentTarget as HTMLInputElement).value);
+              }}
+            />
             <button type="button" className="btn btn-secondary small" disabled={busy || props.loading} onClick={() => void syncVault()}>
-              <RefreshCw size={14} className="btn-icon" /> Sync
+              <RefreshCw size={14} className="btn-icon" /> Sync Vault
             </button>
+          </div>
+          <div className="toolbar actions">
             <button type="button" className="btn btn-danger small" disabled={!selectedCount || busy} onClick={() => setBulkDeleteOpen(true)}>
-              <Trash2 size={14} className="btn-icon" /> Delete ({selectedCount})
+              <Trash2 size={14} className="btn-icon" /> Delete Selected
             </button>
             <button
               type="button"
@@ -629,7 +740,7 @@ export default function VaultPage(props: VaultPageProps) {
             >
               <CheckCheck size={14} className="btn-icon" /> Select All
             </button>
-            <div className="create-menu-wrap">
+            <div className="create-menu-wrap" ref={createMenuRef}>
               <button type="button" className="btn btn-primary small" onClick={() => setCreateMenuOpen((x) => !x)}>
                 <Plus size={14} className="btn-icon" /> Add
               </button>
@@ -637,7 +748,8 @@ export default function VaultPage(props: VaultPageProps) {
                 <div className="create-menu">
                   {CREATE_TYPE_OPTIONS.map((option) => (
                     <button key={option.type} type="button" className="create-menu-item" onClick={() => startCreate(option.type)}>
-                      {option.label}
+                      <CreateTypeIcon type={option.type} />
+                      <span>{option.label}</span>
                     </button>
                   ))}
                 </div>
@@ -689,8 +801,8 @@ export default function VaultPage(props: VaultPageProps) {
                     <VaultListIcon cipher={cipher} />
                   </div>
                   <div className="list-text">
-                    <span className="list-title">{cipher.decName || '(No Name)'}</span>
-                    <span className="list-sub">{listSubtitle(cipher)}</span>
+                    <span className="list-title" title={cipher.decName || '(No Name)'}>{cipher.decName || '(No Name)'}</span>
+                    <span className="list-sub" title={listSubtitle(cipher)}>{listSubtitle(cipher)}</span>
                   </div>
                 </button>
               </div>
@@ -721,7 +833,11 @@ export default function VaultPage(props: VaultPageProps) {
                       className="input"
                       value={draft.type}
                       disabled={!isCreating}
-                      onInput={(e) => updateDraft({ type: Number((e.currentTarget as HTMLSelectElement).value) })}
+                      onInput={(e) => {
+                        const nextType = Number((e.currentTarget as HTMLSelectElement).value);
+                        updateDraft({ type: nextType });
+                        if (nextType === 5) void seedSshDefaults();
+                      }}
                     >
                       {CREATE_TYPE_OPTIONS.map((option) => (
                         <option key={option.type} value={option.type}>
@@ -851,18 +967,23 @@ export default function VaultPage(props: VaultPageProps) {
               )}
               {draft.type === 5 && (
                 <div className="card">
-                  <h4>SSH Key</h4>
+                  <div className="section-head">
+                    <h4>SSH Key</h4>
+                    <button type="button" className="btn btn-secondary small" onClick={() => void seedSshDefaults(true)}>
+                      <RefreshCw size={14} className="btn-icon" /> Regenerate
+                    </button>
+                  </div>
                   <label className="field">
                     <span>Private Key</span>
                     <textarea className="input textarea" value={draft.sshPrivateKey} onInput={(e) => updateDraft({ sshPrivateKey: (e.currentTarget as HTMLTextAreaElement).value })} />
                   </label>
                   <label className="field">
                     <span>Public Key</span>
-                    <textarea className="input textarea" value={draft.sshPublicKey} onInput={(e) => updateDraft({ sshPublicKey: (e.currentTarget as HTMLTextAreaElement).value })} />
+                    <textarea className="input textarea" value={draft.sshPublicKey} onInput={(e) => updateSshPublicKey((e.currentTarget as HTMLTextAreaElement).value)} />
                   </label>
                   <label className="field">
                     <span>Fingerprint</span>
-                    <input className="input" value={draft.sshFingerprint} onInput={(e) => updateDraft({ sshFingerprint: (e.currentTarget as HTMLInputElement).value })} />
+                    <input className="input input-readonly" value={draft.sshFingerprint} readOnly />
                   </label>
                 </div>
               )}
@@ -964,7 +1085,7 @@ export default function VaultPage(props: VaultPageProps) {
                   <div className="kv-row">
                     <span className="kv-label">Username</span>
                     <div className="kv-main">
-                      <strong>{selectedCipher.login.decUsername || ''}</strong>
+                      <strong className="value-ellipsis" title={selectedCipher.login.decUsername || ''}>{selectedCipher.login.decUsername || ''}</strong>
                     </div>
                     <div className="kv-actions">
                       <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(selectedCipher.login?.decUsername || '')}>
@@ -1014,7 +1135,7 @@ export default function VaultPage(props: VaultPageProps) {
                       <div key={`view-uri-${index}`} className="kv-row">
                         <span className="kv-label">Website</span>
                         <div className="kv-main">
-                          <strong>{value}</strong>
+                          <strong className="value-ellipsis" title={value}>{value}</strong>
                         </div>
                         <div className="kv-actions">
                           <button type="button" className="btn btn-secondary small" onClick={() => openUri(value)}>
@@ -1078,24 +1199,30 @@ export default function VaultPage(props: VaultPageProps) {
                       const rawValue = field.decValue || '';
                       const isHiddenVisible = !!hiddenFieldVisibleMap[index];
                       if (fieldType === 2) {
+                        const checked = toBooleanFieldValue(rawValue);
                         return (
-                          <div key={`view-field-${index}`} className="kv-row">
-                            <span className="kv-label">{fieldName}</span>
-                            <div className="kv-main">
+                          <div key={`view-field-${index}`} className="kv-row custom-field-row">
+                            <span className="kv-label" title={fieldName}>{fieldName}</span>
+                            <div className="kv-main boolean-main">
                               <label className="check-line cf-check view">
-                                <input type="checkbox" checked={toBooleanFieldValue(rawValue)} disabled />
+                                <input type="checkbox" checked={checked} disabled />
                               </label>
+                              <span className="boolean-text value-ellipsis" title={checked ? 'Checked' : 'Unchecked'}>
+                                {checked ? 'Checked' : 'Unchecked'}
+                              </span>
                             </div>
                             <div className="kv-actions" />
                           </div>
                         );
                       }
                       return (
-                        <div key={`view-field-${index}`} className="kv-row">
-                          <span className="kv-label">{fieldName}</span>
+                        <div key={`view-field-${index}`} className="kv-row custom-field-row">
+                          <span className="kv-label" title={fieldName}>{fieldName}</span>
                           <div className="kv-main">
-                            <strong>{fieldType === 1 && !isHiddenVisible ? maskSecret(rawValue) : rawValue}</strong>
-                          </div>
+                            <strong className="value-ellipsis" title={fieldType === 1 && !isHiddenVisible ? '' : rawValue}>
+                              {fieldType === 1 && !isHiddenVisible ? maskSecret(rawValue) : rawValue}
+                            </strong>
+                        </div>
                           <div className="kv-actions">
                             {fieldType === 1 && (
                               <button
@@ -1241,6 +1368,24 @@ export default function VaultPage(props: VaultPageProps) {
       </ConfirmDialog>
 
       <ConfirmDialog
+        open={createFolderOpen}
+        title="Create Folder"
+        message="Enter a folder name."
+        confirmText="Create"
+        cancelText="Cancel"
+        onConfirm={() => void confirmCreateFolder()}
+        onCancel={() => {
+          setCreateFolderOpen(false);
+          setNewFolderName('');
+        }}
+      >
+        <label className="field">
+          <span>Folder Name</span>
+          <input className="input" value={newFolderName} onInput={(e) => setNewFolderName((e.currentTarget as HTMLInputElement).value)} />
+        </label>
+      </ConfirmDialog>
+
+      <ConfirmDialog
         open={repromptOpen}
         title="Unlock Item"
         message="Enter master password to view this item."
@@ -1261,5 +1406,7 @@ export default function VaultPage(props: VaultPageProps) {
     </>
   );
 }
+
+
 
 

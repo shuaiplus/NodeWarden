@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { CircleHelp, LogOut, Plus, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
+import { CircleHelp, LogOut, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
@@ -11,6 +11,7 @@ import AdminPage from '@/components/AdminPage';
 import HelpPage from '@/components/HelpPage';
 import {
   changeMasterPassword,
+  createFolder,
   createCipher,
   createAuthedFetch,
   createInvite,
@@ -291,13 +292,6 @@ export default function App() {
     });
   }
 
-  function handleQuickAdd() {
-    navigate('/vault');
-    window.setTimeout(() => {
-      window.dispatchEvent(new Event('nodewarden:add-item'));
-    }, 0);
-  }
-
   const ciphersQuery = useQuery({
     queryKey: ['ciphers', session?.accessToken],
     queryFn: () => getCiphers(authedFetch),
@@ -337,11 +331,24 @@ export default function App() {
       try {
         const encKey = base64ToBytes(session.symEncKey!);
         const macKey = base64ToBytes(session.symMacKey!);
+        const decryptField = async (
+          value: string | null | undefined,
+          fieldEnc: Uint8Array = encKey,
+          fieldMac: Uint8Array = macKey
+        ): Promise<string> => {
+          if (!value || typeof value !== 'string') return '';
+          try {
+            return await decryptStr(value, fieldEnc, fieldMac);
+          } catch {
+            // Backward-compatibility: some records may already be plain text.
+            return value;
+          }
+        };
 
         const folders = await Promise.all(
           foldersQuery.data.map(async (folder) => ({
             ...folder,
-            decName: await decryptStr(folder.name, encKey, macKey),
+            decName: await decryptField(folder.name, encKey, macKey),
           }))
         );
 
@@ -361,19 +368,19 @@ export default function App() {
 
             const nextCipher: Cipher = {
               ...cipher,
-              decName: await decryptStr(cipher.name || '', itemEnc, itemMac),
-              decNotes: await decryptStr(cipher.notes || '', itemEnc, itemMac),
+              decName: await decryptField(cipher.name || '', itemEnc, itemMac),
+              decNotes: await decryptField(cipher.notes || '', itemEnc, itemMac),
             };
             if (cipher.login) {
               nextCipher.login = {
                 ...cipher.login,
-                decUsername: await decryptStr(cipher.login.username || '', itemEnc, itemMac),
-                decPassword: await decryptStr(cipher.login.password || '', itemEnc, itemMac),
-                decTotp: await decryptStr(cipher.login.totp || '', itemEnc, itemMac),
+                decUsername: await decryptField(cipher.login.username || '', itemEnc, itemMac),
+                decPassword: await decryptField(cipher.login.password || '', itemEnc, itemMac),
+                decTotp: await decryptField(cipher.login.totp || '', itemEnc, itemMac),
                 uris: await Promise.all(
                   (cipher.login.uris || []).map(async (u) => ({
                     ...u,
-                    decUri: await decryptStr(u.uri || '', itemEnc, itemMac),
+                    decUri: await decryptField(u.uri || '', itemEnc, itemMac),
                   }))
                 ),
               };
@@ -381,51 +388,51 @@ export default function App() {
             if (cipher.card) {
               nextCipher.card = {
                 ...cipher.card,
-                decCardholderName: await decryptStr(cipher.card.cardholderName || '', itemEnc, itemMac),
-                decNumber: await decryptStr(cipher.card.number || '', itemEnc, itemMac),
-                decBrand: await decryptStr(cipher.card.brand || '', itemEnc, itemMac),
-                decExpMonth: await decryptStr(cipher.card.expMonth || '', itemEnc, itemMac),
-                decExpYear: await decryptStr(cipher.card.expYear || '', itemEnc, itemMac),
-                decCode: await decryptStr(cipher.card.code || '', itemEnc, itemMac),
+                decCardholderName: await decryptField(cipher.card.cardholderName || '', itemEnc, itemMac),
+                decNumber: await decryptField(cipher.card.number || '', itemEnc, itemMac),
+                decBrand: await decryptField(cipher.card.brand || '', itemEnc, itemMac),
+                decExpMonth: await decryptField(cipher.card.expMonth || '', itemEnc, itemMac),
+                decExpYear: await decryptField(cipher.card.expYear || '', itemEnc, itemMac),
+                decCode: await decryptField(cipher.card.code || '', itemEnc, itemMac),
               };
             }
             if (cipher.identity) {
               nextCipher.identity = {
                 ...cipher.identity,
-                decTitle: await decryptStr(cipher.identity.title || '', itemEnc, itemMac),
-                decFirstName: await decryptStr(cipher.identity.firstName || '', itemEnc, itemMac),
-                decMiddleName: await decryptStr(cipher.identity.middleName || '', itemEnc, itemMac),
-                decLastName: await decryptStr(cipher.identity.lastName || '', itemEnc, itemMac),
-                decUsername: await decryptStr(cipher.identity.username || '', itemEnc, itemMac),
-                decCompany: await decryptStr(cipher.identity.company || '', itemEnc, itemMac),
-                decSsn: await decryptStr(cipher.identity.ssn || '', itemEnc, itemMac),
-                decPassportNumber: await decryptStr(cipher.identity.passportNumber || '', itemEnc, itemMac),
-                decLicenseNumber: await decryptStr(cipher.identity.licenseNumber || '', itemEnc, itemMac),
-                decEmail: await decryptStr(cipher.identity.email || '', itemEnc, itemMac),
-                decPhone: await decryptStr(cipher.identity.phone || '', itemEnc, itemMac),
-                decAddress1: await decryptStr(cipher.identity.address1 || '', itemEnc, itemMac),
-                decAddress2: await decryptStr(cipher.identity.address2 || '', itemEnc, itemMac),
-                decAddress3: await decryptStr(cipher.identity.address3 || '', itemEnc, itemMac),
-                decCity: await decryptStr(cipher.identity.city || '', itemEnc, itemMac),
-                decState: await decryptStr(cipher.identity.state || '', itemEnc, itemMac),
-                decPostalCode: await decryptStr(cipher.identity.postalCode || '', itemEnc, itemMac),
-                decCountry: await decryptStr(cipher.identity.country || '', itemEnc, itemMac),
+                decTitle: await decryptField(cipher.identity.title || '', itemEnc, itemMac),
+                decFirstName: await decryptField(cipher.identity.firstName || '', itemEnc, itemMac),
+                decMiddleName: await decryptField(cipher.identity.middleName || '', itemEnc, itemMac),
+                decLastName: await decryptField(cipher.identity.lastName || '', itemEnc, itemMac),
+                decUsername: await decryptField(cipher.identity.username || '', itemEnc, itemMac),
+                decCompany: await decryptField(cipher.identity.company || '', itemEnc, itemMac),
+                decSsn: await decryptField(cipher.identity.ssn || '', itemEnc, itemMac),
+                decPassportNumber: await decryptField(cipher.identity.passportNumber || '', itemEnc, itemMac),
+                decLicenseNumber: await decryptField(cipher.identity.licenseNumber || '', itemEnc, itemMac),
+                decEmail: await decryptField(cipher.identity.email || '', itemEnc, itemMac),
+                decPhone: await decryptField(cipher.identity.phone || '', itemEnc, itemMac),
+                decAddress1: await decryptField(cipher.identity.address1 || '', itemEnc, itemMac),
+                decAddress2: await decryptField(cipher.identity.address2 || '', itemEnc, itemMac),
+                decAddress3: await decryptField(cipher.identity.address3 || '', itemEnc, itemMac),
+                decCity: await decryptField(cipher.identity.city || '', itemEnc, itemMac),
+                decState: await decryptField(cipher.identity.state || '', itemEnc, itemMac),
+                decPostalCode: await decryptField(cipher.identity.postalCode || '', itemEnc, itemMac),
+                decCountry: await decryptField(cipher.identity.country || '', itemEnc, itemMac),
               };
             }
             if (cipher.sshKey) {
               nextCipher.sshKey = {
                 ...cipher.sshKey,
-                decPrivateKey: await decryptStr(cipher.sshKey.privateKey || '', itemEnc, itemMac),
-                decPublicKey: await decryptStr(cipher.sshKey.publicKey || '', itemEnc, itemMac),
-                decFingerprint: await decryptStr(cipher.sshKey.fingerprint || '', itemEnc, itemMac),
+                decPrivateKey: await decryptField(cipher.sshKey.privateKey || '', itemEnc, itemMac),
+                decPublicKey: await decryptField(cipher.sshKey.publicKey || '', itemEnc, itemMac),
+                decFingerprint: await decryptField(cipher.sshKey.fingerprint || '', itemEnc, itemMac),
               };
             }
             if (cipher.fields) {
               nextCipher.fields = await Promise.all(
                 cipher.fields.map(async (field) => ({
                   ...field,
-                  decName: await decryptStr(field.name || '', itemEnc, itemMac),
-                  decValue: await decryptStr(field.value || '', itemEnc, itemMac),
+                  decName: await decryptField(field.name || '', itemEnc, itemMac),
+                  decValue: await decryptField(field.value || '', itemEnc, itemMac),
                 }))
               );
             }
@@ -587,6 +594,22 @@ export default function App() {
     await verifyMasterPassword(authedFetch, derived.hash);
   }
 
+  async function createFolderAction(name: string) {
+    const folderName = name.trim();
+    if (!folderName) {
+      pushToast('error', 'Folder name is required');
+      return;
+    }
+    try {
+      await createFolder(authedFetch, folderName);
+      await foldersQuery.refetch();
+      pushToast('success', 'Folder created');
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : 'Create folder failed');
+      throw error;
+    }
+  }
+
   useEffect(() => {
     if (phase === 'app' && location === '/') navigate('/vault');
   }, [phase, location, navigate]);
@@ -686,13 +709,6 @@ export default function App() {
                 <CircleHelp size={16} />
                 <span>Support Center</span>
               </Link>
-              <div className="side-spacer" />
-              <button type="button" className="btn btn-primary side-add-btn" onClick={handleQuickAdd}>
-                <Plus size={16} className="btn-icon" /> Add New Item
-              </button>
-              <button type="button" className="btn btn-secondary side-lock-btn" onClick={handleLock}>
-                Lock
-              </button>
             </aside>
             <main className="content">
               <Switch>
@@ -710,6 +726,7 @@ export default function App() {
                     onBulkMove={bulkMoveVaultItems}
                     onVerifyMasterPassword={verifyMasterPasswordAction}
                     onNotify={pushToast}
+                    onCreateFolder={createFolderAction}
                   />
                 </Route>
                 <Route path="/settings">

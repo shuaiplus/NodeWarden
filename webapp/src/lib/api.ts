@@ -236,6 +236,18 @@ export async function getFolders(authedFetch: (input: string, init?: RequestInit
   return body?.data || [];
 }
 
+export async function createFolder(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  name: string
+): Promise<void> {
+  const resp = await authedFetch('/api/folders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!resp.ok) throw new Error('Create folder failed');
+}
+
 export async function getCiphers(authedFetch: (input: string, init?: RequestInit) => Promise<Response>): Promise<Cipher[]> {
   const resp = await authedFetch('/api/ciphers');
   if (!resp.ok) throw new Error('Failed to load ciphers');

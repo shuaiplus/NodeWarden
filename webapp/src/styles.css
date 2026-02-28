@@ -95,6 +95,11 @@ body,
   border-color: #2f5fd8;
 }
 
+.input-readonly {
+  background: #eef2f7;
+  color: #475569;
+}
+
 .input:disabled {
   background: #e2e8f0;
   border-color: #cbd5e1;
@@ -217,7 +222,7 @@ body,
 }
 
 .topbar {
-  height: 64px;
+  height: 58px;
   background: #f8fafc;
   border-bottom: 1px solid #d9e0ea;
   color: #0f172a;
@@ -231,8 +236,8 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 32px;
-  font-weight: 900;
+  font-size: 34px;
+  font-weight: 800;
   color: #1e293b;
 }
 
@@ -244,6 +249,14 @@ body,
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.topbar-actions .btn {
+  height: 34px;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .user-chip {
@@ -264,13 +277,13 @@ body,
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 200px 1fr;
 }
 
 .app-side {
   border-right: 1px solid #d9e0ea;
   background: #eef3f9;
-  padding: 14px 10px;
+  padding: 12px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -286,6 +299,7 @@ body,
   text-decoration: none;
   border: 1px solid transparent;
   font-weight: 600;
+  font-size: 14px;
 }
 
 .side-link:hover {
@@ -309,20 +323,32 @@ body,
 
 .side-add-btn {
   justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.side-add-btn.btn-primary {
+  background: #1e4f95;
+  border-color: #1e4f95;
+}
+
+.side-add-btn.btn-primary:hover {
+  background: #1b4888;
+  border-color: #1b4888;
 }
 
 .content {
   min-height: 0;
-  padding: 10px;
+  padding: 8px;
   overflow: auto;
 }
 
 .vault-grid {
   display: grid;
-  grid-template-columns: 260px minmax(420px, 1fr) 400px;
+  grid-template-columns: 240px minmax(420px, 46%) minmax(520px, 1fr);
   gap: 12px;
   height: 100%;
   min-height: 0;
+  padding: 2px;
 }
 
 .sidebar,
@@ -335,16 +361,19 @@ body,
 }
 
 .sidebar {
-  padding: 8px;
+  padding: 0;
   overflow: auto;
+  border: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 .sidebar-block {
-  border: 1px solid #dbe2ed;
+  border: 1px solid #e1e6ef;
   border-radius: 10px;
   padding: 10px;
-  margin-bottom: 10px;
-  background: #f9fbfe;
+  margin-bottom: 8px;
+  background: #fff;
 }
 
 .sidebar-title {
@@ -352,6 +381,33 @@ body,
   font-weight: 700;
   color: #344054;
   margin-bottom: 8px;
+}
+
+.sidebar-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.sidebar-title-row .sidebar-title {
+  margin-bottom: 0;
+}
+
+.folder-add-btn {
+  border: none;
+  background: transparent;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.folder-add-btn:hover {
+  color: #1d4ed8;
 }
 
 .search-input {
@@ -365,6 +421,7 @@ body,
 
 .tree-btn {
   width: 100%;
+  min-width: 0;
   border: none;
   background: transparent;
   text-align: left;
@@ -387,6 +444,13 @@ body,
   flex-shrink: 0;
 }
 
+.tree-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .list-col {
   display: flex;
   flex-direction: column;
@@ -395,7 +459,32 @@ body,
 }
 
 .toolbar {
+  margin: 0 0 8px 0;
+}
+
+.toolbar.actions {
+  justify-content: flex-end;
+}
+
+.toolbar .btn.small {
+  height: 30px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 8px;
+}
+
+.list-head .search-input {
+  height: 38px;
+}
+
+.list-head .btn {
+  white-space: nowrap;
 }
 
 .list-panel {
@@ -434,6 +523,7 @@ body,
 
 .row-main {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   padding: 0;
@@ -471,29 +561,39 @@ body,
 }
 
 .list-text {
+  flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .list-title {
   display: block;
   color: #175ddc;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .list-sub {
   display: block;
-  color: #64748b;
-  margin-top: 4px;
+  color: #5f6f85;
+  margin-top: 2px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .detail-col {
   overflow: auto;
+  min-height: 0;
 }
 
 .card {
-  padding: 14px 16px;
-  margin-bottom: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
 }
 
 .card h4 {
@@ -503,6 +603,9 @@ body,
 
 .detail-title {
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .detail-sub {
@@ -529,7 +632,7 @@ body,
 
 .kv-row {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(88px, 140px) minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #ecf0f5;
@@ -542,6 +645,10 @@ body,
 
 .kv-label {
   color: #64748b;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .kv-main {
@@ -552,12 +659,38 @@ body,
   min-width: 0;
 }
 
+.kv-main > strong {
+  min-width: 0;
+}
+
+.value-ellipsis {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .kv-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.custom-field-row {
+  grid-template-columns: minmax(110px, 220px) minmax(0, 1fr) auto;
+}
+
+.boolean-main {
+  min-width: 0;
+  gap: 8px;
+}
+
+.boolean-text {
+  min-width: 0;
 }
 
 .notes {
@@ -652,6 +785,9 @@ body,
   padding: 11px 12px;
   cursor: pointer;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .create-menu-item:hover {

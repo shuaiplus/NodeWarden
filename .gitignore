@@ -13,6 +13,7 @@ dist/
 build/
 public/
 public2/
+public/index.html
 
 
 # IDE
