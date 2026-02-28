@@ -12,7 +12,6 @@ import {
   FileKey2,
   Folder as FolderIcon,
   FolderPlus,
-  FolderOpen,
   FolderX,
   FolderInput,
   Globe,
@@ -46,7 +45,13 @@ interface VaultPageProps {
   onCreateFolder: (name: string) => Promise<void>;
 }
 
-type TypeFilter = 'all' | 'favorite' | 'login' | 'card' | 'identity' | 'note' | 'ssh';
+type TypeFilter = 'login' | 'card' | 'identity' | 'note' | 'ssh';
+type SidebarFilter =
+  | { kind: 'all' }
+  | { kind: 'favorite' }
+  | { kind: 'trash' }
+  | { kind: 'type'; value: TypeFilter }
+  | { kind: 'folder'; folderId: string | null };
 
 interface TypeOption {
   type: number;
@@ -241,12 +246,6 @@ function draftFromCipher(cipher: Cipher): VaultDraft {
   return draft;
 }
 
-function matchesTypeFilter(cipher: Cipher, typeFilter: TypeFilter): boolean {
-  if (typeFilter === 'all') return true;
-  if (typeFilter === 'favorite') return !!cipher.favorite;
-  return cipherTypeKey(Number(cipher.type || 1)) === typeFilter;
-}
-
 function maskSecret(value: string): string {
   if (!value) return '';
   return '*'.repeat(Math.max(8, Math.min(24, value.length)));
@@ -256,6 +255,17 @@ function formatTotp(code: string): string {
   if (!code || code.length < 6) return code;
   return `${code.slice(0, 3)} ${code.slice(3, 6)}`;
 }
+
+function formatHistoryTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+const TOTP_PERIOD_SECONDS = 30;
+const TOTP_RING_RADIUS = 14;
+const TOTP_RING_CIRCUMFERENCE = 2 * Math.PI * TOTP_RING_RADIUS;
 
 function VaultListIcon({ cipher }: { cipher: Cipher }) {
   const uri = firstCipherUri(cipher);
@@ -295,8 +305,7 @@ export default function VaultPage(props: VaultPageProps) {
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchComposing, setSearchComposing] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  const [folderFilter, setFolderFilter] = useState<string>('all');
+  const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>({ kind: 'all' });
   const [selectedCipherId, setSelectedCipherId] = useState('');
   const [selectedMap, setSelectedMap] = useState<Record<string, boolean>>({});
   const [showPassword, setShowPassword] = useState(false);
@@ -371,16 +380,28 @@ export default function VaultPage(props: VaultPageProps) {
 
   const filteredCiphers = useMemo(() => {
     return props.ciphers.filter((cipher) => {
-      if (!matchesTypeFilter(cipher, typeFilter)) return false;
-      if (folderFilter === 'none' && cipher.folderId) return false;
-      if (folderFilter !== 'none' && folderFilter !== 'all' && cipher.folderId !== folderFilter) return false;
+      const isDeleted = !!(cipher.deletedDate || (cipher as any).deletedAt);
+      if (sidebarFilter.kind === 'trash') {
+        if (!isDeleted) return false;
+      } else {
+        if (isDeleted) return false;
+        if (sidebarFilter.kind === 'favorite' && !cipher.favorite) return false;
+        if (sidebarFilter.kind === 'type' && cipherTypeKey(Number(cipher.type || 1)) !== sidebarFilter.value) return false;
+        if (sidebarFilter.kind === 'folder') {
+          if (sidebarFilter.folderId === null) {
+            if (cipher.folderId) return false;
+          } else if (cipher.folderId !== sidebarFilter.folderId) {
+            return false;
+          }
+        }
+      }
       if (!searchQuery) return true;
       const name = (cipher.decName || '').toLowerCase();
       const username = (cipher.login?.decUsername || '').toLowerCase();
       const uri = firstCipherUri(cipher).toLowerCase();
       return name.includes(searchQuery) || username.includes(searchQuery) || uri.includes(searchQuery);
     });
-  }, [props.ciphers, folderFilter, typeFilter, searchQuery]);
+  }, [props.ciphers, sidebarFilter, searchQuery]);
 
   useEffect(() => {
     if (isCreating) return;
@@ -654,26 +675,32 @@ export default function VaultPage(props: VaultPageProps) {
       <div className="vault-grid">
         <aside className="sidebar">
           <div className="sidebar-block">
-            <div className="sidebar-title">Types</div>
-            <button type="button" className={`tree-btn ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'all' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'all' })}>
               <LayoutGrid size={14} className="tree-icon" /> <span className="tree-label">All Items</span>
             </button>
-            <button type="button" className={`tree-btn ${typeFilter === 'favorite' ? 'active' : ''}`} onClick={() => setTypeFilter('favorite')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'favorite' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'favorite' })}>
               <Star size={14} className="tree-icon" /> <span className="tree-label">Favorites</span>
             </button>
-            <button type="button" className={`tree-btn ${typeFilter === 'login' ? 'active' : ''}`} onClick={() => setTypeFilter('login')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'trash' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'trash' })}>
+              <Trash2 size={14} className="tree-icon" /> <span className="tree-label">Trash</span>
+            </button>
+          </div>
+
+          <div className="sidebar-block">
+            <div className="sidebar-title">Type</div>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'login' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'login' })}>
               <Globe size={14} className="tree-icon" /> <span className="tree-label">Login</span>
             </button>
-            <button type="button" className={`tree-btn ${typeFilter === 'card' ? 'active' : ''}`} onClick={() => setTypeFilter('card')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'card' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'card' })}>
               <CreditCard size={14} className="tree-icon" /> <span className="tree-label">Card</span>
             </button>
-            <button type="button" className={`tree-btn ${typeFilter === 'identity' ? 'active' : ''}`} onClick={() => setTypeFilter('identity')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'identity' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'identity' })}>
               <ShieldUser size={14} className="tree-icon" /> <span className="tree-label">Identity</span>
             </button>
-            <button type="button" className={`tree-btn ${typeFilter === 'note' ? 'active' : ''}`} onClick={() => setTypeFilter('note')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'note' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'note' })}>
               <StickyNote size={14} className="tree-icon" /> <span className="tree-label">Note</span>
             </button>
-            <button type="button" className={`tree-btn ${typeFilter === 'ssh' ? 'active' : ''}`} onClick={() => setTypeFilter('ssh')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'ssh' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'ssh' })}>
               <KeyRound size={14} className="tree-icon" /> <span className="tree-label">SSH Key</span>
             </button>
           </div>
@@ -685,18 +712,15 @@ export default function VaultPage(props: VaultPageProps) {
                 <FolderPlus size={14} />
               </button>
             </div>
-            <button type="button" className={`tree-btn ${folderFilter === 'all' ? 'active' : ''}`} onClick={() => setFolderFilter('all')}>
-              <FolderOpen size={14} className="tree-icon" /> <span className="tree-label">All</span>
-            </button>
-            <button type="button" className={`tree-btn ${folderFilter === 'none' ? 'active' : ''}`} onClick={() => setFolderFilter('none')}>
+            <button type="button" className={`tree-btn ${sidebarFilter.kind === 'folder' && sidebarFilter.folderId === null ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'folder', folderId: null })}>
               <FolderX size={14} className="tree-icon" /> <span className="tree-label">No Folder</span>
             </button>
             {props.folders.map((folder) => (
               <button
                 key={folder.id}
                 type="button"
-                className={`tree-btn ${folderFilter === folder.id ? 'active' : ''}`}
-                onClick={() => setFolderFilter(folder.id)}
+                className={`tree-btn ${sidebarFilter.kind === 'folder' && sidebarFilter.folderId === folder.id ? 'active' : ''}`}
+                onClick={() => setSidebarFilter({ kind: 'folder', folderId: folder.id })}
               >
                 <FolderIcon size={14} className="tree-icon" />
                 <span className="tree-label" title={folder.decName || folder.name || folder.id}>
@@ -1112,8 +1136,33 @@ export default function VaultPage(props: VaultPageProps) {
                     <div className="kv-row">
                       <span className="kv-label">TOTP</span>
                       <div className="kv-main">
-                        <strong>{totpLive ? formatTotp(totpLive.code) : '------'}</strong>
-                        <span className="detail-sub">Refresh in: {totpLive ? `${totpLive.remain}s` : '--'}</span>
+                        <div className="totp-inline">
+                          <strong>{totpLive ? formatTotp(totpLive.code) : '------'}</strong>
+                          <div
+                            className="totp-timer"
+                            title={`Refresh in ${totpLive ? totpLive.remain : 0}s`}
+                            aria-label={`Refresh in ${totpLive ? totpLive.remain : 0}s`}
+                          >
+                            <svg viewBox="0 0 36 36" className="totp-ring" role="presentation" aria-hidden="true">
+                              <circle className="totp-ring-track" cx="18" cy="18" r={TOTP_RING_RADIUS} />
+                              <circle
+                                className="totp-ring-progress"
+                                cx="18"
+                                cy="18"
+                                r={TOTP_RING_RADIUS}
+                                style={{
+                                  strokeDasharray: `${TOTP_RING_CIRCUMFERENCE} ${TOTP_RING_CIRCUMFERENCE}`,
+                                  strokeDashoffset: String(
+                                    TOTP_RING_CIRCUMFERENCE -
+                                      TOTP_RING_CIRCUMFERENCE *
+                                        (Math.max(0, Math.min(TOTP_PERIOD_SECONDS, totpLive?.remain ?? 0)) / TOTP_PERIOD_SECONDS)
+                                  ),
+                                }}
+                              />
+                            </svg>
+                            <span className="totp-timer-value">{totpLive ? totpLive.remain : 0}</span>
+                          </div>
+                        </div>
                       </div>
                       <div className="kv-actions">
                         <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(totpLive?.code || '')}>
@@ -1183,10 +1232,12 @@ export default function VaultPage(props: VaultPageProps) {
                 </div>
               )}
 
-              <div className="card">
-                <h4>Notes</h4>
-                <div className="notes">{selectedCipher.decNotes || ''}</div>
-              </div>
+              {!!(selectedCipher.decNotes || '').trim() && (
+                <div className="card">
+                  <h4>Notes</h4>
+                  <div className="notes">{selectedCipher.decNotes || ''}</div>
+                </div>
+              )}
 
               {(selectedCipher.fields || []).some((x) => parseFieldType(x.type) !== 3) && (
                 <div className="card">
@@ -1241,6 +1292,14 @@ export default function VaultPage(props: VaultPageProps) {
                         </div>
                       );
                     })}
+                </div>
+              )}
+
+              {(selectedCipher.creationDate || selectedCipher.revisionDate) && (
+                <div className="card">
+                  <h4>项目历史记录</h4>
+                  <div className="detail-sub">最后编辑于: {formatHistoryTime(selectedCipher.revisionDate)}</div>
+                  <div className="detail-sub">创建于: {formatHistoryTime(selectedCipher.creationDate)}</div>
                 </div>
               )}
 

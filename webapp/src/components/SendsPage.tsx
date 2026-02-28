@@ -398,6 +398,13 @@ export default function SendsPage(props: SendsPageProps) {
               )}
             </div>
 
+            {!!(selectedSend.decNotes || '').trim() && (
+              <div className="card">
+                <h4>Notes</h4>
+                <div className="notes">{selectedSend.decNotes || ''}</div>
+              </div>
+            )}
+
             <div className="detail-actions">
               <div className="actions">
                 <button type="button" className="btn btn-secondary small" onClick={() => copyAccessUrl(selectedSend)}>

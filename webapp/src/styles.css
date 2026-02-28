@@ -27,6 +27,9 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+html {
+  zoom: 1.25;
+}
 .loading-screen {
   height: 100%;
   display: grid;
@@ -268,8 +271,8 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .app-shell {
-  height: calc(100vh - 40px);
-  max-width: 1800px;
+  height: calc(80vh - 40px);
+  max-width: 1600px;
   margin: 0 auto;
   background: #f5f7fb;
   border: 1px solid #d5dce7;
@@ -404,7 +407,7 @@ input[type='file'].input::file-selector-button:hover {
 
 .vault-grid {
   display: grid;
-  grid-template-columns: 240px minmax(420px, 46%) minmax(520px, 1fr);
+  grid-template-columns: 240px minmax(420px, 46%) minmax(575px, 1fr);
   gap: 12px;
   height: 100%;
   min-height: 0;
@@ -516,6 +519,7 @@ input[type='file'].input::file-selector-button:hover {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  max-width: 540px;
 }
 
 .toolbar {
@@ -692,7 +696,7 @@ input[type='file'].input::file-selector-button:hover {
 
 .kv-row {
   display: grid;
-  grid-template-columns: minmax(88px, 140px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0px, 80px) minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #ecf0f5;
@@ -721,6 +725,54 @@ input[type='file'].input::file-selector-button:hover {
 
 .kv-main > strong {
   min-width: 0;
+}
+
+.totp-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.totp-timer {
+  width: 30px;
+  height: 30px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.totp-ring {
+  width: 30px;
+  height: 30px;
+  transform: rotate(-90deg);
+}
+
+.totp-ring-track,
+.totp-ring-progress {
+  fill: none;
+  stroke-width: 3;
+}
+
+.totp-ring-track {
+  stroke: #d9e2ef;
+}
+
+.totp-ring-progress {
+  stroke: #2563eb;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 260ms linear, stroke 200ms ease;
+}
+
+.totp-timer-value {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .value-ellipsis {

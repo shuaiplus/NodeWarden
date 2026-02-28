@@ -251,7 +251,7 @@ export async function createFolder(
 }
 
 export async function getCiphers(authedFetch: (input: string, init?: RequestInit) => Promise<Response>): Promise<Cipher[]> {
-  const resp = await authedFetch('/api/ciphers');
+  const resp = await authedFetch('/api/ciphers?deleted=true');
   if (!resp.ok) throw new Error('Failed to load ciphers');
   const body = await parseJson<ListResponse<Cipher>>(resp);
   return body?.data || [];

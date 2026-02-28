@@ -118,6 +118,9 @@ export interface Cipher {
   name?: string | null;
   notes?: string | null;
   key?: string | null;
+  creationDate?: string;
+  revisionDate?: string;
+  deletedDate?: string | null;
   login?: CipherLogin | null;
   card?: CipherCard | null;
   identity?: CipherIdentity | null;
