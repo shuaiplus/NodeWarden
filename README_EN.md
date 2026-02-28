@@ -1,4 +1,11 @@
-# NodeWarden：A Bitwarden-compatible server for Cloudflare Workers
+<p align="center">
+  <img src="./NodeWarden.png" alt="NodeWarden Logo" />
+</p>
+
+<p align="center">
+  A NodeWarden server running on Cloudflare Workers, compatible with official clients.
+</p>
+
 [![Powered by Cloudflare](https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![License: LGPL-3.0](https://img.shields.io/badge/License-LGPL--3.0-2ea44f)](./LICENSE)
 [![Deploy to Cloudflare Workers](https://img.shields.io/badge/Deploy%20to-Cloudflare%20Workers-F38020?logo=cloudflare&logoColor=white)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/NodeWarden)
