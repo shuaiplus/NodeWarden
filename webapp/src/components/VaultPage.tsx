@@ -9,9 +9,13 @@ import {
   EyeOff,
   ExternalLink,
   FileKey2,
+  Folder as FolderIcon,
+  FolderOpen,
+  FolderX,
   FolderInput,
   Globe,
   KeyRound,
+  LayoutGrid,
   Pencil,
   Plus,
   RefreshCw,
@@ -305,6 +309,14 @@ export default function VaultPage(props: VaultPageProps) {
   const [repromptApprovedCipherId, setRepromptApprovedCipherId] = useState<string | null>(null);
 
   useEffect(() => {
+    const onQuickAdd = () => {
+      startCreate(1);
+    };
+    window.addEventListener('nodewarden:add-item', onQuickAdd);
+    return () => window.removeEventListener('nodewarden:add-item', onQuickAdd);
+  }, []);
+
+  useEffect(() => {
     setRepromptApprovedCipherId(null);
     setRepromptPassword('');
     setRepromptOpen(false);
@@ -554,35 +566,35 @@ export default function VaultPage(props: VaultPageProps) {
           <div className="sidebar-block">
             <div className="sidebar-title">Types</div>
             <button type="button" className={`tree-btn ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
-              All Items
+              <LayoutGrid size={14} className="tree-icon" /> All Items
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'favorite' ? 'active' : ''}`} onClick={() => setTypeFilter('favorite')}>
-              Favorites
+              <Star size={14} className="tree-icon" /> Favorites
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'login' ? 'active' : ''}`} onClick={() => setTypeFilter('login')}>
-              Login
+              <Globe size={14} className="tree-icon" /> Login
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'card' ? 'active' : ''}`} onClick={() => setTypeFilter('card')}>
-              Card
+              <CreditCard size={14} className="tree-icon" /> Card
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'identity' ? 'active' : ''}`} onClick={() => setTypeFilter('identity')}>
-              Identity
+              <ShieldUser size={14} className="tree-icon" /> Identity
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'note' ? 'active' : ''}`} onClick={() => setTypeFilter('note')}>
-              Note
+              <StickyNote size={14} className="tree-icon" /> Note
             </button>
             <button type="button" className={`tree-btn ${typeFilter === 'ssh' ? 'active' : ''}`} onClick={() => setTypeFilter('ssh')}>
-              SSH Key
+              <KeyRound size={14} className="tree-icon" /> SSH Key
             </button>
           </div>
 
           <div className="sidebar-block">
             <div className="sidebar-title">Folders</div>
             <button type="button" className={`tree-btn ${folderFilter === 'all' ? 'active' : ''}`} onClick={() => setFolderFilter('all')}>
-              All
+              <FolderOpen size={14} className="tree-icon" /> All
             </button>
             <button type="button" className={`tree-btn ${folderFilter === 'none' ? 'active' : ''}`} onClick={() => setFolderFilter('none')}>
-              No Folder
+              <FolderX size={14} className="tree-icon" /> No Folder
             </button>
             {props.folders.map((folder) => (
               <button
@@ -591,7 +603,7 @@ export default function VaultPage(props: VaultPageProps) {
                 className={`tree-btn ${folderFilter === folder.id ? 'active' : ''}`}
                 onClick={() => setFolderFilter(folder.id)}
               >
-                {folder.decName || folder.name || folder.id}
+                <FolderIcon size={14} className="tree-icon" /> {folder.decName || folder.name || folder.id}
               </button>
             ))}
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Lock, LogOut } from 'lucide-preact';
+import { CircleHelp, LogOut, Plus, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
@@ -289,6 +289,13 @@ export default function App() {
         logoutNow();
       },
     });
+  }
+
+  function handleQuickAdd() {
+    navigate('/vault');
+    window.setTimeout(() => {
+      window.dispatchEvent(new Event('nodewarden:add-item'));
+    }, 0);
   }
 
   const ciphersQuery = useQuery({
@@ -638,129 +645,151 @@ export default function App() {
 
   return (
     <>
-      <div className="app-shell">
-        <header className="topbar">
-          <div className="brand">NodeWarden</div>
-          <nav className="nav">
-            <Link href="/vault" className={`nav-link ${location === '/vault' ? 'active' : ''}`}>
-              Vault
-            </Link>
-            <Link href="/settings" className={`nav-link ${location === '/settings' ? 'active' : ''}`}>
-              Settings
-            </Link>
-            {profile?.role === 'admin' && (
-              <Link href="/admin" className={`nav-link ${location === '/admin' ? 'active' : ''}`}>
-                Admin
+      <div className="app-page">
+        <div className="app-shell">
+          <header className="topbar">
+            <div className="brand">
+              <Shield size={20} className="brand-icon" />
+              <span>NodeWarden</span>
+            </div>
+            <div className="topbar-actions">
+              <div className="user-chip">
+                <ShieldUser size={16} />
+                <span>{profile?.email}</span>
+              </div>
+              <button type="button" className="btn btn-secondary small" onClick={() => navigate('/settings')}>
+                <Shield size={14} className="btn-icon" /> Account Security
+              </button>
+              <button type="button" className="btn btn-secondary small" onClick={handleLogout}>
+                <LogOut size={14} className="btn-icon" /> Sign Out
+              </button>
+            </div>
+          </header>
+
+          <div className="app-main">
+            <aside className="app-side">
+              <Link href="/vault" className={`side-link ${location === '/vault' ? 'active' : ''}`}>
+                <Vault size={16} />
+                <span>My Vault</span>
               </Link>
-            )}
-            <Link href="/help" className={`nav-link ${location === '/help' ? 'active' : ''}`}>
-              Help
-            </Link>
-          </nav>
-          <div className="topbar-actions">
-            <span className="user-email">{profile?.email}</span>
-            <button type="button" className="btn btn-secondary small" onClick={handleLock}>
-              <Lock size={14} className="btn-icon" /> Lock
-            </button>
-            <button type="button" className="btn btn-secondary small" onClick={handleLogout}>
-              <LogOut size={14} className="btn-icon" /> Log Out
-            </button>
-          </div>
-        </header>
-        <main className="content">
-          <Switch>
-            <Route path="/vault">
-              <VaultPage
-                ciphers={decryptedCiphers}
-                folders={decryptedFolders}
-                loading={ciphersQuery.isFetching || foldersQuery.isFetching}
-                emailForReprompt={profile?.email || session?.email || ''}
-                onRefresh={refreshVault}
-                onCreate={createVaultItem}
-                onUpdate={updateVaultItem}
-                onDelete={deleteVaultItem}
-                onBulkDelete={bulkDeleteVaultItems}
-                onBulkMove={bulkMoveVaultItems}
-                onVerifyMasterPassword={verifyMasterPasswordAction}
-                onNotify={pushToast}
-              />
-            </Route>
-            <Route path="/settings">
-              {profile && (
-                <SettingsPage
-                  profile={profile}
-                  totpEnabled={!!totpStatusQuery.data?.enabled}
-                  onSaveProfile={saveProfileAction}
-                  onChangePassword={changePasswordAction}
-                  onEnableTotp={async (secret, token) => {
-                    await enableTotpAction(secret, token);
-                    await totpStatusQuery.refetch();
-                  }}
-                  onOpenDisableTotp={() => setDisableTotpOpen(true)}
-                />
+              {profile?.role === 'admin' && (
+                <Link href="/admin" className={`side-link ${location === '/admin' ? 'active' : ''}`}>
+                  <ShieldUser size={16} />
+                  <span>Admin Panel</span>
+                </Link>
               )}
-            </Route>
-            <Route path="/admin">
-              <AdminPage
-                currentUserId={profile?.id || ''}
-                users={usersQuery.data || []}
-                invites={invitesQuery.data || []}
-                onRefresh={() => {
-                  void usersQuery.refetch();
-                  void invitesQuery.refetch();
-                }}
-                onCreateInvite={async (hours) => {
-                  await createInvite(authedFetch, hours);
-                  await invitesQuery.refetch();
-                  pushToast('success', 'Invite created');
-                }}
-                onDeleteAllInvites={async () => {
-                  setConfirm({
-                    title: 'Delete all invites',
-                    message: 'Delete all invite codes (active/inactive)?',
-                    danger: true,
-                    onConfirm: () => {
-                      setConfirm(null);
-                      void (async () => {
-                        await deleteAllInvites(authedFetch);
-                        await invitesQuery.refetch();
-                        pushToast('success', 'All invites deleted');
-                      })();
-                    },
-                  });
-                }}
-                onToggleUserStatus={async (userId, status) => {
-                  await setUserStatus(authedFetch, userId, status === 'active' ? 'banned' : 'active');
-                  await usersQuery.refetch();
-                  pushToast('success', 'User status updated');
-                }}
-                onDeleteUser={async (userId) => {
-                  setConfirm({
-                    title: 'Delete user',
-                    message: 'Delete this user and all user data?',
-                    danger: true,
-                    onConfirm: () => {
-                      setConfirm(null);
-                      void (async () => {
-                        await deleteUser(authedFetch, userId);
-                        await usersQuery.refetch();
-                        pushToast('success', 'User deleted');
-                      })();
-                    },
-                  });
-                }}
-                onRevokeInvite={async (code) => {
-                  await revokeInvite(authedFetch, code);
-                  await invitesQuery.refetch();
-                  pushToast('success', 'Invite revoked');
-                }}
-              />
-            </Route>
-            <Route path="/help">
-              <HelpPage />
-            </Route>
-          </Switch>
-        </main>
+              <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`}>
+                <SettingsIcon size={16} />
+                <span>System Settings</span>
+              </Link>
+              <Link href="/help" className={`side-link ${location === '/help' ? 'active' : ''}`}>
+                <CircleHelp size={16} />
+                <span>Support Center</span>
+              </Link>
+              <div className="side-spacer" />
+              <button type="button" className="btn btn-primary side-add-btn" onClick={handleQuickAdd}>
+                <Plus size={16} className="btn-icon" /> Add New Item
+              </button>
+              <button type="button" className="btn btn-secondary side-lock-btn" onClick={handleLock}>
+                Lock
+              </button>
+            </aside>
+            <main className="content">
+              <Switch>
+                <Route path="/vault">
+                  <VaultPage
+                    ciphers={decryptedCiphers}
+                    folders={decryptedFolders}
+                    loading={ciphersQuery.isFetching || foldersQuery.isFetching}
+                    emailForReprompt={profile?.email || session?.email || ''}
+                    onRefresh={refreshVault}
+                    onCreate={createVaultItem}
+                    onUpdate={updateVaultItem}
+                    onDelete={deleteVaultItem}
+                    onBulkDelete={bulkDeleteVaultItems}
+                    onBulkMove={bulkMoveVaultItems}
+                    onVerifyMasterPassword={verifyMasterPasswordAction}
+                    onNotify={pushToast}
+                  />
+                </Route>
+                <Route path="/settings">
+                  {profile && (
+                    <SettingsPage
+                      profile={profile}
+                      totpEnabled={!!totpStatusQuery.data?.enabled}
+                      onSaveProfile={saveProfileAction}
+                      onChangePassword={changePasswordAction}
+                      onEnableTotp={async (secret, token) => {
+                        await enableTotpAction(secret, token);
+                        await totpStatusQuery.refetch();
+                      }}
+                      onOpenDisableTotp={() => setDisableTotpOpen(true)}
+                    />
+                  )}
+                </Route>
+                <Route path="/admin">
+                  <AdminPage
+                    currentUserId={profile?.id || ''}
+                    users={usersQuery.data || []}
+                    invites={invitesQuery.data || []}
+                    onRefresh={() => {
+                      void usersQuery.refetch();
+                      void invitesQuery.refetch();
+                    }}
+                    onCreateInvite={async (hours) => {
+                      await createInvite(authedFetch, hours);
+                      await invitesQuery.refetch();
+                      pushToast('success', 'Invite created');
+                    }}
+                    onDeleteAllInvites={async () => {
+                      setConfirm({
+                        title: 'Delete all invites',
+                        message: 'Delete all invite codes (active/inactive)?',
+                        danger: true,
+                        onConfirm: () => {
+                          setConfirm(null);
+                          void (async () => {
+                            await deleteAllInvites(authedFetch);
+                            await invitesQuery.refetch();
+                            pushToast('success', 'All invites deleted');
+                          })();
+                        },
+                      });
+                    }}
+                    onToggleUserStatus={async (userId, status) => {
+                      await setUserStatus(authedFetch, userId, status === 'active' ? 'banned' : 'active');
+                      await usersQuery.refetch();
+                      pushToast('success', 'User status updated');
+                    }}
+                    onDeleteUser={async (userId) => {
+                      setConfirm({
+                        title: 'Delete user',
+                        message: 'Delete this user and all user data?',
+                        danger: true,
+                        onConfirm: () => {
+                          setConfirm(null);
+                          void (async () => {
+                            await deleteUser(authedFetch, userId);
+                            await usersQuery.refetch();
+                            pushToast('success', 'User deleted');
+                          })();
+                        },
+                      });
+                    }}
+                    onRevokeInvite={async (code) => {
+                      await revokeInvite(authedFetch, code);
+                      await invitesQuery.refetch();
+                      pushToast('success', 'Invite revoked');
+                    }}
+                  />
+                </Route>
+                <Route path="/help">
+                  <HelpPage />
+                </Route>
+              </Switch>
+            </main>
+          </div>
+        </div>
       </div>
 
       <ConfirmDialog
