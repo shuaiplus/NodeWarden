@@ -12,6 +12,7 @@
     "web:dev": "vite --config webapp/vite.config.ts",
     "web:build": "vite build --config webapp/vite.config.ts",
     "web:typecheck": "tsc -p webapp/tsconfig.json --noEmit",
+    "build": "vite build --config webapp/vite.config.ts",
     "deploy": "npm run web:build && wrangler deploy"
   },
   "keywords": [
