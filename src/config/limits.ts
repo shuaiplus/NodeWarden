@@ -32,18 +32,12 @@
     // Login lock duration in minutes.
     // 登录锁定时长（分钟）。
     loginLockoutMinutes: 2,
-    // Write API request budget per minute.
-    // 写操作 API 每分钟请求配额。
-    apiWriteRequestsPerMinute: 120,
-    // /api/sync read request budget per minute.
-    // /api/sync 读请求每分钟配额。
-    syncReadRequestsPerMinute: 1000,
-    // /api/devices/knowndevice probe budget per IP per minute.
-    // /api/devices/knowndevice 每 IP 每分钟探测配额。
-    knownDeviceRequestsPerMinute: 10,
-    // Public Send access budget per IP per minute.
-    // 公共 Send 访问接口每 IP 每分钟配额。
-    publicSendRequestsPerMinute: 60,
+    // Authenticated API request budget per user per minute (all reads & writes combined).
+    // 认证 API 每用户每分钟请求配额（读写合计）。
+    apiRequestsPerMinute: 200,
+    // Public (unauthenticated) request budget per IP per minute.
+    // 公开（未认证）接口每 IP 每分钟请求配额。
+    publicRequestsPerMinute: 60,
     // Fixed window size for API rate limiting in seconds.
     // API 限流固定窗口大小（秒）。
     apiWindowSeconds: 60,
@@ -53,15 +47,9 @@
     // Minimum interval between login-attempt cleanup runs.
     // 登录尝试表清理的最小间隔。
     loginIpCleanupIntervalMs: 10 * 60 * 1000,
-    // Minimum interval between API-window cleanup runs.
-    // API 窗口计数清理的最小间隔。
-    apiWindowCleanupIntervalMs: 5 * 60 * 1000,
     // Retention window for login IP records.
     // 登录 IP 记录保留时长。
     loginIpRetentionMs: 30 * 24 * 60 * 60 * 1000,
-    // Number of historical API windows to keep.
-    // 保留的历史 API 窗口数量。
-    apiWindowRetentionWindows: 120,
   },
   cleanup: {
     // Minimum interval between refresh-token cleanup runs.

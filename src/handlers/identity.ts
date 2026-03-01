@@ -267,10 +267,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     return jsonResponse(response);
 
   } else if (grantType === 'send_access') {
-    const sendAccessLimit = await rateLimit.consumePublicSendAccessBudget(`${clientIdentifier}:public-send-oauth`);
+    const sendAccessLimit = await rateLimit.consumeBudget(`${clientIdentifier}:public`, LIMITS.rateLimit.publicRequestsPerMinute);
     if (!sendAccessLimit.allowed) {
       return identityErrorResponse(
-        `Too many public Send requests. Try again in ${sendAccessLimit.retryAfterSeconds} seconds.`,
+        `Rate limit exceeded. Try again in ${sendAccessLimit.retryAfterSeconds} seconds.`,
         'TooManyRequests',
         429
       );

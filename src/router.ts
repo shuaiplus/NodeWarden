@@ -215,13 +215,13 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   const method = request.method;
   const clientId = getClientIdentifier(request);
 
-  async function enforcePublicSendRateLimit(): Promise<Response | null> {
+  async function enforcePublicRateLimit(): Promise<Response | null> {
     const rateLimit = new RateLimitService(env.DB);
-    const check = await rateLimit.consumePublicSendAccessBudget(`${clientId}:public-send`);
+    const check = await rateLimit.consumeBudget(`${clientId}:public`, LIMITS.rateLimit.publicRequestsPerMinute);
     if (check.allowed) return null;
     return new Response(JSON.stringify({
       error: 'Too many requests',
-      error_description: `Too many public Send requests. Try again in ${check.retryAfterSeconds} seconds.`,
+      error_description: `Rate limit exceeded. Try again in ${check.retryAfterSeconds} seconds.`,
     }), {
       status: 429,
       headers: {
@@ -289,7 +289,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     // Public Send access endpoints
     const sendAccessMatch = path.match(/^\/api\/sends\/access\/([^/]+)$/i);
     if (sendAccessMatch && method === 'POST') {
-      const blocked = await enforcePublicSendRateLimit();
+      const blocked = await enforcePublicRateLimit();
       if (blocked) return blocked;
       const accessId = sendAccessMatch[1];
       return handleAccessSend(request, env, accessId);
@@ -297,14 +297,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     const sendAccessV2Match = path === '/api/sends/access';
     if (sendAccessV2Match && method === 'POST') {
-      const blocked = await enforcePublicSendRateLimit();
+      const blocked = await enforcePublicRateLimit();
       if (blocked) return blocked;
       return handleAccessSendV2(request, env);
     }
 
     const sendAccessFileV2Match = path.match(/^\/api\/sends\/access\/file\/([a-f0-9-]+)$/i);
     if (sendAccessFileV2Match && method === 'POST') {
-      const blocked = await enforcePublicSendRateLimit();
+      const blocked = await enforcePublicRateLimit();
       if (blocked) return blocked;
       const fileId = sendAccessFileV2Match[1];
       return handleAccessSendFileV2(request, env, fileId);
@@ -312,7 +312,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     const sendAccessFileMatch = path.match(/^\/api\/sends\/([^/]+)\/access\/file\/([a-f0-9-]+)$/i);
     if (sendAccessFileMatch && method === 'POST') {
-      const blocked = await enforcePublicSendRateLimit();
+      const blocked = await enforcePublicRateLimit();
       if (blocked) return blocked;
       const idOrAccessId = sendAccessFileMatch[1];
       const fileId = sendAccessFileMatch[2];
@@ -333,12 +333,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     // Known device check (no auth required)
     if (path === '/api/devices/knowndevice' && method === 'GET') {
-      const rateLimit = new RateLimitService(env.DB);
-      const probeLimit = await rateLimit.consumeKnownDeviceProbeBudget(clientId + ':known-device');
-      if (!probeLimit.allowed) {
-        // Keep compatibility simple: do not error, just answer "unknown device".
-        return jsonResponse(false);
-      }
+      const blocked = await enforcePublicRateLimit();
+      if (blocked) return jsonResponse(false);
       return handleKnownDevice(request, env);
     }
 
@@ -441,31 +437,13 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (currentUser.status !== 'active') {
       return errorResponse('Account is disabled', 403);
     }
-    // Dedicated read rate limiting for heavy sync endpoint.
-    if (path === '/api/sync' && method === 'GET') {
+    // Unified rate limiting for all authenticated API requests.
+    {
       const rateLimit = new RateLimitService(env.DB);
-      const rateLimitCheck = await rateLimit.consumeSyncReadBudget(userId + ':' + clientId + ':sync');
-
-      if (!rateLimitCheck.allowed) {
-        return new Response(JSON.stringify({
-          error: 'Too many requests',
-          error_description: `Sync rate limit exceeded. Try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
-        }), {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': rateLimitCheck.retryAfterSeconds!.toString(),
-            'X-RateLimit-Remaining': '0',
-          },
-        });
-      }
-    }
-
-    // API rate limiting only for write operations (keep reads frictionless)
-    const isWriteMethod = method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH';
-    if (isWriteMethod) {
-      const rateLimit = new RateLimitService(env.DB);
-      const rateLimitCheck = await rateLimit.consumeApiWriteBudget(userId + ':' + clientId + ':write');
+      const rateLimitCheck = await rateLimit.consumeBudget(
+        userId + ':api',
+        LIMITS.rateLimit.apiRequestsPerMinute
+      );
 
       if (!rateLimitCheck.allowed) {
         return new Response(JSON.stringify({

@@ -1,37 +1,22 @@
 import { LIMITS } from '../config/limits';
 
-// D1-backed rate limiting.
-// Notes:
-// - Login attempts are tracked per client IP.
-// - API rate is tracked per identifier per fixed window.
+// Rate limiting service.
+// - Login attempts: D1-backed (low volume, security-critical, needs cross-colo persistence).
+// - API budgets: Cloudflare Cache API (high volume, auto-expires, zero D1 writes).
 
-// Rate limit configuration
 const CONFIG = {
-  // Friendly default: short cooldown instead of long lockouts.
   LOGIN_MAX_ATTEMPTS: LIMITS.rateLimit.loginMaxAttempts,
   LOGIN_LOCKOUT_MINUTES: LIMITS.rateLimit.loginLockoutMinutes,
-
-  // Write operations only (POST/PUT/DELETE/PATCH) should use this budget.
-  API_WRITE_REQUESTS_PER_MINUTE: LIMITS.rateLimit.apiWriteRequestsPerMinute,
-  // Dedicated budget for GET /api/sync reads.
-  SYNC_READ_REQUESTS_PER_MINUTE: LIMITS.rateLimit.syncReadRequestsPerMinute,
-  // Dedicated budget for GET /api/devices/knowndevice probes.
-  KNOWN_DEVICE_REQUESTS_PER_MINUTE: LIMITS.rateLimit.knownDeviceRequestsPerMinute,
-  // Dedicated budget for unauthenticated public Send access endpoints.
-  PUBLIC_SEND_REQUESTS_PER_MINUTE: LIMITS.rateLimit.publicSendRequestsPerMinute,
   API_WINDOW_SECONDS: LIMITS.rateLimit.apiWindowSeconds,
 };
 
 export class RateLimitService {
   private static loginIpTableReady = false;
   private static lastLoginIpCleanupAt = 0;
-  private static lastApiWindowCleanupAt = 0;
 
   private static readonly PERIODIC_CLEANUP_PROBABILITY = LIMITS.rateLimit.cleanupProbability;
   private static readonly LOGIN_IP_CLEANUP_INTERVAL_MS = LIMITS.rateLimit.loginIpCleanupIntervalMs;
-  private static readonly API_WINDOW_CLEANUP_INTERVAL_MS = LIMITS.rateLimit.apiWindowCleanupIntervalMs;
   private static readonly LOGIN_IP_RETENTION_MS = LIMITS.rateLimit.loginIpRetentionMs;
-  private static readonly API_WINDOW_RETENTION_WINDOWS = LIMITS.rateLimit.apiWindowRetentionWindows;
 
   constructor(private db: D1Database) {}
 
@@ -54,16 +39,6 @@ export class RateLimitService {
       .bind(cutoff, nowMs)
       .run();
     RateLimitService.lastLoginIpCleanupAt = nowMs;
-  }
-
-  private async maybeCleanupApiWindows(windowStart: number, windowSeconds: number): Promise<void> {
-    if (!this.shouldRunCleanup(RateLimitService.lastApiWindowCleanupAt, RateLimitService.API_WINDOW_CLEANUP_INTERVAL_MS)) {
-      return;
-    }
-
-    const cutoff = windowStart - (windowSeconds * RateLimitService.API_WINDOW_RETENTION_WINDOWS);
-    await this.db.prepare('DELETE FROM api_rate_limits WHERE window_start < ?').bind(cutoff).run();
-    RateLimitService.lastApiWindowCleanupAt = Date.now();
   }
 
   private async ensureLoginIpTable(): Promise<void> {
@@ -162,8 +137,9 @@ export class RateLimitService {
     await this.db.prepare('DELETE FROM login_attempts_ip WHERE ip = ?').bind(key).run();
   }
 
-  // Atomically consume one budget unit for the current fixed window.
-  // Uses SQLite UPSERT-with-WHERE so requests at/over limit do not increment.
+  // Cache API-backed fixed-window rate limiter.
+  // Uses Cloudflare edge cache instead of D1 — zero database writes, auto-expires via TTL.
+  // Per-colo isolation is acceptable (matches Cloudflare's own rate limiting behaviour).
   private async consumeFixedWindowBudget(
     identifier: string,
     maxRequests: number,
@@ -172,77 +148,41 @@ export class RateLimitService {
     const nowSec = Math.floor(Date.now() / 1000);
     const windowStart = nowSec - (nowSec % windowSeconds);
     const windowEnd = windowStart + windowSeconds;
-    await this.maybeCleanupApiWindows(windowStart, windowSeconds);
+    const ttl = Math.max(1, windowEnd - nowSec);
 
-    const writeResult = await this.db
-      .prepare(
-        'INSERT INTO api_rate_limits(identifier, window_start, count) VALUES(?, ?, 1) ' +
-        'ON CONFLICT(identifier, window_start) DO UPDATE SET count = count + 1 ' +
-        'WHERE api_rate_limits.count < ?'
-      )
-      .bind(identifier, windowStart, maxRequests)
-      .run();
+    const cache = await caches.open('rate-limit');
+    const cacheKey = new Request(`https://rl/${identifier}/${windowStart}`);
 
-    // No changed row means conflict happened and WHERE prevented increment:
-    // current count is already at/above configured limit.
-    if ((writeResult.meta.changes ?? 0) === 0) {
-      return {
-        allowed: false,
-        remaining: 0,
-        retryAfterSeconds: windowEnd - nowSec,
-      };
+    const cached = await cache.match(cacheKey);
+    let count = 0;
+    if (cached) {
+      count = parseInt(await cached.text(), 10) || 0;
     }
 
-    const row = await this.db
-      .prepare('SELECT count FROM api_rate_limits WHERE identifier = ? AND window_start = ?')
-      .bind(identifier, windowStart)
-      .first<{ count: number }>();
-
-    if (!row) {
-      return {
-        allowed: true,
-        remaining: 0,
-      };
+    if (count >= maxRequests) {
+      return { allowed: false, remaining: 0, retryAfterSeconds: ttl };
     }
 
-    const remaining = Math.max(0, maxRequests - row.count);
-    return { allowed: true, remaining };
+    count++;
+    await cache.put(
+      cacheKey,
+      new Response(String(count), {
+        headers: { 'Cache-Control': `public, max-age=${ttl}` },
+      })
+    );
+
+    return { allowed: true, remaining: Math.max(0, maxRequests - count) };
   }
 
-  // Write budget for POST/PUT/DELETE/PATCH requests.
-  async consumeApiWriteBudget(identifier: string): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
-    return this.consumeFixedWindowBudget(
-      identifier,
-      CONFIG.API_WRITE_REQUESTS_PER_MINUTE,
-      CONFIG.API_WINDOW_SECONDS
-    );
-  }
-
-  // Read budget for GET /api/sync.
-  async consumeSyncReadBudget(identifier: string): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
-    return this.consumeFixedWindowBudget(
-      identifier,
-      CONFIG.SYNC_READ_REQUESTS_PER_MINUTE,
-      CONFIG.API_WINDOW_SECONDS
-    );
-  }
-
-  // Probe budget for GET /api/devices/knowndevice.
-  async consumeKnownDeviceProbeBudget(identifier: string): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
-    return this.consumeFixedWindowBudget(
-      identifier,
-      CONFIG.KNOWN_DEVICE_REQUESTS_PER_MINUTE,
-      CONFIG.API_WINDOW_SECONDS
-    );
-  }
-
-  // Budget for unauthenticated public Send access endpoints.
-  async consumePublicSendAccessBudget(identifier: string): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
-    return this.consumeFixedWindowBudget(
-      identifier,
-      CONFIG.PUBLIC_SEND_REQUESTS_PER_MINUTE,
-      CONFIG.API_WINDOW_SECONDS
-    );
+  // General-purpose fixed-window budget.
+  // Callers supply an identifier (must be unique per rate-limit category) and the
+  // per-window maximum.  This single method replaces all previous specialised
+  // budget helpers (write / sync / knownDevice / publicSend).
+  async consumeBudget(
+    identifier: string,
+    maxRequests: number
+  ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
+    return this.consumeFixedWindowBudget(identifier, maxRequests, CONFIG.API_WINDOW_SECONDS);
   }
 }
 
