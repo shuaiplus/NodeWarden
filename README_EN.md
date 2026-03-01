@@ -26,7 +26,7 @@
 
 | Capability | Bitwarden  | NodeWarden | Notes |
 |---|---|---|---|
-| Single-user vault (logins/notes/cards/identities) | ✅ | ✅ | Based on Cloudflare D1 |
+| Web Vault (logins/notes/cards/identities) | ✅ | ✅ | Web-based vault management UI |
 | Folders / Favorites | ✅ | ✅ | Common vault organization supported |
 | Full sync `/api/sync` | ✅ | ✅ | Compatibility and performance optimized |
 | Attachment upload/download | ✅ | ✅ | Backed by Cloudflare R2 |

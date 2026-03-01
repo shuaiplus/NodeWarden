@@ -26,7 +26,7 @@ English：[`README_EN.md`](./README_EN.md)
 
 | 能力项 | Bitwarden | NodeWarden | 说明 |
 |---|---|---|---|
-| 单用户保管库（登录/笔记/卡片/身份） | ✅ | ✅ | 基于Cloudflare D1 |
+| Web Vault（登录/笔记/卡片/身份） | ✅ | ✅ | 网页端密码库管理页面 |
 | 文件夹 / 收藏 | ✅ | ✅ | 常用管理能力可用 |
 | 全量同步 `/api/sync` | ✅ | ✅ | 已做兼容与性能优化 |
 | 附件上传/下载 | ✅ | ✅ | 基于 Cloudflare R2 |
