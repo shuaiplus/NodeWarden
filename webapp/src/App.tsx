@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { HardDriveDownload, Lock, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
+import { ArrowUpDown, Cloud, Lock, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
@@ -14,6 +14,7 @@ import SettingsPage from '@/components/SettingsPage';
 import SecurityDevicesPage from '@/components/SecurityDevicesPage';
 import AdminPage from '@/components/AdminPage';
 import HelpPage from '@/components/HelpPage';
+import ImportExportPage from '@/components/ImportExportPage';
 import {
   changeMasterPassword,
   createFolder,
@@ -978,8 +979,12 @@ export default function App() {
                 <span>{t('nav_device_management')}</span>
               </Link>
               <Link href="/help" className={`side-link ${location === '/help' ? 'active' : ''}`}>
-                <HardDriveDownload size={16} />
+                <Cloud size={16} />
                 <span>{t('nav_backup_strategy')}</span>
+              </Link>
+              <Link href="/help/import-export" className={`side-link ${location === '/help/import-export' ? 'active' : ''}`}>
+                <ArrowUpDown size={14} />
+                <span>{t('nav_import_export')}</span>
               </Link>
             </aside>
             <main className="content">
@@ -1124,6 +1129,9 @@ export default function App() {
                       pushToast('success', t('txt_invite_revoked'));
                     }}
                   />
+                </Route>
+                <Route path="/help/import-export">
+                  <ImportExportPage />
                 </Route>
                 <Route path="/help">
                   <HelpPage />
