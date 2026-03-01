@@ -27,9 +27,6 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
-html {
-  zoom: 1.25;
-}
 .loading-screen {
   height: 100%;
   display: grid;
