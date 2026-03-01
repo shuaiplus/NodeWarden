@@ -1,6 +1,7 @@
 import { Env, User, ProfileResponse, DEFAULT_DEV_SECRET } from '../types';
 import { StorageService } from '../services/storage';
 import { AuthService } from '../services/auth';
+import { RateLimitService, getClientIdentifier } from '../services/ratelimit';
 import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
@@ -449,6 +450,7 @@ export async function handleGetTotpRecoveryCode(request: Request, env: Env, user
 export async function handleRecoverTwoFactor(request: Request, env: Env): Promise<Response> {
   const storage = new StorageService(env.DB);
   const auth = new AuthService(env);
+  const rateLimit = new RateLimitService(env.DB);
 
   let body: Record<string, string | undefined>;
   try {
@@ -466,20 +468,35 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
   const email = String(body.email || body.username || '').trim().toLowerCase();
   const masterPasswordHash = String(body.masterPasswordHash || body.password || '').trim();
   const recoveryCode = normalizeRecoveryCodeInput(String(body.recoveryCode || body.twoFactorToken || body.recovery_code || ''));
+  const recoverLimitKey = `${getClientIdentifier(request)}:recover-2fa:${email || 'unknown'}`;
+
+  const recoverAttemptCheck = await rateLimit.checkLoginAttempt(recoverLimitKey);
+  if (!recoverAttemptCheck.allowed) {
+    return errorResponse(
+      `Too many failed recovery attempts. Try again in ${Math.ceil((recoverAttemptCheck.retryAfterSeconds || 60) / 60)} minutes.`,
+      429
+    );
+  }
 
   if (!email || !masterPasswordHash || !recoveryCode) {
     return errorResponse('Email, masterPasswordHash and recoveryCode are required', 400);
   }
 
   const user = await storage.getUser(email);
-  if (!user) return errorResponse('Invalid credentials', 400);
-  if (user.status !== 'active') return errorResponse('Account is disabled', 403);
+  if (!user || user.status !== 'active') {
+    await rateLimit.recordFailedLogin(recoverLimitKey);
+    return errorResponse('Invalid credentials or recovery code', 400);
+  }
 
   const validPassword = await auth.verifyPassword(masterPasswordHash, user.masterPasswordHash);
-  if (!validPassword) return errorResponse('Invalid credentials', 400);
+  if (!validPassword) {
+    await rateLimit.recordFailedLogin(recoverLimitKey);
+    return errorResponse('Invalid credentials or recovery code', 400);
+  }
 
   if (!recoveryCodeEquals(recoveryCode, user.totpRecoveryCode)) {
-    return errorResponse('Recovery code is incorrect. Try again.', 400);
+    await rateLimit.recordFailedLogin(recoverLimitKey);
+    return errorResponse('Invalid credentials or recovery code', 400);
   }
 
   user.totpSecret = null;
@@ -488,6 +505,7 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
   user.updatedAt = new Date().toISOString();
   await storage.saveUser(user);
   await storage.deleteRefreshTokensByUserId(user.id);
+  await rateLimit.clearLoginAttempts(recoverLimitKey);
 
   return jsonResponse({
     success: true,

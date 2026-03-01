@@ -105,6 +105,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
   }
 
   const grantType = body.grant_type;
+  const clientIdentifier = getClientIdentifier(request);
 
   if (grantType === 'password') {
     // Login with password
@@ -113,7 +114,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const twoFactorToken = body.twoFactorToken;
     const twoFactorProvider = body.twoFactorProvider;
     const twoFactorRemember = body.twoFactorRemember;
-    const loginIdentifier = getClientIdentifier(request);
+    const loginIdentifier = clientIdentifier;
     const deviceInfo = readAuthRequestDeviceInfo(body, request);
 
     if (!email || !passwordHash) {
@@ -266,6 +267,15 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     return jsonResponse(response);
 
   } else if (grantType === 'send_access') {
+    const sendAccessLimit = await rateLimit.consumePublicSendAccessBudget(`${clientIdentifier}:public-send-oauth`);
+    if (!sendAccessLimit.allowed) {
+      return identityErrorResponse(
+        `Too many public Send requests. Try again in ${sendAccessLimit.retryAfterSeconds} seconds.`,
+        'TooManyRequests',
+        429
+      );
+    }
+
     const sendId = String(body.send_id || body.sendId || '').trim();
     if (!sendId) {
       return jsonResponse(

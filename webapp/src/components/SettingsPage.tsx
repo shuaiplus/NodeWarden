@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Clipboard, KeyRound, RefreshCw, Save, ShieldCheck, ShieldOff } from 'lucide-preact';
+import { Clipboard, KeyRound, RefreshCw, ShieldCheck, ShieldOff } from 'lucide-preact';
 import qrcode from 'qrcode-generator';
 import type { Profile } from '@/lib/types';
 import { t } from '@/lib/i18n';
@@ -7,7 +7,6 @@ import { t } from '@/lib/i18n';
 interface SettingsPageProps {
   profile: Profile;
   totpEnabled: boolean;
-  onSaveProfile: (name: string, email: string) => Promise<void>;
   onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
@@ -30,8 +29,6 @@ function buildOtpUri(email: string, secret: string): string {
 
 export default function SettingsPage(props: SettingsPageProps) {
   const totpSecretStorageKey = `nodewarden.totp.secret.${props.profile.id}`;
-  const [name, setName] = useState(props.profile.name || '');
-  const [email, setEmail] = useState(props.profile.email || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPassword2, setNewPassword2] = useState('');
@@ -49,12 +46,13 @@ export default function SettingsPage(props: SettingsPageProps) {
     setTotpLocked(true);
   }, [props.totpEnabled]);
 
-  const qrSvg = useMemo(() => {
+  const qrDataUrl = useMemo(() => {
     const qr = qrcode(0, 'M');
-    qr.addData(buildOtpUri(email || props.profile.email, secret));
+    qr.addData(buildOtpUri(props.profile.email, secret));
     qr.make();
-    return qr.createSvgTag({ scalable: true, margin: 0 });
-  }, [email, props.profile.email, secret]);
+    const svg = qr.createSvgTag({ scalable: true, margin: 0 });
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }, [props.profile.email, secret]);
 
   async function enableTotp(): Promise<void> {
     await props.onEnableTotp(secret, token);
@@ -70,29 +68,6 @@ export default function SettingsPage(props: SettingsPageProps) {
 
   return (
     <div className="stack">
-      <section className="card">
-        <h3>{t('txt_profile')}</h3>
-        <div className="field-grid">
-          <label className="field">
-            <span>{t('txt_name')}</span>
-            <input className="input" value={name} onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)} />
-          </label>
-          <label className="field">
-            <span>{t('txt_email')}</span>
-            <input
-              className="input"
-              type="email"
-              value={email}
-              onInput={(e) => setEmail((e.currentTarget as HTMLInputElement).value)}
-            />
-          </label>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => void props.onSaveProfile(name, email)}>
-          <Save size={14} className="btn-icon" />
-          {t('txt_save_profile')}
-        </button>
-      </section>
-
       <section className="card">
         <h3>{t('txt_change_master_password')}</h3>
         <label className="field">
@@ -130,7 +105,9 @@ export default function SettingsPage(props: SettingsPageProps) {
             <h3>{t('txt_totp')}</h3>
             {totpLocked && <div className="status-ok">{t('txt_totp_is_enabled_for_this_account')}</div>}
             <div className="totp-grid">
-              <div className="totp-qr" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+              <div className="totp-qr">
+                <img src={qrDataUrl} alt="TOTP QR" />
+              </div>
               <div>
                 <div>
                   <label className="field">

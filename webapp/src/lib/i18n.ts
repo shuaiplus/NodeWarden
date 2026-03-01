@@ -196,6 +196,7 @@ const messages: Record<Locale, Record<string, string>> = {
     txt_copied: "Copied",
     txt_log_in: "Log In",
     txt_log_out: "Log Out",
+    txt_lock: "Lock",
     txt_login: "Login",
     txt_login_credentials: "Login Credentials",
     txt_login_failed: "Login failed",
@@ -368,7 +369,7 @@ const zhCNOverrides: Record<string, string> = {
   nav_device_management: '设备管理',
   nav_support_center: '支持中心',
   support_title: '支持中心',
-  support_under_construction: '正在搭建中。',
+  support_under_construction: '正在搭建中',
   txt_sign_out: '退出登录',
   txt_log_in: '登录',
   txt_log_out: '退出',
@@ -392,7 +393,7 @@ const zhCNOverrides: Record<string, string> = {
   txt_search_your_secure_vault: '搜索你的保险库...',
   txt_refresh: '刷新',
   txt_sync: '同步',
-  txt_sync_vault: '同步保险库',
+  txt_sync_vault: '同步',
   txt_add: '新增',
   txt_edit: '编辑',
   txt_delete: '删除',
@@ -719,6 +720,8 @@ const zhCNOverrides: Record<string, string> = {
   txt_random_secret_generator: '随机密钥生成器',
   txt_copied: '已复制',
 };
+
+zhCNOverrides.txt_lock = '\u9501\u5b9a';
 
 messages['zh-CN'] = { ...messages.en, ...zhCNOverrides };
 

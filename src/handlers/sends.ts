@@ -322,6 +322,14 @@ function hasEmailAuth(send: Send): boolean {
   return send.authType === SendAuthType.Email;
 }
 
+function getSafeJwtSecret(env: Env): { ok: true; secret: string } | { ok: false; response: Response } {
+  const secret = (env.JWT_SECRET || '').trim();
+  if (!secret || secret.length < LIMITS.auth.jwtSecretMinLength || secret === DEFAULT_DEV_SECRET) {
+    return { ok: false, response: errorResponse('Server configuration error', 500) };
+  }
+  return { ok: true, secret };
+}
+
 function extractBearerToken(request: Request): string | null {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) return null;
@@ -1078,12 +1086,15 @@ export async function handleAccessSendFile(
 
 // POST /api/sends/access (v2 bearer)
 export async function handleAccessSendV2(request: Request, env: Env): Promise<Response> {
+  const jwt = getSafeJwtSecret(env);
+  if (!jwt.ok) return jwt.response;
+
   const token = extractBearerToken(request);
   if (!token) {
     return errorResponse('Unauthorized', 401);
   }
 
-  const claims = await verifySendAccessToken(token, env.JWT_SECRET);
+  const claims = await verifySendAccessToken(token, jwt.secret);
   if (!claims) {
     return errorResponse('Unauthorized', 401);
   }
@@ -1196,6 +1207,11 @@ export async function issueSendAccessToken(
   passwordHashB64?: string | null,
   password?: string | null
 ): Promise<{ token: string } | { error: Response }> {
+  const jwt = getSafeJwtSecret(env);
+  if (!jwt.ok) {
+    return { error: jwt.response };
+  }
+
   const storage = new StorageService(env.DB);
   const send = await resolveSendFromIdOrAccessId(storage, sendIdOrAccessId);
 
@@ -1260,7 +1276,7 @@ export async function issueSendAccessToken(
     }
   }
 
-  const token = await createSendAccessToken(send.id, env.JWT_SECRET);
+  const token = await createSendAccessToken(send.id, jwt.secret);
   return { token };
 }
 

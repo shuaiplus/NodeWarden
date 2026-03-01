@@ -12,7 +12,6 @@ import { handleToken, handlePrelogin, handleRevocation } from './handlers/identi
 import {
   handleRegister,
   handleGetProfile,
-  handleUpdateProfile,
   handleSetKeys,
   handleGetRevisionDate,
   handleVerifyPassword,
@@ -214,6 +213,24 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
+  const clientId = getClientIdentifier(request);
+
+  async function enforcePublicSendRateLimit(): Promise<Response | null> {
+    const rateLimit = new RateLimitService(env.DB);
+    const check = await rateLimit.consumePublicSendAccessBudget(`${clientId}:public-send`);
+    if (check.allowed) return null;
+    return new Response(JSON.stringify({
+      error: 'Too many requests',
+      error_description: `Too many public Send requests. Try again in ${check.retryAfterSeconds} seconds.`,
+    }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(check.retryAfterSeconds || 60),
+        'X-RateLimit-Remaining': '0',
+      },
+    });
+  }
 
   // Handle CORS preflight
   if (method === 'OPTIONS') {
@@ -272,23 +289,31 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     // Public Send access endpoints
     const sendAccessMatch = path.match(/^\/api\/sends\/access\/([^/]+)$/i);
     if (sendAccessMatch && method === 'POST') {
+      const blocked = await enforcePublicSendRateLimit();
+      if (blocked) return blocked;
       const accessId = sendAccessMatch[1];
       return handleAccessSend(request, env, accessId);
     }
 
     const sendAccessV2Match = path === '/api/sends/access';
     if (sendAccessV2Match && method === 'POST') {
+      const blocked = await enforcePublicSendRateLimit();
+      if (blocked) return blocked;
       return handleAccessSendV2(request, env);
     }
 
     const sendAccessFileV2Match = path.match(/^\/api\/sends\/access\/file\/([a-f0-9-]+)$/i);
     if (sendAccessFileV2Match && method === 'POST') {
+      const blocked = await enforcePublicSendRateLimit();
+      if (blocked) return blocked;
       const fileId = sendAccessFileV2Match[1];
       return handleAccessSendFileV2(request, env, fileId);
     }
 
     const sendAccessFileMatch = path.match(/^\/api\/sends\/([^/]+)\/access\/file\/([a-f0-9-]+)$/i);
     if (sendAccessFileMatch && method === 'POST') {
+      const blocked = await enforcePublicSendRateLimit();
+      if (blocked) return blocked;
       const idOrAccessId = sendAccessFileMatch[1];
       const fileId = sendAccessFileMatch[2];
       return handleAccessSendFile(request, env, idOrAccessId, fileId);
@@ -309,8 +334,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     // Known device check (no auth required)
     if (path === '/api/devices/knowndevice' && method === 'GET') {
       const rateLimit = new RateLimitService(env.DB);
-      const clientIp = getClientIdentifier(request);
-      const probeLimit = await rateLimit.consumeKnownDeviceProbeBudget(clientIp + ':known-device');
+      const probeLimit = await rateLimit.consumeKnownDeviceProbeBudget(clientId + ':known-device');
       if (!probeLimit.allowed) {
         // Keep compatibility simple: do not error, just answer "unknown device".
         return jsonResponse(false);
@@ -417,8 +441,6 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (currentUser.status !== 'active') {
       return errorResponse('Account is disabled', 403);
     }
-    const clientId = getClientIdentifier(request);
-
     // Dedicated read rate limiting for heavy sync endpoint.
     if (path === '/api/sync' && method === 'GET') {
       const rateLimit = new RateLimitService(env.DB);
@@ -476,7 +498,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     // Account endpoints
     if (path === '/api/accounts/profile') {
       if (method === 'GET') return handleGetProfile(request, env, userId);
-      if (method === 'PUT') return handleUpdateProfile(request, env, userId);
+      return errorResponse('Method not allowed', 405);
     }
 
     if ((path === '/api/accounts/password' || path === '/api/accounts/change-password') && (method === 'POST' || method === 'PUT')) {

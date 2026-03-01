@@ -16,10 +16,9 @@
 
 中文文档：[`README.md`](./README.md)
 
-> Disclaimer
-> - This project is for learning and communication only.
-> - We are not responsible for any data loss. Regular vault backups are strongly recommended.
-> - This project is not affiliated with Bitwarden. Please do not report issues to the official Bitwarden team.
+> **Disclaimer**  
+> This project is for learning and communication purposes only. We are not responsible for any data loss; regular vault backups are strongly recommended.  
+> This project is not affiliated with Bitwarden. Please do not report issues to the official Bitwarden team.
 
 ---
 
@@ -27,14 +26,14 @@
 
 | Capability | Bitwarden  | NodeWarden | Notes |
 |---|---|---|---|
-| Single-user vault (logins/notes/cards/identities) | ✅ | ✅ | Core vault model supported |
+| Single-user vault (logins/notes/cards/identities) | ✅ | ✅ | Based on Cloudflare D1 |
 | Folders / Favorites | ✅ | ✅ | Common vault organization supported |
-| Full sync `/api/sync` | ✅ | ✅ | Compatibility-focused implementation |
+| Full sync `/api/sync` | ✅ | ✅ | Compatibility and performance optimized |
 | Attachment upload/download | ✅ | ✅ | Backed by Cloudflare R2 |
 | Import flow (common clients) | ✅ | ✅ | Common import paths covered |
 | Website icon proxy | ✅ | ✅ | Via `/icons/{hostname}/icon.png` |
-| passkey、TOTP | ❌ | ✅ | Official service requires premium; NodeWarden does not |
-| Multi-user | ✅ | ✅ | Full User Management |
+| passkey、TOTP fields | ❌ | ✅ | Official service requires premium; NodeWarden does not |
+| Multi-user | ✅ | ✅ | Full user management with invitation mechanism |
 | Send | ✅ | ✅ | Text Send and File Send are supported |
 | Organizations / Collections / Member roles | ✅ | ❌ | Not necessary to implement |
 | Login 2FA (TOTP/WebAuthn/Duo/Email) | ✅ | ⚠️ Partial | TOTP-only  via `TOTP_SECRET` |
@@ -47,10 +46,10 @@
 ## Tested clients / platforms
 
 - ✅ Windows desktop client (v2026.1.0)
-- ✅ Android app (v2026.1.0)
+- ✅ Mobile app (v2026.1.0)
 - ✅ Browser extension (v2026.1.0)
+- ✅ Linux desktop client (v2026.1.0)
 - ⬜ macOS desktop client (not tested)
-- ⬜ Linux desktop client (not tested)
 
 ---
 
@@ -60,9 +59,15 @@
 
 **Deploy steps:**
 
-1. Fork this project  (you don't need to fork it if you don't need to update it later).
-2. [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/nodewarden)
-3. Open the generated service URL and follow the on-page instructions.
+1. Fork this repository and name it **NodeWarden**.
+2. Click the deploy button below, rename the project to **NodeWarden2**, and set **JWT_SECRET** to a 32-character random string.
+3. [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/nodewarden)
+4. After deployment, open the Workers settings on the same page and disconnect the **Git repository**.
+5. From the same location, reconnect the **Git repository** to the fork you created in step 1.
+
+**Sync upstream (update):**
+- Manual: Open your forked repository on GitHub and click **Sync fork** when the sync prompt appears at the top.
+- Automatic: Go to your fork → Actions, click "I understand my workflows, go ahead and enable them". The repository will auto-sync with upstream every day at 3 AM.
 
 ### CLI deploy 
 
@@ -83,9 +88,14 @@ npx wrangler r2 bucket create nodewarden-attachments
 
 # Deploy
 npx wrangler deploy
+
+# To update later: re-clone and re-deploy — no need to recreate cloud resources
+git clone https://github.com/shuaiplus/NodeWarden.git
+cd NodeWarden
+npx wrangler deploy
 ```
 
-
+---
 ## Local development
 
 This repo is a Cloudflare Workers TypeScript project (Wrangler).
@@ -105,7 +115,7 @@ A: Use **Export vault** in your client and save the JSON file.
 A: It can’t be recovered (end-to-end encryption). Keep it safe.
 
 **Q: Can multiple people use it?**  
-A: Not recommended. This project is designed for single-user usage. For multi-user usage, choose Vaultwarden.
+A: Yes. The first registered user becomes the admin. The admin can generate invite codes from the admin panel, and other users register with those codes.
 
 ---
 

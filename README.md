@@ -32,9 +32,9 @@ English：[`README_EN.md`](./README_EN.md)
 | 附件上传/下载 | ✅ | ✅ | 基于 Cloudflare R2 |
 | 导入功能 | ✅ | ✅ | 覆盖常见导入路径 |
 | 网站图标代理 | ✅ | ✅ | 通过 `/icons/{hostname}/icon.png` |
-| passkey、TOTP | ❌ | ✅ |官方需要会员，我们的不需要 |
+| passkey、TOTP字段 | ❌ | ✅ |官方需要会员，我们的不需要 |
 | Send | ✅ | ✅ | 已支持文本 Send 与文件 Send |
-| 多用户 | ✅ | ✅ | 完整的用户管理 |
+| 多用户 | ✅ | ✅ | 完整的用户管理，邀请机制 |
 | 组织/集合/成员权限 | ✅ | ❌ | 没必要实现 |
 | 登录 2FA（TOTP/WebAuthn/Duo/Email） | ✅ | ⚠️ 部分支持 | 仅支持 TOTP（通过 `TOTP_SECRET`） |
 | SSO / SCIM / 企业目录 | ✅ | ❌ | 没必要实现 |
@@ -47,8 +47,8 @@ English：[`README_EN.md`](./README_EN.md)
 - ✅ Windows 客户端（v2026.1.0）
 - ✅ 手机 App（v2026.1.0）
 - ✅ 浏览器扩展（v2026.1.0）
+- ✅ Linux 客户端（v2026.1.0）
 - ⬜ macOS 客户端（未测试）
-- ⬜ Linux 客户端（未测试）
 ---
 
 # 快速开始
@@ -57,9 +57,15 @@ English：[`README_EN.md`](./README_EN.md)
 
 **部署步骤：**
 
-1. 先在右上角fork此项目（若后续不需要更新，可不fork）
-2. [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/nodewarden)
-3. 打开部署后生成的链接，并根据网页提示完成后续操作。
+1. 首先Fork本仓库，命名为**NodeWarden**
+2. 点击下面的一键部署按钮，修改项目名称为**NodeWarden2**，修改**JWT_SECRET**成32为随机字符串
+3. [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/nodewarden)
+4. 部署完成后，同一页面打开workers设置，将**Git存储库**断开连接
+5. 同一位置，**Git存储库**链接至第一步Fork的仓库
+
+**同步上游（更新）：**
+- 手动：Github打开你Fork的私人仓库，看到顶部同步提示时，点击 “Sync fork”。
+- 自动：进入你的 Fork 仓库 → Actions，点击 “I understand my workflows, go ahead and enable them”，每天凌晨三点自动同步至上游
 
 ### CLI 部署
 
@@ -79,6 +85,11 @@ npx wrangler d1 create nodewarden-db
 npx wrangler r2 bucket create nodewarden-attachments
 
 # 部署
+npx wrangler deploy
+
+# 需更新时重新拉取仓库，重新部署即可，无需创建云资源
+git clone https://github.com/shuaiplus/NodeWarden.git
+cd NodeWarden
 npx wrangler deploy
 ```
 
@@ -102,7 +113,7 @@ A: 在客户端中选择「导出密码库」，保存 JSON 文件。
 A: 无法恢复，这是端到端加密的特性。建议妥善保管主密码。
 
 **Q: 可以多人使用吗？**  
-A: 不建议。本项目为单用户设计，多人使用请选择 Vaultwarden。
+A: 支持。第一个注册的用户自动成为管理员，管理员可在管理页面生成邀请码，其他用户凭邀请码注册。
 
 ---
 

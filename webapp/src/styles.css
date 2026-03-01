@@ -965,6 +965,11 @@ input[type='file'].input::file-selector-button:hover {
   height: 180px;
 }
 
+.totp-qr img {
+  width: 180px;
+  height: 180px;
+}
+
 .section-head {
   display: flex;
   align-items: center;

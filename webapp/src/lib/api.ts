@@ -30,7 +30,11 @@ export function loadSession(): SessionState | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SessionState;
     if (!parsed.accessToken || !parsed.refreshToken) return null;
-    return parsed;
+    return {
+      accessToken: parsed.accessToken,
+      refreshToken: parsed.refreshToken,
+      email: parsed.email,
+    };
   } catch {
     return null;
   }
@@ -45,8 +49,6 @@ export function saveSession(session: SessionState | null): void {
     accessToken: session.accessToken,
     refreshToken: session.refreshToken,
     email: session.email,
-    symEncKey: session.symEncKey,
-    symMacKey: session.symMacKey,
   };
   localStorage.setItem(SESSION_KEY, JSON.stringify(persisted));
 }
@@ -326,21 +328,6 @@ export async function getSends(authedFetch: (input: string, init?: RequestInit) 
   if (!resp.ok) throw new Error('Failed to load sends');
   const body = await parseJson<ListResponse<Send>>(resp);
   return body?.data || [];
-}
-
-export async function updateProfile(
-  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
-  payload: { name: string; email: string }
-): Promise<Profile> {
-  const resp = await authedFetch('/api/accounts/profile', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!resp.ok) throw new Error('Save profile failed');
-  const body = await parseJson<Profile>(resp);
-  if (!body) throw new Error('Invalid profile');
-  return body;
 }
 
 export async function changeMasterPassword(

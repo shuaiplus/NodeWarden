@@ -41,6 +41,9 @@
     // /api/devices/knowndevice probe budget per IP per minute.
     // /api/devices/knowndevice 每 IP 每分钟探测配额。
     knownDeviceRequestsPerMinute: 10,
+    // Public Send access budget per IP per minute.
+    // 公共 Send 访问接口每 IP 每分钟配额。
+    publicSendRequestsPerMinute: 60,
     // Fixed window size for API rate limiting in seconds.
     // API 限流固定窗口大小（秒）。
     apiWindowSeconds: 60,

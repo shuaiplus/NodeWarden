@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { CircleHelp, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
+import { CircleHelp, Lock, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
@@ -53,7 +53,6 @@ import {
   updateSend,
   buildSendShareKey,
   unlockVaultKey,
-  updateProfile,
   verifyMasterPassword,
 } from '@/lib/api';
 import { base64ToBytes, decryptBw, decryptStr, hkdf } from '@/lib/crypto';
@@ -580,16 +579,6 @@ export default function App() {
     };
   }, [session?.symEncKey, session?.symMacKey, foldersQuery.data, ciphersQuery.data, sendsQuery.data]);
 
-  async function saveProfileAction(name: string, email: string) {
-    try {
-      const updated = await updateProfile(authedFetch, { name: name.trim(), email: email.trim().toLowerCase() });
-      setProfile(updated);
-      pushToast('success', t('txt_profile_updated'));
-    } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : t('txt_save_profile_failed'));
-    }
-  }
-
   async function changePasswordAction(currentPassword: string, nextPassword: string, nextPassword2: string) {
     if (!profile) return;
     if (!currentPassword || !nextPassword) {
@@ -955,6 +944,9 @@ export default function App() {
                 <ShieldUser size={16} />
                 <span>{profile?.email}</span>
               </div>
+              <button type="button" className="btn btn-secondary small" onClick={handleLock}>
+                <Lock size={14} className="btn-icon" /> {t('txt_lock')}
+              </button>
               <button type="button" className="btn btn-secondary small" onClick={handleLogout}>
                 <LogOut size={14} className="btn-icon" /> {t('txt_sign_out')}
               </button>
@@ -1026,7 +1018,6 @@ export default function App() {
                     <SettingsPage
                       profile={profile}
                       totpEnabled={!!totpStatusQuery.data?.enabled}
-                      onSaveProfile={saveProfileAction}
                       onChangePassword={changePasswordAction}
                       onEnableTotp={async (secret, token) => {
                         await enableTotpAction(secret, token);

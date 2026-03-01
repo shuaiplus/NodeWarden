@@ -17,6 +17,8 @@ const CONFIG = {
   SYNC_READ_REQUESTS_PER_MINUTE: LIMITS.rateLimit.syncReadRequestsPerMinute,
   // Dedicated budget for GET /api/devices/knowndevice probes.
   KNOWN_DEVICE_REQUESTS_PER_MINUTE: LIMITS.rateLimit.knownDeviceRequestsPerMinute,
+  // Dedicated budget for unauthenticated public Send access endpoints.
+  PUBLIC_SEND_REQUESTS_PER_MINUTE: LIMITS.rateLimit.publicSendRequestsPerMinute,
   API_WINDOW_SECONDS: LIMITS.rateLimit.apiWindowSeconds,
 };
 
@@ -230,6 +232,15 @@ export class RateLimitService {
     return this.consumeFixedWindowBudget(
       identifier,
       CONFIG.KNOWN_DEVICE_REQUESTS_PER_MINUTE,
+      CONFIG.API_WINDOW_SECONDS
+    );
+  }
+
+  // Budget for unauthenticated public Send access endpoints.
+  async consumePublicSendAccessBudget(identifier: string): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
+    return this.consumeFixedWindowBudget(
+      identifier,
+      CONFIG.PUBLIC_SEND_REQUESTS_PER_MINUTE,
       CONFIG.API_WINDOW_SECONDS
     );
   }
