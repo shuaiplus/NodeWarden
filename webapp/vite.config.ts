@@ -16,7 +16,17 @@ export default defineConfig({
   build: {
     outDir: path.resolve(rootDir, '../dist'),
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
+    target: 'esnext',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['preact', 'preact/hooks', 'preact/jsx-runtime'],
+          query: ['@tanstack/react-query'],
+          icons: ['lucide-preact'],
+        },
+      },
+    },
   },
   server: {
     port: 5173,

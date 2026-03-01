@@ -314,7 +314,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return handleAccessSendV2(request, env);
     }
 
-    const sendAccessFileV2Match = path.match(/^\/api\/sends\/access\/file\/([a-f0-9-]+)$/i);
+    const sendAccessFileV2Match = path.match(/^\/api\/sends\/access\/file\/([^/]+)\/?$/i);
     if (sendAccessFileV2Match && method === 'POST') {
       const blocked = await enforcePublicRateLimit();
       if (blocked) return blocked;
@@ -322,7 +322,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return handleAccessSendFileV2(request, env, fileId);
     }
 
-    const sendAccessFileMatch = path.match(/^\/api\/sends\/([^/]+)\/access\/file\/([a-f0-9-]+)$/i);
+    const sendAccessFileMatch = path.match(/^\/api\/sends\/([^/]+)\/access\/file\/([^/]+)\/?$/i);
     if (sendAccessFileMatch && method === 'POST') {
       const blocked = await enforcePublicRateLimit();
       if (blocked) return blocked;
@@ -331,7 +331,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return handleAccessSendFile(request, env, idOrAccessId, fileId);
     }
 
-    const sendDownloadMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)\/([a-f0-9-]+)$/i);
+    const sendDownloadMatch = path.match(/^\/api\/sends\/([^/]+)\/([^/]+)\/?$/i);
     if (sendDownloadMatch && method === 'GET') {
       const sendId = sendDownloadMatch[1];
       const fileId = sendDownloadMatch[2];
@@ -648,11 +648,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       if (method === 'POST') return handleCreateSend(request, env, userId);
     }
 
-    if (path === '/api/sends/file/v2' && method === 'POST') {
+    if ((path === '/api/sends/file/v2' || path === '/api/sends/file') && method === 'POST') {
       return handleCreateFileSendV2(request, env, userId);
     }
 
-    const sendMatch = path.match(/^\/api\/sends\/([a-f0-9-]+)(\/.*)?$/i);
+    const sendMatch = path.match(/^\/api\/sends\/([^/]+)(\/.*)?$/i);
     if (sendMatch) {
       const sendId = sendMatch[1];
       const subPath = sendMatch[2] || '';
@@ -663,19 +663,19 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         if (method === 'DELETE') return handleDeleteSend(request, env, userId, sendId);
       }
 
-      if (subPath === '/remove-password' && method === 'PUT') {
+      if (subPath === '/remove-password' && (method === 'PUT' || method === 'POST')) {
         return handleRemoveSendPassword(request, env, userId, sendId);
       }
 
-      if (subPath === '/remove-auth' && method === 'PUT') {
+      if (subPath === '/remove-auth' && (method === 'PUT' || method === 'POST')) {
         return handleRemoveSendAuth(request, env, userId, sendId);
       }
 
-      const sendFileUploadMatch = subPath.match(/^\/file\/([a-f0-9-]+)$/i);
+      const sendFileUploadMatch = subPath.match(/^\/file\/([^/]+)\/?$/i);
       if (sendFileUploadMatch) {
         const fileId = sendFileUploadMatch[1];
         if (method === 'GET') return handleGetSendFileUpload(request, env, userId, sendId, fileId);
-        if (method === 'POST') return handleUploadSendFile(request, env, userId, sendId, fileId);
+        if (method === 'POST' || method === 'PUT') return handleUploadSendFile(request, env, userId, sendId, fileId);
       }
     }
 
