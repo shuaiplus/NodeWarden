@@ -69,11 +69,19 @@ export async function verifyTotpToken(secretRaw: string, tokenRaw: string, nowMs
   if (!secret) return false;
 
   const currentCounter = Math.floor(nowMs / 1000 / TOTP_STEP_SECONDS);
+  let matched = false;
   for (let delta = -TOTP_WINDOW; delta <= TOTP_WINDOW; delta++) {
     const expected = await hotp(secret, currentCounter + delta);
-    if (expected === token) return true;
+    // Constant-time comparison: always check all windows, never short-circuit.
+    const a = new TextEncoder().encode(expected);
+    const b = new TextEncoder().encode(token);
+    let diff = a.length ^ b.length;
+    for (let i = 0; i < a.length && i < b.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    if (diff === 0) matched = true;
   }
-  return false;
+  return matched;
 }
 
 export function isTotpEnabled(secretRaw: string | undefined | null): boolean {

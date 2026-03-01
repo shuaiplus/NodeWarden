@@ -122,11 +122,14 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   }
 
   const now = new Date().toISOString();
+  const auth = new AuthService(env);
+  const serverHash = await auth.hashPasswordServer(masterPasswordHash, email);
+
   const user: User = {
     id: generateUUID(),
     email,
     name: name || email,
-    masterPasswordHash,
+    masterPasswordHash: serverHash,
     key,
     privateKey,
     publicKey,
@@ -244,6 +247,7 @@ export async function handleUpdateProfile(request: Request, env: Env, userId: st
 // POST /api/accounts/keys
 export async function handleSetKeys(request: Request, env: Env, userId: string): Promise<Response> {
   const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
   const user = await storage.getUserById(userId);
 
   if (!user) {
@@ -251,6 +255,7 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
   }
 
   let body: {
+    masterPasswordHash?: string;
     key?: string;
     encryptedPrivateKey?: string;
     publicKey?: string;
@@ -260,6 +265,15 @@ export async function handleSetKeys(request: Request, env: Env, userId: string):
     body = await request.json();
   } catch {
     return errorResponse('Invalid JSON', 400);
+  }
+
+  // Require password verification before allowing key replacement.
+  if (!body.masterPasswordHash) {
+    return errorResponse('masterPasswordHash is required', 400);
+  }
+  const passwordValid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash, user.email);
+  if (!passwordValid) {
+    return errorResponse('Invalid password', 400);
   }
 
   if (body.key) user.key = body.key;
@@ -308,7 +322,7 @@ export async function handleChangePassword(request: Request, env: Env, userId: s
 
   const currentHash = body.currentPasswordHash || body.masterPasswordHash;
   if (!currentHash) return errorResponse('Current password hash is required', 400);
-  const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash);
+  const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash, user.email);
   if (!valid) return errorResponse('Invalid password', 400);
 
   if (!body.newMasterPasswordHash) {
@@ -324,7 +338,7 @@ export async function handleChangePassword(request: Request, env: Env, userId: s
     return errorResponse('new encryptedPrivateKey is not a valid encrypted string', 400);
   }
 
-  user.masterPasswordHash = body.newMasterPasswordHash;
+  user.masterPasswordHash = await auth.hashPasswordServer(body.newMasterPasswordHash, user.email);
   if (nextKey) user.key = nextKey;
   if (nextPrivateKey) user.privateKey = nextPrivateKey;
   if (nextPublicKey) user.publicKey = nextPublicKey;
@@ -395,7 +409,7 @@ export async function handleSetTotpStatus(request: Request, env: Env, userId: st
     if (!body.masterPasswordHash) {
       return errorResponse('masterPasswordHash is required to disable TOTP', 400);
     }
-    const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash);
+    const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash, user.email);
     if (!valid) return errorResponse('Invalid password', 400);
 
     user.totpSecret = null;
@@ -430,7 +444,7 @@ export async function handleGetTotpRecoveryCode(request: Request, env: Env, user
 
   const currentHash = String(body.masterPasswordHash || body.master_password_hash || body.password || '').trim();
   if (!currentHash) return errorResponse('masterPasswordHash is required', 400);
-  const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash);
+  const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash, user.email);
   if (!valid) return errorResponse('Invalid password', 400);
 
   if (!user.totpRecoveryCode) {
@@ -488,7 +502,7 @@ export async function handleRecoverTwoFactor(request: Request, env: Env): Promis
     return errorResponse('Invalid credentials or recovery code', 400);
   }
 
-  const validPassword = await auth.verifyPassword(masterPasswordHash, user.masterPasswordHash);
+  const validPassword = await auth.verifyPassword(masterPasswordHash, user.masterPasswordHash, user.email);
   if (!validPassword) {
     await rateLimit.recordFailedLogin(recoverLimitKey);
     return errorResponse('Invalid credentials or recovery code', 400);
@@ -547,7 +561,7 @@ export async function handleVerifyPassword(request: Request, env: Env, userId: s
     return errorResponse('masterPasswordHash is required', 400);
   }
 
-  const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash);
+  const valid = await auth.verifyPassword(body.masterPasswordHash, user.masterPasswordHash, user.email);
   if (!valid) {
     return errorResponse('Invalid password', 400);
   }

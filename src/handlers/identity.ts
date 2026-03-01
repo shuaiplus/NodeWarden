@@ -114,7 +114,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const twoFactorToken = body.twoFactorToken;
     const twoFactorProvider = body.twoFactorProvider;
     const twoFactorRemember = body.twoFactorRemember;
-    const loginIdentifier = clientIdentifier;
+    const loginIdentifier = `${clientIdentifier}:${email}`;
     const deviceInfo = readAuthRequestDeviceInfo(body, request);
 
     if (!email || !passwordHash) {
@@ -142,7 +142,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       return identityErrorResponse('Account is disabled', 'invalid_grant', 400);
     }
 
-    const valid = await auth.verifyPassword(passwordHash, user.masterPasswordHash);
+    const valid = await auth.verifyPassword(passwordHash, user.masterPasswordHash, user.email);
     if (!valid) {
       return recordFailedLoginAndBuildResponse(
         rateLimit,

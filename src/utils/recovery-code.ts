@@ -24,5 +24,12 @@ export function createRecoveryCode(): string {
 
 export function recoveryCodeEquals(input: string, storedCode: string | null | undefined): boolean {
   if (!storedCode) return false;
-  return normalizeRecoveryCode(input) === normalizeRecoveryCode(storedCode);
+  const a = new TextEncoder().encode(normalizeRecoveryCode(input));
+  const b = new TextEncoder().encode(normalizeRecoveryCode(storedCode));
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
+  return diff === 0;
 }
