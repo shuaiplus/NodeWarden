@@ -9,6 +9,7 @@ import VaultPage from '@/components/VaultPage';
 import SendsPage from '@/components/SendsPage';
 import PublicSendPage from '@/components/PublicSendPage';
 import RecoverTwoFactorPage from '@/components/RecoverTwoFactorPage';
+import JwtWarningPage from '@/components/JwtWarningPage';
 import SettingsPage from '@/components/SettingsPage';
 import SecurityDevicesPage from '@/components/SecurityDevicesPage';
 import AdminPage from '@/components/AdminPage';
@@ -65,6 +66,8 @@ interface PendingTotp {
   masterKey: Uint8Array;
 }
 
+type JwtUnsafeReason = 'missing' | 'default' | 'too_short';
+
 const SEND_KEY_SALT = 'bitwarden-send';
 const SEND_KEY_PURPOSE = 'send';
 
@@ -87,6 +90,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [defaultKdfIterations, setDefaultKdfIterations] = useState(600000);
   const [setupRegistered, setSetupRegistered] = useState(true);
+  const [jwtWarning, setJwtWarning] = useState<{ reason: JwtUnsafeReason; minLength: number } | null>(null);
 
   const [loginValues, setLoginValues] = useState({ email: '', password: '' });
   const [registerValues, setRegisterValues] = useState({
@@ -153,6 +157,18 @@ export default function App() {
       if (!mounted) return;
       setSetupRegistered(setup.registered);
       setDefaultKdfIterations(Number(config.defaultKdfIterations || 600000));
+      const jwtUnsafeReason = config.jwtUnsafeReason || null;
+      if (jwtUnsafeReason) {
+        setJwtWarning({
+          reason: jwtUnsafeReason,
+          minLength: Number(config.jwtSecretMinLength || 32),
+        });
+        setSession(null);
+        setProfile(null);
+        setPhase('login');
+        return;
+      }
+      setJwtWarning(null);
 
       const loaded = loadSession();
       if (!loaded) {
@@ -820,6 +836,10 @@ export default function App() {
   useEffect(() => {
     if (phase === 'app' && location === '/' && !isPublicSendRoute) navigate('/vault');
   }, [phase, location, isPublicSendRoute, navigate]);
+
+  if (jwtWarning) {
+    return <JwtWarningPage reason={jwtWarning.reason} minLength={jwtWarning.minLength} />;
+  }
 
   if (publicSendMatch) {
     return (

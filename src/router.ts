@@ -121,6 +121,14 @@ function isSameOriginWriteRequest(request: Request): boolean {
   return false;
 }
 
+function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
+  const secret = (env.JWT_SECRET || '').trim();
+  if (!secret) return 'missing';
+  if (secret === DEFAULT_DEV_SECRET) return 'default';
+  if (secret.length < LIMITS.auth.jwtSecretMinLength) return 'too_short';
+  return null;
+}
+
 function getNwIconSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="NW icon"><rect x="4" y="4" width="88" height="88" rx="20" fill="#111418"/><text x="48" y="60" text-anchor="middle" font-size="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="800" letter-spacing="0.5" fill="#FFFFFF">NW</text></svg>`;
 }
@@ -222,8 +230,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     // Web runtime config for static client bootstrap
     if (path === '/api/web/config' && method === 'GET') {
+      const jwtUnsafeReason = jwtSecretUnsafeReason(env);
       return jsonResponse({
         defaultKdfIterations: LIMITS.auth.defaultKdfIterations,
+        jwtUnsafeReason,
+        jwtSecretMinLength: LIMITS.auth.jwtSecretMinLength,
       });
     }
 
@@ -383,8 +394,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     // If JWT_SECRET is not safely configured, block any other endpoints.
-    const secret = (env.JWT_SECRET || '').trim();
-    if (!secret || secret.length < LIMITS.auth.jwtSecretMinLength || secret === DEFAULT_DEV_SECRET) {
+    const secret = jwtSecretUnsafeReason(env);
+    if (secret) {
       return errorResponse('Server configuration error: JWT_SECRET is not set or too weak', 500);
     }
 

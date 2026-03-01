@@ -107,6 +107,55 @@ body,
   text-align: left;
 }
 
+.jwt-warning-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: #b45309;
+  text-align: center;
+}
+
+.jwt-warning-box {
+  border: 1px solid #f1d8a5;
+  border-radius: 12px;
+  background: #fffaf0;
+  padding: 12px 14px;
+}
+
+.jwt-warning-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 6px;
+}
+
+.jwt-warning-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.jwt-generator {
+  margin-top: 14px;
+}
+
+.jwt-generator-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.jwt-copy-hint {
+  color: #15803d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .standalone-footer {
   width: 100%;
   text-align: center;
@@ -330,7 +379,7 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .app-shell {
-  height: calc(80vh - 40px);
+  height: calc(100vh - 40px);
   max-width: 1600px;
   margin: 0 auto;
   background: #f5f7fb;

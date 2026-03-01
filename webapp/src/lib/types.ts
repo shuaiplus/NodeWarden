@@ -237,6 +237,8 @@ export interface SetupStatusResponse {
 
 export interface WebConfigResponse {
   defaultKdfIterations?: number;
+  jwtUnsafeReason?: 'missing' | 'default' | 'too_short' | null;
+  jwtSecretMinLength?: number;
 }
 
 export interface TokenSuccess {
