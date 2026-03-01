@@ -13,7 +13,7 @@
     "web:build": "vite build --config webapp/vite.config.ts",
     "web:typecheck": "tsc -p webapp/tsconfig.json --noEmit",
     "build": "vite build --config webapp/vite.config.ts",
-    "deploy": "npm run web:build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy"
   },
   "keywords": [
     "bitwarden",
