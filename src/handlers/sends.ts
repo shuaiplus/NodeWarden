@@ -1022,9 +1022,11 @@ export async function handleAccessSend(request: Request, env: Env, accessId: str
   }
 
   if (send.type === SendType.Text) {
+    const updated = await storage.incrementSendAccessCount(send.id);
+    if (!updated) {
+      return errorResponse(SEND_INACCESSIBLE_MSG, 404);
+    }
     send.accessCount += 1;
-    send.updatedAt = new Date().toISOString();
-    await storage.saveSend(send);
     await storage.updateRevisionDate(send.userId);
   }
 
@@ -1068,9 +1070,11 @@ export async function handleAccessSendFile(
     return validationErr;
   }
 
+  const updated = await storage.incrementSendAccessCount(send.id);
+  if (!updated) {
+    return errorResponse(SEND_INACCESSIBLE_MSG, 404);
+  }
   send.accessCount += 1;
-  send.updatedAt = new Date().toISOString();
-  await storage.saveSend(send);
   await storage.updateRevisionDate(send.userId);
 
   const token = await createSendFileDownloadToken(send.id, fileId, secret);
@@ -1106,9 +1110,11 @@ export async function handleAccessSendV2(request: Request, env: Env): Promise<Re
   }
 
   if (send.type === SendType.Text) {
+    const updated = await storage.incrementSendAccessCount(send.id);
+    if (!updated) {
+      return errorResponse(SEND_INACCESSIBLE_MSG, 404);
+    }
     send.accessCount += 1;
-    send.updatedAt = new Date().toISOString();
-    await storage.saveSend(send);
     await storage.updateRevisionDate(send.userId);
   }
 
@@ -1145,9 +1151,11 @@ export async function handleAccessSendFileV2(request: Request, env: Env, fileId:
     return errorResponse(SEND_INACCESSIBLE_MSG, 404);
   }
 
+  const updated = await storage.incrementSendAccessCount(send.id);
+  if (!updated) {
+    return errorResponse(SEND_INACCESSIBLE_MSG, 404);
+  }
   send.accessCount += 1;
-  send.updatedAt = new Date().toISOString();
-  await storage.saveSend(send);
   await storage.updateRevisionDate(send.userId);
 
   const downloadToken = await createSendFileDownloadToken(send.id, fileId, secret);

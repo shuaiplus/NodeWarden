@@ -240,6 +240,18 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // Route matching
   try {
 
+    // Reject oversized bodies before any path-specific parsing.
+    // File upload paths enforce their own limits and are exempt here.
+    const isFileUploadPath =
+      /^\/api\/ciphers\/[a-f0-9-]+\/attachment\/[a-f0-9-]+$/i.test(path) ||
+      /^\/api\/sends\/[a-f0-9-]+\/file\/[a-f0-9-]+$/i.test(path);
+    if (!isFileUploadPath) {
+      const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
+      if (contentLength > LIMITS.request.maxBodyBytes) {
+        return errorResponse('Request body too large', 413);
+      }
+    }
+
     // Setup status
     if (path === '/setup/status' && method === 'GET') {
       return handleSetupStatus(request, env);
@@ -328,6 +340,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     // Notifications hub (stub - no auth required, return 200 for connection)
     if (path.startsWith('/notifications/')) {
+      const blocked = await enforcePublicRateLimit();
+      if (blocked) return blocked;
       return new Response(null, { status: 200 });
     }
 

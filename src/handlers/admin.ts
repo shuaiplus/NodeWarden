@@ -255,6 +255,28 @@ export async function handleAdminDeleteUser(
     return errorResponse('User not found', 404);
   }
 
+  // Clean up R2 files before DB cascade deletes the metadata rows.
+  // 1. Attachment files (keyed by cipherId/attachmentId)
+  const attachmentMap = await storage.getAttachmentsByUserId(target.id);
+  for (const [cipherId, attachments] of attachmentMap) {
+    for (const att of attachments) {
+      await env.ATTACHMENTS.delete(`${cipherId}/${att.id}`);
+    }
+  }
+  // 2. Send files (keyed by sends/sendId/fileId)
+  const sends = await storage.getAllSends(target.id);
+  for (const send of sends) {
+    if (send.type === 1) { // SendType.File
+      try {
+        const parsed = JSON.parse(send.data) as Record<string, unknown>;
+        const fileId = typeof parsed.id === 'string' ? parsed.id : null;
+        if (fileId) {
+          await env.ATTACHMENTS.delete(`sends/${send.id}/${fileId}`);
+        }
+      } catch { /* non-file send or bad data, skip */ }
+    }
+  }
+
   await storage.deleteRefreshTokensByUserId(target.id);
   await storage.deleteUserById(target.id);
   await writeAuditLog(storage, actorUser.id, 'admin.user.delete', 'user', target.id, {

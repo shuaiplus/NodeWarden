@@ -56,7 +56,8 @@ export default function SettingsPage(props: SettingsPageProps) {
 
   async function enableTotp(): Promise<void> {
     await props.onEnableTotp(secret, token);
-    localStorage.setItem(totpSecretStorageKey, secret);
+    // Secret is now stored on the server; remove plaintext copy from localStorage.
+    localStorage.removeItem(totpSecretStorageKey);
     setTotpLocked(true);
   }
 

@@ -993,9 +993,8 @@ async function buildPublicSendAccessPayload(password?: string, keyPart?: string 
   const payload: Record<string, unknown> = {};
   const plainPassword = String(password || '').trim();
   if (!plainPassword) return payload;
-  payload.password = plainPassword;
 
-  // Official clients send a PBKDF2 hash bound to send key material.
+  // Only send the PBKDF2 hash bound to the send key material — never send plaintext password.
   if (keyPart) {
     try {
       const sendKeyMaterial = base64UrlToBytes(keyPart);
@@ -1004,7 +1003,7 @@ async function buildPublicSendAccessPayload(password?: string, keyPart?: string 
       payload.password_hash_b64 = passwordHashB64;
       payload.passwordHashB64 = passwordHashB64;
     } catch {
-      // Fallback to plain password for legacy compatibility.
+      // Key material invalid; cannot compute hash — server will reject as unauthorized.
     }
   }
   return payload;

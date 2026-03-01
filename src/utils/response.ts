@@ -5,7 +5,6 @@ const CORS_HEADERS = 'Content-Type, Authorization, Accept, Device-Type, Bitwarde
 
 function isTrustedClientOrigin(origin: string): boolean {
   // Official browser extension / desktop-webview common origins.
-  if (origin === 'null') return true;
   if (origin.startsWith('chrome-extension://')) return true;
   if (origin.startsWith('moz-extension://')) return true;
   if (origin.startsWith('safari-web-extension://')) return true;

@@ -144,6 +144,12 @@ export async function handleGetCipher(request: Request, env: Env, userId: string
   return jsonResponse(cipherToResponse(cipher, attachments));
 }
 
+async function verifyFolderOwnership(storage: StorageService, folderId: string | null | undefined, userId: string): Promise<boolean> {
+  if (!folderId) return true;
+  const folder = await storage.getFolder(folderId);
+  return !!(folder && folder.userId === userId);
+}
+
 // POST /api/ciphers
 export async function handleCreateCipher(request: Request, env: Env, userId: string): Promise<Response> {
   const storage = new StorageService(env.DB);
@@ -177,6 +183,12 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
   cipher.login = normalizeCipherLoginForCompatibility(cipher.login);
   const createFields = getAliasedProp(cipherData, ['fields', 'Fields']);
   cipher.fields = createFields.present ? (createFields.value ?? null) : (cipher.fields ?? null);
+
+  // Prevent referencing a folder owned by another user.
+  if (cipher.folderId) {
+    const folderOk = await verifyFolderOwnership(storage, cipher.folderId, userId);
+    if (!folderOk) return errorResponse('Folder not found', 404);
+  }
 
   await storage.saveCipher(cipher);
   await storage.updateRevisionDate(userId);
@@ -230,6 +242,12 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
     cipher.fields = incomingFields.value ?? null;
   } else if (request.method === 'PUT' || request.method === 'POST') {
     cipher.fields = null;
+  }
+
+  // Prevent referencing a folder owned by another user.
+  if (cipher.folderId) {
+    const folderOk = await verifyFolderOwnership(storage, cipher.folderId, userId);
+    if (!folderOk) return errorResponse('Folder not found', 404);
   }
 
   await storage.saveCipher(cipher);
@@ -331,6 +349,10 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
   }
 
   if (body.folderId !== undefined) {
+    if (body.folderId) {
+      const folderOk = await verifyFolderOwnership(storage, body.folderId, userId);
+      if (!folderOk) return errorResponse('Folder not found', 404);
+    }
     cipher.folderId = body.folderId;
   }
   if (body.favorite !== undefined) {
@@ -357,6 +379,11 @@ export async function handleBulkMoveCiphers(request: Request, env: Env, userId: 
 
   if (!body.ids || !Array.isArray(body.ids)) {
     return errorResponse('ids array is required', 400);
+  }
+
+  if (body.folderId) {
+    const folderOk = await verifyFolderOwnership(storage, body.folderId, userId);
+    if (!folderOk) return errorResponse('Folder not found', 404);
   }
 
   await storage.bulkMoveCiphers(body.ids, body.folderId || null, userId);

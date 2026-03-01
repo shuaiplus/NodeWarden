@@ -34,12 +34,14 @@ export default {
     void ctx;
     await ensureDatabaseInitialized(env);
     if (dbInitError) {
+      // Log full error server-side, return generic message to client.
+      console.error('DB init error (not forwarded to client):', dbInitError);
       const resp = jsonResponse(
         {
           error: 'Database not initialized',
-          error_description: dbInitError,
+          error_description: 'Database initialization failed. Check server logs for details.',
           ErrorModel: {
-            Message: dbInitError,
+            Message: 'Service temporarily unavailable',
             Object: 'error',
           },
         },

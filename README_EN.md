@@ -87,12 +87,12 @@ npx wrangler d1 create nodewarden-db
 npx wrangler r2 bucket create nodewarden-attachments
 
 # Deploy
-npx wrangler deploy
+npm run deploy 
 
 # To update later: re-clone and re-deploy — no need to recreate cloud resources
 git clone https://github.com/shuaiplus/NodeWarden.git
 cd NodeWarden
-npx wrangler deploy
+npm run deploy 
 ```
 
 ---

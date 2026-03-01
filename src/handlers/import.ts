@@ -102,6 +102,10 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const ciphers = importData.ciphers || [];
   const folderRelationships = importData.folderRelationships || [];
 
+  if (folders.length + ciphers.length > LIMITS.performance.importItemLimit) {
+    return errorResponse(`Import exceeds maximum of ${LIMITS.performance.importItemLimit} items`, 400);
+  }
+
   const now = new Date().toISOString();
   const batchChunkSize = LIMITS.performance.bulkMoveChunkSize;
 

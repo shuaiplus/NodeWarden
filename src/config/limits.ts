@@ -103,6 +103,14 @@
     // Max IDs per SQL batch when moving ciphers in bulk.
     // 批量移动密码项时每批 SQL 的最大 ID 数量。
     bulkMoveChunkSize: 200,
+    // Max total items (folders + ciphers) allowed in a single import.
+    // 单次导入允许的最大条目数（文件夹 + 密码项合计）。
+    importItemLimit: 5000,
+  },
+  request: {
+    // Hard body size limit for JSON API endpoints (bytes). File upload paths are exempt.
+    // JSON 接口请求 body 大小上限（字节），文件上传接口除外。
+    maxBodyBytes: 25 * 1024 * 1024,
   },
   compatibility: {
     // Single source of truth for /config.version and /api/version.

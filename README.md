@@ -85,12 +85,12 @@ npx wrangler d1 create nodewarden-db
 npx wrangler r2 bucket create nodewarden-attachments
 
 # 部署
-npx wrangler deploy
+npm run deploy 
 
 # 需更新时重新拉取仓库，重新部署即可，无需创建云资源
 git clone https://github.com/shuaiplus/NodeWarden.git
 cd NodeWarden
-npx wrangler deploy
+npm run deploy 
 ```
 
 ---

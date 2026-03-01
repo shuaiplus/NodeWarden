@@ -425,7 +425,13 @@ export class StorageService {
 
   async getCipher(id: string): Promise<Cipher | null> {
     const row = await this.db.prepare('SELECT data FROM ciphers WHERE id = ?').bind(id).first<{ data: string }>();
-    return row?.data ? (JSON.parse(row.data) as Cipher) : null;
+    if (!row?.data) return null;
+    try {
+      return JSON.parse(row.data) as Cipher;
+    } catch {
+      console.error('Corrupted cipher data, id:', id);
+      return null;
+    }
   }
 
   async saveCipher(cipher: Cipher): Promise<void> {
@@ -460,7 +466,9 @@ export class StorageService {
 
   async getAllCiphers(userId: string): Promise<Cipher[]> {
     const res = await this.db.prepare('SELECT data FROM ciphers WHERE user_id = ? ORDER BY updated_at DESC').bind(userId).all<{ data: string }>();
-    return (res.results || []).map(r => JSON.parse(r.data) as Cipher);
+    return (res.results || []).flatMap(r => {
+      try { return [JSON.parse(r.data) as Cipher]; } catch { return []; }
+    });
   }
 
   async getCiphersPage(userId: string, includeDeleted: boolean, limit: number, offset: number): Promise<Cipher[]> {
@@ -475,7 +483,9 @@ export class StorageService {
       )
       .bind(userId, limit, offset)
       .all<{ data: string }>();
-    return (res.results || []).map(r => JSON.parse(r.data) as Cipher);
+    return (res.results || []).flatMap(r => {
+      try { return [JSON.parse(r.data) as Cipher]; } catch { return []; }
+    });
   }
 
   async getCiphersByIds(ids: string[], userId: string): Promise<Cipher[]> {
@@ -484,7 +494,9 @@ export class StorageService {
     const placeholders = ids.map(() => '?').join(',');
     const stmt = this.db.prepare(`SELECT data FROM ciphers WHERE user_id = ? AND id IN (${placeholders})`);
     const res = await stmt.bind(userId, ...ids).all<{ data: string }>();
-    return (res.results || []).map(r => JSON.parse(r.data) as Cipher);
+    return (res.results || []).flatMap(r => {
+      try { return [JSON.parse(r.data) as Cipher]; } catch { return []; }
+    });
   }
 
   async bulkMoveCiphers(ids: string[], folderId: string | null, userId: string): Promise<void> {
@@ -555,7 +567,12 @@ export class StorageService {
       .all<{ data: string }>();
 
     for (const row of (res.results || [])) {
-      const cipher = JSON.parse(row.data) as Cipher;
+      let cipher: Cipher;
+      try {
+        cipher = JSON.parse(row.data) as Cipher;
+      } catch {
+        continue;
+      }
       cipher.folderId = null;
       cipher.updatedAt = now;
       await this.saveCipher(cipher);
@@ -855,6 +872,23 @@ export class StorageService {
       send.expirationDate,
       send.deletionDate
     ).run();
+  }
+
+  /**
+   * Atomically increment access_count and update updated_at.
+   * Returns true if the row was updated (send still available),
+   * false if max_access_count has already been reached.
+   */
+  async incrementSendAccessCount(sendId: string): Promise<boolean> {
+    const now = new Date().toISOString();
+    const result = await this.db
+      .prepare(
+        'UPDATE sends SET access_count = access_count + 1, updated_at = ? ' +
+        'WHERE id = ? AND (max_access_count IS NULL OR access_count < max_access_count)'
+      )
+      .bind(now, sendId)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
   }
 
   async deleteSend(id: string, userId: string): Promise<void> {

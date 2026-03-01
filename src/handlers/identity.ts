@@ -391,8 +391,10 @@ export async function handlePrelogin(request: Request, env: Env): Promise<Respon
   // Return default KDF settings even if user doesn't exist (to prevent user enumeration)
   const kdfType = user?.kdfType ?? 0;
   const kdfIterations = user?.kdfIterations ?? LIMITS.auth.defaultKdfIterations;
-  const kdfMemory = user?.kdfMemory;
-  const kdfParallelism = user?.kdfParallelism;
+  // Use ?? null so non-existent users return null (not undefined/omitted) for these fields,
+  // matching the response shape of real PBKDF2 users and reducing enumeration signal.
+  const kdfMemory = user?.kdfMemory ?? null;
+  const kdfParallelism = user?.kdfParallelism ?? null;
 
   return jsonResponse({
     kdf: kdfType,

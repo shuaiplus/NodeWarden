@@ -18,6 +18,32 @@ function looksLikeEncString(value: string): boolean {
   return parts.length >= 2;
 }
 
+/**
+ * Validate KDF parameters according to Bitwarden minimum requirements.
+ * Returns an error message if invalid, or null if OK.
+ */
+function validateKdfParams(kdfType: number | undefined, kdfIterations: number | undefined, kdfMemory?: number | undefined, kdfParallelism?: number | undefined): string | null {
+  const type = kdfType ?? 0;
+  if (type === 0) {
+    // PBKDF2-SHA256: minimum 100 000 iterations
+    if (typeof kdfIterations === 'number' && kdfIterations < 100_000) {
+      return 'PBKDF2 iterations must be at least 100000';
+    }
+  } else if (type === 1) {
+    // Argon2id: iterations >= 2, memory >= 16 MiB, parallelism >= 1
+    if (typeof kdfIterations === 'number' && kdfIterations < 2) {
+      return 'Argon2id iterations must be at least 2';
+    }
+    if (typeof kdfMemory === 'number' && kdfMemory < 16) {
+      return 'Argon2id memory must be at least 16 MiB';
+    }
+    if (typeof kdfParallelism === 'number' && kdfParallelism < 1) {
+      return 'Argon2id parallelism must be at least 1';
+    }
+  }
+  return null;
+}
+
 function normalizeTotpSecret(input: string): string {
   return input.toUpperCase().replace(/[\s-]/g, '').replace(/=+$/g, '');
 }
@@ -111,6 +137,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   if (!email || !masterPasswordHash || !key) {
     return errorResponse('Email, masterPasswordHash, and key are required', 400);
   }
+  if (!email.includes('@') || email.length < 3) {
+    return errorResponse('Invalid email address', 400);
+  }
   if (!privateKey || !publicKey) {
     return errorResponse('Private key and public key are required', 400);
   }
@@ -120,6 +149,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   if (!looksLikeEncString(privateKey)) {
     return errorResponse('encryptedPrivateKey is not a valid encrypted string', 400);
   }
+
+  const kdfErr = validateKdfParams(body.kdf, body.kdfIterations, body.kdfMemory, body.kdfParallelism);
+  if (kdfErr) return errorResponse(kdfErr, 400);
 
   const now = new Date().toISOString();
   const auth = new AuthService(env);
@@ -338,6 +370,9 @@ export async function handleChangePassword(request: Request, env: Env, userId: s
     return errorResponse('new encryptedPrivateKey is not a valid encrypted string', 400);
   }
 
+  const kdfErr = validateKdfParams(body.kdf ?? user.kdfType, body.kdfIterations, body.kdfMemory, body.kdfParallelism);
+  if (kdfErr) return errorResponse(kdfErr, 400);
+
   user.masterPasswordHash = await auth.hashPasswordServer(body.newMasterPasswordHash, user.email);
   if (nextKey) user.key = nextKey;
   if (nextPrivateKey) user.privateKey = nextPrivateKey;
@@ -350,6 +385,15 @@ export async function handleChangePassword(request: Request, env: Env, userId: s
   user.updatedAt = new Date().toISOString();
   await storage.saveUser(user);
   await storage.deleteRefreshTokensByUserId(user.id);
+  await storage.createAuditLog({
+    id: generateUUID(),
+    actorUserId: user.id,
+    action: 'user.password.change',
+    targetType: 'user',
+    targetId: user.id,
+    metadata: JSON.stringify({ email: user.email }),
+    createdAt: user.updatedAt,
+  });
 
   return new Response(null, { status: 200 });
 }
