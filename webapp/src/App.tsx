@@ -56,6 +56,7 @@ import {
   verifyMasterPassword,
 } from '@/lib/api';
 import { base64ToBytes, decryptBw, decryptStr, hkdf } from '@/lib/crypto';
+import { t } from '@/lib/i18n';
 import type { AppPhase, AuthorizedDevice, Cipher, Folder, Profile, Send, SendDraft, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
 
 interface PendingTotp {
@@ -201,12 +202,12 @@ export default function App() {
     if (location === '/' || location === '/login' || location === '/register' || location === '/lock') {
       navigate('/vault');
     }
-    pushToast('success', 'Login success');
+    pushToast('success', t('txt_login_success'));
   }
 
   async function handleLogin() {
     if (!loginValues.email || !loginValues.password) {
-      pushToast('error', 'Please input email and password');
+      pushToast('error', t('txt_please_input_email_and_password'));
       return;
     }
     try {
@@ -227,16 +228,16 @@ export default function App() {
         setRememberDevice(true);
         return;
       }
-      pushToast('error', tokenError.error_description || tokenError.error || 'Login failed');
+      pushToast('error', tokenError.error_description || tokenError.error || t('txt_login_failed'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Login failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_login_failed'));
     }
   }
 
   async function handleTotpVerify() {
     if (!pendingTotp) return;
     if (!totpCode.trim()) {
-      pushToast('error', 'Please input TOTP code');
+      pushToast('error', t('txt_please_input_totp_code'));
       return;
     }
     const token = await loginWithPassword(pendingTotp.email, pendingTotp.passwordHash, {
@@ -248,7 +249,7 @@ export default function App() {
       return;
     }
     const tokenError = token as { error_description?: string; error?: string };
-    pushToast('error', tokenError.error_description || tokenError.error || 'TOTP verify failed');
+    pushToast('error', tokenError.error_description || tokenError.error || t('txt_totp_verify_failed'));
   }
 
   async function handleRecoverTwoFactorSubmit() {
@@ -256,7 +257,7 @@ export default function App() {
     const password = recoverValues.password;
     const recoveryCode = recoverValues.recoveryCode.trim();
     if (!email || !password || !recoveryCode) {
-      pushToast('error', 'Email, password and recovery code are required');
+      pushToast('error', t('txt_email_password_and_recovery_code_are_required'));
       return;
     }
     try {
@@ -266,30 +267,30 @@ export default function App() {
       if ('access_token' in token && token.access_token) {
         await finalizeLogin(token.access_token, token.refresh_token, email, derived.masterKey);
         if (recovered.newRecoveryCode) {
-          pushToast('success', `2FA recovered. New recovery code: ${recovered.newRecoveryCode}`);
+          pushToast('success', t('txt_text_2fa_recovered_new_recovery_code_code', { code: recovered.newRecoveryCode }));
         } else {
-          pushToast('success', '2FA recovered');
+          pushToast('success', t('txt_text_2fa_recovered'));
         }
         return;
       }
-      pushToast('error', 'Recovered but auto-login failed, please sign in.');
+      pushToast('error', t('txt_recovered_but_auto_login_failed_please_sign_in'));
       navigate('/login');
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Recover 2FA failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_recover_2fa_failed'));
     }
   }
 
   async function handleRegister() {
     if (!registerValues.email || !registerValues.password) {
-      pushToast('error', 'Please input email and password');
+      pushToast('error', t('txt_please_input_email_and_password'));
       return;
     }
     if (registerValues.password.length < 12) {
-      pushToast('error', 'Master password must be at least 12 chars');
+      pushToast('error', t('txt_master_password_must_be_at_least_12_chars'));
       return;
     }
     if (registerValues.password !== registerValues.password2) {
-      pushToast('error', 'Passwords do not match');
+      pushToast('error', t('txt_passwords_do_not_match'));
       return;
     }
     const resp = await registerAccount({
@@ -305,13 +306,13 @@ export default function App() {
     }
     setLoginValues({ email: registerValues.email.toLowerCase(), password: '' });
     setPhase('login');
-    pushToast('success', 'Registration succeeded. Please sign in.');
+    pushToast('success', t('txt_registration_succeeded_please_sign_in'));
   }
 
   async function handleUnlock() {
     if (!session || !profile) return;
     if (!unlockPassword) {
-      pushToast('error', 'Please input master password');
+      pushToast('error', t('txt_please_input_master_password'));
       return;
     }
     try {
@@ -321,9 +322,9 @@ export default function App() {
       setUnlockPassword('');
       setPhase('app');
       if (location === '/' || location === '/lock') navigate('/vault');
-      pushToast('success', 'Unlocked');
+      pushToast('success', t('txt_unlocked'));
     } catch {
-      pushToast('error', 'Unlock failed. Master password is incorrect.');
+      pushToast('error', t('txt_unlock_failed_master_password_is_incorrect'));
     }
   }
 
@@ -348,8 +349,8 @@ export default function App() {
 
   function handleLogout() {
     setConfirm({
-      title: 'Log Out',
-      message: 'Are you sure you want to log out?',
+      title: t('txt_log_out'),
+      message: t('txt_are_you_sure_you_want_to_log_out'),
       showIcon: false,
       onConfirm: () => {
         logoutNow();
@@ -542,7 +543,7 @@ export default function App() {
                 nextSend.decText = '';
               }
             } catch {
-              nextSend.decName = '(Decrypt failed)';
+              nextSend.decName = t('txt_decrypt_failed');
             }
             return nextSend;
           })
@@ -554,7 +555,7 @@ export default function App() {
         setDecryptedSends(sends);
       } catch (error) {
         if (!active) return;
-        pushToast('error', error instanceof Error ? error.message : 'Decrypt failed');
+        pushToast('error', error instanceof Error ? error.message : t('txt_decrypt_failed_2'));
       }
     })();
 
@@ -567,24 +568,24 @@ export default function App() {
     try {
       const updated = await updateProfile(authedFetch, { name: name.trim(), email: email.trim().toLowerCase() });
       setProfile(updated);
-      pushToast('success', 'Profile updated');
+      pushToast('success', t('txt_profile_updated'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Save profile failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_save_profile_failed'));
     }
   }
 
   async function changePasswordAction(currentPassword: string, nextPassword: string, nextPassword2: string) {
     if (!profile) return;
     if (!currentPassword || !nextPassword) {
-      pushToast('error', 'Current/new password is required');
+      pushToast('error', t('txt_current_new_password_is_required'));
       return;
     }
     if (nextPassword.length < 12) {
-      pushToast('error', 'New password must be at least 12 chars');
+      pushToast('error', t('txt_new_password_must_be_at_least_12_chars'));
       return;
     }
     if (nextPassword !== nextPassword2) {
-      pushToast('error', 'New passwords do not match');
+      pushToast('error', t('txt_new_passwords_do_not_match'));
       return;
     }
     try {
@@ -596,29 +597,29 @@ export default function App() {
         profileKey: profile.key,
       });
       handleLogout();
-      pushToast('success', 'Master password changed. Please login again.');
+      pushToast('success', t('txt_master_password_changed_please_login_again'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Change password failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_change_password_failed'));
     }
   }
 
   async function enableTotpAction(secret: string, token: string) {
     if (!secret.trim() || !token.trim()) {
-      pushToast('error', 'Secret and code are required');
+      pushToast('error', t('txt_secret_and_code_are_required'));
       return;
     }
     try {
       await setTotp(authedFetch, { enabled: true, secret: secret.trim(), token: token.trim() });
-      pushToast('success', 'TOTP enabled');
+      pushToast('success', t('txt_totp_enabled'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Enable TOTP failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_enable_totp_failed'));
     }
   }
 
   async function disableTotpAction() {
     if (!profile) return;
     if (!disableTotpPassword) {
-      pushToast('error', 'Please input master password');
+      pushToast('error', t('txt_please_input_master_password'));
       return;
     }
     try {
@@ -628,15 +629,15 @@ export default function App() {
       setDisableTotpOpen(false);
       setDisableTotpPassword('');
       await totpStatusQuery.refetch();
-      pushToast('success', 'TOTP disabled');
+      pushToast('success', t('txt_totp_disabled'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Disable TOTP failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_disable_totp_failed'));
     }
   }
 
   async function refreshVault() {
     await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch(), sendsQuery.refetch()]);
-    pushToast('success', 'Vault synced');
+    pushToast('success', t('txt_vault_synced'));
   }
 
   async function refreshAuthorizedDevices() {
@@ -646,19 +647,19 @@ export default function App() {
   async function revokeDeviceTrustAction(device: AuthorizedDevice) {
     await revokeAuthorizedDeviceTrust(authedFetch, device.identifier);
     await authorizedDevicesQuery.refetch();
-    pushToast('success', 'Device authorization revoked');
+    pushToast('success', t('txt_device_authorization_revoked'));
   }
 
   async function revokeAllDeviceTrustAction() {
     await revokeAllAuthorizedDeviceTrust(authedFetch);
     await authorizedDevicesQuery.refetch();
-    pushToast('success', 'All device authorizations revoked');
+    pushToast('success', t('txt_all_device_authorizations_revoked'));
   }
 
   async function removeDeviceAction(device: AuthorizedDevice) {
     await deleteAuthorizedDevice(authedFetch, device.identifier);
     await authorizedDevicesQuery.refetch();
-    pushToast('success', 'Device removed');
+    pushToast('success', t('txt_device_removed'));
   }
 
   async function createVaultItem(draft: VaultDraft) {
@@ -666,9 +667,9 @@ export default function App() {
     try {
       await createCipher(authedFetch, session, draft);
       await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch()]);
-      pushToast('success', 'Item created');
+      pushToast('success', t('txt_item_created'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Create item failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_create_item_failed'));
       throw error;
     }
   }
@@ -678,9 +679,9 @@ export default function App() {
     try {
       await updateCipher(authedFetch, session, cipher, draft);
       await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch()]);
-      pushToast('success', 'Item updated');
+      pushToast('success', t('txt_item_updated'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Update item failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_update_item_failed'));
       throw error;
     }
   }
@@ -689,9 +690,9 @@ export default function App() {
     try {
       await deleteCipher(authedFetch, cipher.id);
       await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch()]);
-      pushToast('success', 'Item deleted');
+      pushToast('success', t('txt_item_deleted'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Delete item failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_delete_item_failed'));
       throw error;
     }
   }
@@ -702,9 +703,9 @@ export default function App() {
         await deleteCipher(authedFetch, id);
       }
       await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch()]);
-      pushToast('success', 'Deleted selected items');
+      pushToast('success', t('txt_deleted_selected_items'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Bulk delete failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_bulk_delete_failed'));
       throw error;
     }
   }
@@ -713,20 +714,20 @@ export default function App() {
     try {
       await bulkMoveCiphers(authedFetch, ids, folderId);
       await Promise.all([ciphersQuery.refetch(), foldersQuery.refetch()]);
-      pushToast('success', 'Moved selected items');
+      pushToast('success', t('txt_moved_selected_items'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Bulk move failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_bulk_move_failed'));
       throw error;
     }
   }
 
   async function getRecoveryCodeAction(masterPassword: string): Promise<string> {
-    if (!profile) throw new Error('Profile unavailable');
+    if (!profile) throw new Error(t('txt_profile_unavailable'));
     const normalized = String(masterPassword || '');
-    if (!normalized) throw new Error('Master password is required');
+    if (!normalized) throw new Error(t('txt_master_password_is_required'));
     const derived = await deriveLoginHash(profile.email, normalized, defaultKdfIterations);
     const code = await getTotpRecoveryCode(authedFetch, derived.hash);
-    if (!code) throw new Error('Recovery code is empty');
+    if (!code) throw new Error(t('txt_recovery_code_is_empty'));
     return code;
   }
 
@@ -740,9 +741,9 @@ export default function App() {
         const shareUrl = buildPublicSendUrl(window.location.origin, created.accessId, keyPart);
         await navigator.clipboard.writeText(shareUrl);
       }
-      pushToast('success', 'Send created');
+      pushToast('success', t('txt_send_created'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Create send failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_create_send_failed'));
       throw error;
     }
   }
@@ -757,9 +758,9 @@ export default function App() {
         const shareUrl = buildPublicSendUrl(window.location.origin, updated.accessId, keyPart);
         await navigator.clipboard.writeText(shareUrl);
       }
-      pushToast('success', 'Send updated');
+      pushToast('success', t('txt_send_updated'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Update send failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_update_send_failed'));
       throw error;
     }
   }
@@ -768,9 +769,9 @@ export default function App() {
     try {
       await deleteSend(authedFetch, send.id);
       await sendsQuery.refetch();
-      pushToast('success', 'Send deleted');
+      pushToast('success', t('txt_send_deleted'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Delete send failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_delete_send_failed'));
       throw error;
     }
   }
@@ -781,9 +782,9 @@ export default function App() {
         await deleteSend(authedFetch, id);
       }
       await sendsQuery.refetch();
-      pushToast('success', 'Deleted selected sends');
+      pushToast('success', t('txt_deleted_selected_sends'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Bulk delete sends failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_bulk_delete_sends_failed'));
       throw error;
     }
   }
@@ -796,15 +797,15 @@ export default function App() {
   async function createFolderAction(name: string) {
     const folderName = name.trim();
     if (!folderName) {
-      pushToast('error', 'Folder name is required');
+      pushToast('error', t('txt_folder_name_is_required'));
       return;
     }
     try {
       await createFolder(authedFetch, folderName);
       await foldersQuery.refetch();
-      pushToast('success', 'Folder created');
+      pushToast('success', t('txt_folder_created'));
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : 'Create folder failed');
+      pushToast('error', error instanceof Error ? error.message : t('txt_create_folder_failed'));
       throw error;
     }
   }
@@ -849,7 +850,7 @@ export default function App() {
   if (phase === 'loading') {
     return (
       <>
-        <div className="loading-screen">Loading NodeWarden...</div>
+        <div className="loading-screen">{t('txt_loading_nodewarden')}</div>
         <ToastHost toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />
       </>
     );
@@ -878,10 +879,10 @@ export default function App() {
 
         <ConfirmDialog
           open={!!pendingTotp}
-          title="Two-step verification"
-          message="Password is already verified."
-          confirmText="Verify"
-          cancelText="Cancel"
+          title={t('txt_two_step_verification')}
+          message={t('txt_password_is_already_verified')}
+          confirmText={t('txt_verify')}
+          cancelText={t('txt_cancel')}
           showIcon={false}
           onConfirm={() => void handleTotpVerify()}
           onCancel={() => {
@@ -902,18 +903,18 @@ export default function App() {
                   navigate('/recover-2fa');
                 }}
               >
-                Use Recovery Code
+                {t('txt_use_recovery_code')}
               </button>
             </div>
           )}
         >
           <label className="field">
-            <span>TOTP Code</span>
+            <span>{t('txt_totp_code')}</span>
             <input className="input" value={totpCode} onInput={(e) => setTotpCode((e.currentTarget as HTMLInputElement).value)} />
           </label>
           <label className="check-line" style={{ marginBottom: 0 }}>
             <input type="checkbox" checked={rememberDevice} onChange={(e) => setRememberDevice((e.currentTarget as HTMLInputElement).checked)} />
-            <span>Trust this device for 30 days</span>
+            <span>{t('txt_trust_this_device_for_30_days')}</span>
           </label>
         </ConfirmDialog>
       </>
@@ -935,7 +936,7 @@ export default function App() {
                 <span>{profile?.email}</span>
               </div>
               <button type="button" className="btn btn-secondary small" onClick={handleLogout}>
-                <LogOut size={14} className="btn-icon" /> Sign Out
+                <LogOut size={14} className="btn-icon" /> {t('txt_sign_out')}
               </button>
             </div>
           </header>
@@ -944,29 +945,29 @@ export default function App() {
             <aside className="app-side">
               <Link href="/vault" className={`side-link ${location === '/vault' ? 'active' : ''}`}>
                 <Vault size={16} />
-                <span>My Vault</span>
+                <span>{t('nav_my_vault')}</span>
               </Link>
               <Link href="/sends" className={`side-link ${location === '/sends' ? 'active' : ''}`}>
                 <SendIcon size={16} />
-                <span>Sends</span>
+                <span>{t('nav_sends')}</span>
               </Link>
               {profile?.role === 'admin' && (
                 <Link href="/admin" className={`side-link ${location === '/admin' ? 'active' : ''}`}>
                   <ShieldUser size={16} />
-                  <span>Admin Panel</span>
+                  <span>{t('nav_admin_panel')}</span>
                 </Link>
               )}
               <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`}>
                 <SettingsIcon size={16} />
-                <span>System Settings</span>
+                <span>{t('nav_account_settings')}</span>
               </Link>
               <Link href="/security/devices" className={`side-link ${location === '/security/devices' ? 'active' : ''}`}>
                 <Shield size={16} />
-                <span>Account Security</span>
+                <span>{t('nav_device_management')}</span>
               </Link>
               <Link href="/help" className={`side-link ${location === '/help' ? 'active' : ''}`}>
                 <CircleHelp size={16} />
-                <span>Support Center</span>
+                <span>{t('nav_support_center')}</span>
               </Link>
             </aside>
             <main className="content">
@@ -1024,8 +1025,8 @@ export default function App() {
                     onRefresh={() => void refreshAuthorizedDevices()}
                     onRevokeTrust={(device) => {
                       setConfirm({
-                        title: 'Revoke device authorization',
-                        message: `Revoke 30-day TOTP trust for "${device.name}"?`,
+                        title: t('txt_revoke_device_authorization'),
+                        message: t('txt_revoke_30_day_totp_trust_for_name', { name: device.name }),
                         danger: true,
                         onConfirm: () => {
                           setConfirm(null);
@@ -1035,8 +1036,8 @@ export default function App() {
                     }}
                     onRemoveDevice={(device) => {
                       setConfirm({
-                        title: 'Remove device',
-                        message: `Remove device "${device.name}" and clear its 2FA trust?`,
+                        title: t('txt_remove_device'),
+                        message: t('txt_remove_device_name_and_clear_its_2fa_trust', { name: device.name }),
                         danger: true,
                         onConfirm: () => {
                           setConfirm(null);
@@ -1046,8 +1047,8 @@ export default function App() {
                     }}
                     onRevokeAll={() => {
                       setConfirm({
-                        title: 'Revoke all trusted devices',
-                        message: 'Revoke 30-day TOTP trust from all devices?',
+                        title: t('txt_revoke_all_trusted_devices'),
+                        message: t('txt_revoke_30_day_totp_trust_from_all_devices'),
                         danger: true,
                         onConfirm: () => {
                           setConfirm(null);
@@ -1069,19 +1070,19 @@ export default function App() {
                     onCreateInvite={async (hours) => {
                       await createInvite(authedFetch, hours);
                       await invitesQuery.refetch();
-                      pushToast('success', 'Invite created');
+                      pushToast('success', t('txt_invite_created'));
                     }}
                     onDeleteAllInvites={async () => {
                       setConfirm({
-                        title: 'Delete all invites',
-                        message: 'Delete all invite codes (active/inactive)?',
+                        title: t('txt_delete_all_invites'),
+                        message: t('txt_delete_all_invite_codes_active_inactive'),
                         danger: true,
                         onConfirm: () => {
                           setConfirm(null);
                           void (async () => {
                             await deleteAllInvites(authedFetch);
                             await invitesQuery.refetch();
-                            pushToast('success', 'All invites deleted');
+                            pushToast('success', t('txt_all_invites_deleted'));
                           })();
                         },
                       });
@@ -1089,19 +1090,19 @@ export default function App() {
                     onToggleUserStatus={async (userId, status) => {
                       await setUserStatus(authedFetch, userId, status === 'active' ? 'banned' : 'active');
                       await usersQuery.refetch();
-                      pushToast('success', 'User status updated');
+                      pushToast('success', t('txt_user_status_updated'));
                     }}
                     onDeleteUser={async (userId) => {
                       setConfirm({
-                        title: 'Delete user',
-                        message: 'Delete this user and all user data?',
+                        title: t('txt_delete_user'),
+                        message: t('txt_delete_this_user_and_all_user_data'),
                         danger: true,
                         onConfirm: () => {
                           setConfirm(null);
                           void (async () => {
                             await deleteUser(authedFetch, userId);
                             await usersQuery.refetch();
-                            pushToast('success', 'User deleted');
+                            pushToast('success', t('txt_user_deleted'));
                           })();
                         },
                       });
@@ -1109,7 +1110,7 @@ export default function App() {
                     onRevokeInvite={async (code) => {
                       await revokeInvite(authedFetch, code);
                       await invitesQuery.refetch();
-                      pushToast('success', 'Invite revoked');
+                      pushToast('success', t('txt_invite_revoked'));
                     }}
                   />
                 </Route>
@@ -1134,10 +1135,10 @@ export default function App() {
 
       <ConfirmDialog
         open={disableTotpOpen}
-        title="Disable TOTP"
-        message="Enter master password to disable two-step verification."
-        confirmText="Disable TOTP"
-        cancelText="Cancel"
+        title={t('txt_disable_totp')}
+        message={t('txt_enter_master_password_to_disable_two_step_verification')}
+        confirmText={t('txt_disable_totp')}
+        cancelText={t('txt_cancel')}
         danger
         showIcon={false}
         onConfirm={() => void disableTotpAction()}
@@ -1147,7 +1148,7 @@ export default function App() {
         }}
       >
         <label className="field">
-          <span>Master Password</span>
+          <span>{t('txt_master_password')}</span>
           <input
             className="input"
             type="password"

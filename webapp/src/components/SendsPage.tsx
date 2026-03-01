@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Copy, Eye, EyeOff, File, FileText, LayoutGrid, Pencil, Plus, RefreshCw, Send as SendIcon, Trash2 } from 'lucide-preact';
 import type { Send, SendDraft } from '@/lib/types';
+import { t } from '@/lib/i18n';
 
 interface SendsPageProps {
   sends: Send[];
@@ -117,15 +118,15 @@ export default function SendsPage(props: SendsPageProps) {
   async function saveDraft(): Promise<void> {
     if (!draft) return;
     if (!draft.name.trim()) {
-      props.onNotify('error', 'Name is required');
+      props.onNotify('error', t('txt_name_is_required'));
       return;
     }
     if (draft.type === 'text' && !draft.text.trim()) {
-      props.onNotify('error', 'Text is required');
+      props.onNotify('error', t('txt_text_is_required'));
       return;
     }
     if (draft.type === 'file' && isCreating && !draft.file) {
-      props.onNotify('error', 'Please select a file');
+      props.onNotify('error', t('txt_please_select_a_file'));
       return;
     }
     setBusy(true);
@@ -171,28 +172,28 @@ export default function SendsPage(props: SendsPageProps) {
   function copyAccessUrl(send: Send): void {
     const url = send.shareUrl || `${window.location.origin}/#/send/${send.accessId}`;
     void navigator.clipboard.writeText(url);
-    props.onNotify('success', 'Link copied');
+    props.onNotify('success', t('txt_link_copied'));
   }
 
   return (
     <div className="vault-grid">
       <aside className="sidebar">
         <div className="sidebar-block">
-          <div className="sidebar-title">All Sends</div>
+          <div className="sidebar-title">{t('txt_all_sends')}</div>
           <button type="button" className={`tree-btn ${typeFilter === 'all' ? 'active' : ''}`} onClick={() => setTypeFilter('all')}>
             <LayoutGrid size={14} className="tree-icon" />
-            <span className="tree-label">All Sends</span>
+            <span className="tree-label">{t('txt_all_sends')}</span>
           </button>
         </div>
         <div className="sidebar-block">
-          <div className="sidebar-title">Type</div>
+          <div className="sidebar-title">{t('txt_type')}</div>
           <button type="button" className={`tree-btn ${typeFilter === 'text' ? 'active' : ''}`} onClick={() => setTypeFilter('text')}>
             <FileText size={14} className="tree-icon" />
-            <span className="tree-label">Text</span>
+            <span className="tree-label">{t('txt_text')}</span>
           </button>
           <button type="button" className={`tree-btn ${typeFilter === 'file' ? 'active' : ''}`} onClick={() => setTypeFilter('file')}>
             <File size={14} className="tree-icon" />
-            <span className="tree-label">File</span>
+            <span className="tree-label">{t('txt_file')}</span>
           </button>
         </div>
       </aside>
@@ -201,17 +202,17 @@ export default function SendsPage(props: SendsPageProps) {
         <div className="list-head">
           <input
             className="search-input"
-            placeholder="Search sends..."
+            placeholder={t('txt_search_sends')}
             value={search}
             onInput={(e) => setSearch((e.currentTarget as HTMLInputElement).value)}
           />
           <button type="button" className="btn btn-secondary small" disabled={busy || props.loading} onClick={() => void props.onRefresh()}>
-            <RefreshCw size={14} className="btn-icon" /> Refresh
+            <RefreshCw size={14} className="btn-icon" /> {t('txt_refresh')}
           </button>
         </div>
         <div className="toolbar actions">
           <button type="button" className="btn btn-danger small" disabled={!selectedCount || busy} onClick={() => void removeSelected()}>
-            <Trash2 size={14} className="btn-icon" /> Delete Selected
+            <Trash2 size={14} className="btn-icon" /> {t('txt_delete_selected')}
           </button>
           <button
             type="button"
@@ -223,11 +224,11 @@ export default function SendsPage(props: SendsPageProps) {
               setSelectedMap(map);
             }}
           >
-            Select All
+            {t('txt_select_all')}
           </button>
           {!!selectedCount && (
             <button type="button" className="btn btn-secondary small" onClick={() => setSelectedMap({})}>
-              Cancel
+              {t('txt_cancel')}
             </button>
           )}
           <button
@@ -241,7 +242,7 @@ export default function SendsPage(props: SendsPageProps) {
               setShowPassword(false);
             }}
           >
-            <Plus size={14} className="btn-icon" /> Add
+            <Plus size={14} className="btn-icon" /> {t('txt_add')}
           </button>
         </div>
         <div className="list-panel">
@@ -274,29 +275,29 @@ export default function SendsPage(props: SendsPageProps) {
                   </span>
                 </div>
                 <div className="list-text">
-                  <span className="list-title" title={send.decName || '(No Name)'}>{send.decName || '(No Name)'}</span>
+                  <span className="list-title" title={send.decName || t('txt_no_name')}>{send.decName || t('txt_no_name')}</span>
                   <span className="list-sub">
-                    {Number(send.type) === 1 ? 'File' : 'Text'} - Accessed {send.accessCount || 0} times
+                    {Number(send.type) === 1 ? t('txt_file') : t('txt_text')} - {t('txt_accessed_count_times', { count: send.accessCount || 0 })}
                   </span>
                 </div>
               </button>
             </div>
           ))}
-          {!filteredSends.length && <div className="empty">No sends</div>}
+          {!filteredSends.length && <div className="empty">{t('txt_no_sends')}</div>}
         </div>
       </section>
 
       <section className="detail-col">
         {isEditing && draft && (
           <div className="card">
-            <h3 className="detail-title">{isCreating ? 'New Send' : 'Edit Send'}</h3>
+            <h3 className="detail-title">{isCreating ? t('txt_new_send') : t('txt_edit_send')}</h3>
             <div className="field-grid">
               <label className="field field-span-2">
-                <span>Name</span>
+                <span>{t('txt_name')}</span>
                 <input className="input" value={draft.name} onInput={(e) => setDraft({ ...draft, name: (e.currentTarget as HTMLInputElement).value })} />
               </label>
               <label className="field field-span-2">
-                <span>Type</span>
+                <span>{t('txt_type')}</span>
                 <div className="send-options">
                   <label>
                     <input
@@ -305,7 +306,7 @@ export default function SendsPage(props: SendsPageProps) {
                       disabled={!isCreating}
                       onInput={() => setDraft({ ...draft, type: 'file' })}
                     />
-                    File
+                    {t('txt_file')}
                   </label>
                   <label>
                     <input
@@ -314,35 +315,35 @@ export default function SendsPage(props: SendsPageProps) {
                       disabled={!isCreating}
                       onInput={() => setDraft({ ...draft, type: 'text' })}
                     />
-                    Text
+                    {t('txt_text')}
                   </label>
                 </div>
               </label>
               {draft.type === 'file' ? (
                 <label className="field field-span-2">
-                  <span>File</span>
+                  <span>{t('txt_file')}</span>
                   <input className="input" type="file" onInput={(e) => setDraft({ ...draft, file: (e.currentTarget as HTMLInputElement).files?.[0] || null })} />
                 </label>
               ) : (
                 <label className="field field-span-2">
-                  <span>Text</span>
+                  <span>{t('txt_text')}</span>
                   <textarea className="input textarea" rows={8} value={draft.text} onInput={(e) => setDraft({ ...draft, text: (e.currentTarget as HTMLTextAreaElement).value })} />
                 </label>
               )}
               <label className="field">
-                <span>Deletion Days</span>
+                <span>{t('txt_deletion_days')}</span>
                 <input className="input" type="number" min="1" max="31" value={draft.deletionDays} onInput={(e) => setDraft({ ...draft, deletionDays: (e.currentTarget as HTMLInputElement).value })} />
               </label>
               <label className="field">
-                <span>Expiration Days (0 = never)</span>
+                <span>{t('txt_expiration_days_0_never')}</span>
                 <input className="input" type="number" min="0" max="3650" value={draft.expirationDays} onInput={(e) => setDraft({ ...draft, expirationDays: (e.currentTarget as HTMLInputElement).value })} />
               </label>
               <label className="field">
-                <span>Max Access Count</span>
+                <span>{t('txt_max_access_count')}</span>
                 <input className="input" value={draft.maxAccessCount} onInput={(e) => setDraft({ ...draft, maxAccessCount: (e.currentTarget as HTMLInputElement).value })} />
               </label>
               <label className="field">
-                <span>Password</span>
+                <span>{t('txt_password')}</span>
                 <div className="password-wrap">
                   <input className="input" type={showPassword ? 'text' : 'password'} value={draft.password} onInput={(e) => setDraft({ ...draft, password: (e.currentTarget as HTMLInputElement).value })} />
                   <button type="button" className="password-toggle" onClick={() => setShowPassword((v) => !v)}>
@@ -351,20 +352,20 @@ export default function SendsPage(props: SendsPageProps) {
                 </div>
               </label>
               <label className="field field-span-2">
-                <span>Notes</span>
+                <span>{t('txt_notes')}</span>
                 <textarea className="input textarea" rows={5} value={draft.notes} onInput={(e) => setDraft({ ...draft, notes: (e.currentTarget as HTMLTextAreaElement).value })} />
               </label>
               <label className="field field-span-2">
-                <span>Options</span>
+                <span>{t('txt_options')}</span>
                 <div className="send-options">
-                  <label><input type="checkbox" checked={draft.disabled} onInput={(e) => setDraft({ ...draft, disabled: (e.currentTarget as HTMLInputElement).checked })} /> Disable this send</label>
-                  <label><input type="checkbox" checked={autoCopyLink} onInput={(e) => setAutoCopyLink((e.currentTarget as HTMLInputElement).checked)} /> Auto copy link after save</label>
+                  <label><input type="checkbox" checked={draft.disabled} onInput={(e) => setDraft({ ...draft, disabled: (e.currentTarget as HTMLInputElement).checked })} /> {t('txt_disable_this_send')}</label>
+                  <label><input type="checkbox" checked={autoCopyLink} onInput={(e) => setAutoCopyLink((e.currentTarget as HTMLInputElement).checked)} /> {t('txt_auto_copy_link_after_save')}</label>
                 </div>
               </label>
             </div>
             <div className="detail-actions">
-              <button type="button" className="btn btn-primary small" disabled={busy} onClick={() => void saveDraft()}>Save</button>
-              <button type="button" className="btn btn-secondary small" disabled={busy} onClick={() => { setIsEditing(false); setIsCreating(false); setDraft(null); setShowPassword(false); }}>Cancel</button>
+              <button type="button" className="btn btn-primary small" disabled={busy} onClick={() => void saveDraft()}>{t('txt_save')}</button>
+              <button type="button" className="btn btn-secondary small" disabled={busy} onClick={() => { setIsEditing(false); setIsCreating(false); setDraft(null); setShowPassword(false); }}>{t('txt_cancel')}</button>
             </div>
           </div>
         )}
@@ -372,27 +373,27 @@ export default function SendsPage(props: SendsPageProps) {
         {!isEditing && selectedSend && (
           <>
             <div className="card">
-              <h3 className="detail-title">{selectedSend.decName || '(No Name)'}</h3>
-              <div className="detail-sub">{Number(selectedSend.type) === 1 ? 'File Send' : 'Text Send'}</div>
+              <h3 className="detail-title">{selectedSend.decName || t('txt_no_name')}</h3>
+              <div className="detail-sub">{Number(selectedSend.type) === 1 ? t('txt_file_send') : t('txt_text_send')}</div>
             </div>
 
             <div className="card">
-              <h4>Send Details</h4>
-              <div className="kv-line"><span>Access Count</span><strong>{selectedSend.accessCount || 0}</strong></div>
-              <div className="kv-line"><span>Deletion Date</span><strong>{selectedSend.deletionDate || '-'}</strong></div>
-              <div className="kv-line"><span>Expiration Date</span><strong>{selectedSend.expirationDate || '-'}</strong></div>
+              <h4>{t('txt_send_details')}</h4>
+              <div className="kv-line"><span>{t('txt_access_count')}</span><strong>{selectedSend.accessCount || 0}</strong></div>
+              <div className="kv-line"><span>{t('txt_deletion_date')}</span><strong>{selectedSend.deletionDate || t('txt_dash')}</strong></div>
+              <div className="kv-line"><span>{t('txt_expiration_date')}</span><strong>{selectedSend.expirationDate || t('txt_dash')}</strong></div>
             </div>
 
             <div className="card">
               {Number(selectedSend.type) === 1 ? (
                 <>
-                  <h4>File</h4>
-                  <div className="kv-line"><span>File Name</span><strong>{selectedSend.file?.fileName || 'Encrypted file'}</strong></div>
-                  <div className="kv-line"><span>File Size</span><strong>{selectedSend.file?.sizeName || '-'}</strong></div>
+                  <h4>{t('txt_file')}</h4>
+                  <div className="kv-line"><span>{t('txt_file_name')}</span><strong>{selectedSend.file?.fileName || t('txt_encrypted_file_2')}</strong></div>
+                  <div className="kv-line"><span>{t('txt_file_size')}</span><strong>{selectedSend.file?.sizeName || t('txt_dash')}</strong></div>
                 </>
               ) : (
                 <>
-                  <h4>Text</h4>
+                  <h4>{t('txt_text')}</h4>
                   <div className="notes">{selectedSend.decText || ''}</div>
                 </>
               )}
@@ -400,7 +401,7 @@ export default function SendsPage(props: SendsPageProps) {
 
             {!!(selectedSend.decNotes || '').trim() && (
               <div className="card">
-                <h4>Notes</h4>
+                <h4>{t('txt_notes')}</h4>
                 <div className="notes">{selectedSend.decNotes || ''}</div>
               </div>
             )}
@@ -408,14 +409,14 @@ export default function SendsPage(props: SendsPageProps) {
             <div className="detail-actions">
               <div className="actions">
                 <button type="button" className="btn btn-secondary small" onClick={() => copyAccessUrl(selectedSend)}>
-                  <Copy size={14} className="btn-icon" /> Copy Link
+                  <Copy size={14} className="btn-icon" /> {t('txt_copy_link')}
                 </button>
                 <button type="button" className="btn btn-secondary small" onClick={() => { setDraft(draftFromSend(selectedSend)); setIsCreating(false); setIsEditing(true); }}>
-                  <Pencil size={14} className="btn-icon" /> Edit
+                  <Pencil size={14} className="btn-icon" /> {t('txt_edit')}
                 </button>
               </div>
               <button type="button" className="btn btn-danger small detail-delete-btn" disabled={busy} onClick={() => void removeSend(selectedSend)}>
-                <Trash2 size={14} className="btn-icon" /> Delete
+                <Trash2 size={14} className="btn-icon" /> {t('txt_delete')}
               </button>
             </div>
           </>

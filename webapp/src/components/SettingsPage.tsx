@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Clipboard, RefreshCw, ShieldCheck, ShieldOff } from 'lucide-preact';
+import { Clipboard, KeyRound, RefreshCw, Save, ShieldCheck, ShieldOff } from 'lucide-preact';
 import qrcode from 'qrcode-generator';
 import type { Profile } from '@/lib/types';
+import { t } from '@/lib/i18n';
 
 interface SettingsPageProps {
   profile: Profile;
@@ -64,20 +65,20 @@ export default function SettingsPage(props: SettingsPageProps) {
   async function loadRecoveryCode(): Promise<void> {
     const code = await props.onGetRecoveryCode(recoveryMasterPassword);
     setRecoveryCode(code);
-    props.onNotify?.('success', 'Recovery code loaded');
+    props.onNotify?.('success', t('txt_recovery_code_loaded'));
   }
 
   return (
     <div className="stack">
       <section className="card">
-        <h3>Profile</h3>
+        <h3>{t('txt_profile')}</h3>
         <div className="field-grid">
           <label className="field">
-            <span>Name</span>
+            <span>{t('txt_name')}</span>
             <input className="input" value={name} onInput={(e) => setName((e.currentTarget as HTMLInputElement).value)} />
           </label>
           <label className="field">
-            <span>Email</span>
+            <span>{t('txt_email')}</span>
             <input
               className="input"
               type="email"
@@ -87,14 +88,15 @@ export default function SettingsPage(props: SettingsPageProps) {
           </label>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => void props.onSaveProfile(name, email)}>
-          Save Profile
+          <Save size={14} className="btn-icon" />
+          {t('txt_save_profile')}
         </button>
       </section>
 
       <section className="card">
-        <h3>Change Master Password</h3>
+        <h3>{t('txt_change_master_password')}</h3>
         <label className="field">
-          <span>Current Password</span>
+          <span>{t('txt_current_password')}</span>
           <input
             className="input"
             type="password"
@@ -104,11 +106,11 @@ export default function SettingsPage(props: SettingsPageProps) {
         </label>
         <div className="field-grid">
           <label className="field">
-            <span>New Password</span>
+            <span>{t('txt_new_password')}</span>
             <input className="input" type="password" value={newPassword} onInput={(e) => setNewPassword((e.currentTarget as HTMLInputElement).value)} />
           </label>
           <label className="field">
-            <span>Confirm Password</span>
+            <span>{t('txt_confirm_password')}</span>
             <input className="input" type="password" value={newPassword2} onInput={(e) => setNewPassword2((e.currentTarget as HTMLInputElement).value)} />
           </label>
         </div>
@@ -117,35 +119,36 @@ export default function SettingsPage(props: SettingsPageProps) {
           className="btn btn-danger"
           onClick={() => void props.onChangePassword(currentPassword, newPassword, newPassword2)}
         >
-          Change Password
+          <KeyRound size={14} className="btn-icon" />
+          {t('txt_change_password')}
         </button>
       </section>
 
       <section className="card">
         <div className="settings-twofactor-grid">
           <div className="settings-subcard">
-            <h3>TOTP</h3>
-            {totpLocked && <div className="status-ok">TOTP is enabled for this account.</div>}
+            <h3>{t('txt_totp')}</h3>
+            {totpLocked && <div className="status-ok">{t('txt_totp_is_enabled_for_this_account')}</div>}
             <div className="totp-grid">
               <div className="totp-qr" dangerouslySetInnerHTML={{ __html: qrSvg }} />
               <div>
                 <div>
                   <label className="field">
-                    <span>Authenticator Key</span>
+                    <span>{t('txt_authenticator_key')}</span>
                     <input className="input" value={secret} disabled={totpLocked} onInput={(e) => setSecret((e.currentTarget as HTMLInputElement).value.toUpperCase())} />
                   </label>
                   <label className="field">
-                    <span>Verification Code</span>
+                    <span>{t('txt_verification_code')}</span>
                     <input className="input" value={token} disabled={totpLocked} onInput={(e) => setToken((e.currentTarget as HTMLInputElement).value)} />
                   </label>
                   <div className="actions">
                     <button type="button" className="btn btn-primary" disabled={totpLocked} onClick={() => void enableTotp()}>
                       <ShieldCheck size={14} className="btn-icon" />
-                      {totpLocked ? 'Enabled' : 'Enable TOTP'}
+                      {totpLocked ? t('txt_enabled') : t('txt_enable_totp')}
                     </button>
                     <button type="button" className="btn btn-secondary" disabled={totpLocked} onClick={() => setSecret(randomBase32Secret(32))}>
                       <RefreshCw size={14} className="btn-icon" />
-                      Regenerate
+                      {t('txt_regenerate')}
                     </button>
                     <button
                       type="button"
@@ -153,11 +156,11 @@ export default function SettingsPage(props: SettingsPageProps) {
                       disabled={totpLocked}
                       onClick={() => {
                         void navigator.clipboard.writeText(secret);
-                        props.onNotify?.('success', 'Secret copied');
+                        props.onNotify?.('success', t('txt_secret_copied'));
                       }}
                     >
                       <Clipboard size={14} className="btn-icon" />
-                      Copy Secret
+                      {t('txt_copy_secret')}
                     </button>
                   </div>
                 </div>
@@ -165,17 +168,17 @@ export default function SettingsPage(props: SettingsPageProps) {
             </div>
             <button type="button" className="btn btn-danger" disabled={!totpLocked} onClick={props.onOpenDisableTotp}>
               <ShieldOff size={14} className="btn-icon" />
-              Disable TOTP
+              {t('txt_disable_totp')}
             </button>
           </div>
 
           <div className="settings-subcard">
-            <h3>Recovery Code</h3>
+            <h3>{t('txt_recovery_code')}</h3>
             <p className="muted-inline" style={{ marginBottom: 8 }}>
-              This is a one-time code. After it is used, a new code is generated automatically.
+              {t('txt_this_is_a_one_time_code_after_it_is_used_a_new_code_is_generated_automatically')}
             </p>
             <label className="field">
-              <span>Master Password</span>
+              <span>{t('txt_master_password')}</span>
               <input
                 className="input"
                 type="password"
@@ -185,7 +188,8 @@ export default function SettingsPage(props: SettingsPageProps) {
             </label>
             <div className="actions">
               <button type="button" className="btn btn-secondary" onClick={() => void loadRecoveryCode()}>
-                View Recovery Code
+                <ShieldCheck size={14} className="btn-icon" />
+                {t('txt_view_recovery_code')}
               </button>
               <button
                 type="button"
@@ -193,10 +197,10 @@ export default function SettingsPage(props: SettingsPageProps) {
                 disabled={!recoveryCode}
                 onClick={() => {
                   void navigator.clipboard.writeText(recoveryCode);
-                  props.onNotify?.('success', 'Recovery code copied');
+                  props.onNotify?.('success', t('txt_recovery_code_copied'));
                 }}
               >
-                Copy Code
+                {t('txt_copy_code')}
               </button>
             </div>
             {recoveryCode && (

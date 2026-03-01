@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+﻿import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { calcTotpNow } from '@/lib/crypto';
 import { computeSshFingerprint, generateDefaultSshKeyMaterial } from '@/lib/ssh';
@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-preact';
 import type { Cipher, CustomFieldType, Folder, VaultDraft, VaultDraftField } from '@/lib/types';
+import { t } from '@/lib/i18n';
 
 interface VaultPageProps {
   ciphers: Cipher[];
@@ -59,11 +60,11 @@ interface TypeOption {
 }
 
 const CREATE_TYPE_OPTIONS: TypeOption[] = [
-  { type: 1, label: 'Login' },
-  { type: 3, label: 'Card' },
-  { type: 4, label: 'Identity' },
-  { type: 2, label: 'Note' },
-  { type: 5, label: 'SSH Key' },
+  { type: 1, label: t('txt_login') },
+  { type: 3, label: t('txt_card') },
+  { type: 4, label: t('txt_identity') },
+  { type: 2, label: t('txt_note') },
+  { type: 5, label: t('txt_ssh_key') },
 ];
 
 function CreateTypeIcon({ type }: { type: number }) {
@@ -76,9 +77,9 @@ function CreateTypeIcon({ type }: { type: number }) {
 }
 
 const FIELD_TYPE_OPTIONS: Array<{ value: CustomFieldType; label: string }> = [
-  { value: 0, label: 'Text' },
-  { value: 1, label: 'Hidden' },
-  { value: 2, label: 'Boolean' },
+  { value: 0, label: t('txt_text') },
+  { value: 1, label: t('txt_hidden') },
+  { value: 2, label: t('txt_boolean') },
 ];
 
 function cipherTypeKey(type: number): TypeFilter {
@@ -90,12 +91,12 @@ function cipherTypeKey(type: number): TypeFilter {
 }
 
 function cipherTypeLabel(type: number): string {
-  if (type === 1) return 'Login';
-  if (type === 3) return 'Card';
-  if (type === 4) return 'Identity';
-  if (type === 2) return 'Secure Note';
-  if (type === 5) return 'SSH Key';
-  return 'Item';
+  if (type === 1) return t('txt_login');
+  if (type === 3) return t('txt_card');
+  if (type === 4) return t('txt_identity');
+  if (type === 2) return t('txt_secure_note');
+  if (type === 5) return t('txt_ssh_key');
+  return t('txt_item');
 }
 
 function TypeIcon({ type }: { type: number }) {
@@ -116,9 +117,9 @@ function parseFieldType(value: number | string | null | undefined): CustomFieldT
 }
 
 function fieldTypeLabel(type: CustomFieldType): string {
-  if (type === 3) return 'Linked';
+  if (type === 3) return t('txt_linked');
   const found = FIELD_TYPE_OPTIONS.find((x) => x.value === type);
-  return found ? found.label : 'Text';
+  return found ? found.label : t('txt_text');
 }
 
 function toBooleanFieldValue(raw: string): boolean {
@@ -257,7 +258,7 @@ function formatTotp(code: string): string {
 }
 
 function formatHistoryTime(value: string | null | undefined): string {
-  if (!value) return '-';
+  if (!value) return t('txt_dash');
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
   return date.toLocaleString();
@@ -448,11 +449,11 @@ export default function VaultPage(props: VaultPageProps) {
     [selectedMap]
   );
 
-  function folderName(id: string | null | undefined): string {
-    if (!id) return 'No Folder';
-    const folder = props.folders.find((x) => x.id === id);
-    return folder?.decName || folder?.name || id;
-  }
+function folderName(id: string | null | undefined): string {
+  if (!id) return t('txt_no_folder');
+  const folder = props.folders.find((x) => x.id === id);
+  return folder?.decName || folder?.name || id;
+}
 
   function listSubtitle(cipher: Cipher): string {
     if (Number(cipher.type || 1) === 1) {
@@ -565,7 +566,7 @@ export default function VaultPage(props: VaultPageProps) {
       }
     }
     if (!nextDraft.name.trim()) {
-      setLocalError('Item name is required.');
+      setLocalError(t('txt_item_name_is_required'));
       return;
     }
     setBusy(true);
@@ -639,7 +640,7 @@ export default function VaultPage(props: VaultPageProps) {
   async function verifyReprompt(): Promise<void> {
     if (!selectedCipher) return;
     if (!repromptPassword) {
-      props.onNotify('error', 'Master password is required.');
+      props.onNotify('error', t('txt_master_password_is_required_2'));
       return;
     }
     setBusy(true);
@@ -649,7 +650,7 @@ export default function VaultPage(props: VaultPageProps) {
       setRepromptOpen(false);
       setRepromptPassword('');
     } catch (error) {
-      props.onNotify('error', error instanceof Error ? error.message : 'Unlock failed');
+      props.onNotify('error', error instanceof Error ? error.message : t('txt_unlock_failed'));
     } finally {
       setBusy(false);
     }
@@ -657,7 +658,7 @@ export default function VaultPage(props: VaultPageProps) {
 
   async function confirmCreateFolder(): Promise<void> {
     if (!newFolderName.trim()) {
-      props.onNotify('error', 'Folder name is required');
+      props.onNotify('error', t('txt_folder_name_is_required'));
       return;
     }
     setBusy(true);
@@ -676,44 +677,44 @@ export default function VaultPage(props: VaultPageProps) {
         <aside className="sidebar">
           <div className="sidebar-block">
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'all' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'all' })}>
-              <LayoutGrid size={14} className="tree-icon" /> <span className="tree-label">All Items</span>
+              <LayoutGrid size={14} className="tree-icon" /> <span className="tree-label">{t('txt_all_items')}</span>
             </button>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'favorite' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'favorite' })}>
-              <Star size={14} className="tree-icon" /> <span className="tree-label">Favorites</span>
+              <Star size={14} className="tree-icon" /> <span className="tree-label">{t('txt_favorites')}</span>
             </button>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'trash' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'trash' })}>
-              <Trash2 size={14} className="tree-icon" /> <span className="tree-label">Trash</span>
+              <Trash2 size={14} className="tree-icon" /> <span className="tree-label">{t('txt_trash')}</span>
             </button>
           </div>
 
           <div className="sidebar-block">
-            <div className="sidebar-title">Type</div>
+            <div className="sidebar-title">{t('txt_type')}</div>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'login' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'login' })}>
-              <Globe size={14} className="tree-icon" /> <span className="tree-label">Login</span>
+              <Globe size={14} className="tree-icon" /> <span className="tree-label">{t('txt_login')}</span>
             </button>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'card' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'card' })}>
-              <CreditCard size={14} className="tree-icon" /> <span className="tree-label">Card</span>
+              <CreditCard size={14} className="tree-icon" /> <span className="tree-label">{t('txt_card')}</span>
             </button>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'identity' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'identity' })}>
-              <ShieldUser size={14} className="tree-icon" /> <span className="tree-label">Identity</span>
+              <ShieldUser size={14} className="tree-icon" /> <span className="tree-label">{t('txt_identity')}</span>
             </button>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'note' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'note' })}>
-              <StickyNote size={14} className="tree-icon" /> <span className="tree-label">Note</span>
+              <StickyNote size={14} className="tree-icon" /> <span className="tree-label">{t('txt_note')}</span>
             </button>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'type' && sidebarFilter.value === 'ssh' ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'type', value: 'ssh' })}>
-              <KeyRound size={14} className="tree-icon" /> <span className="tree-label">SSH Key</span>
+              <KeyRound size={14} className="tree-icon" /> <span className="tree-label">{t('txt_ssh_key')}</span>
             </button>
           </div>
 
           <div className="sidebar-block">
             <div className="sidebar-title-row">
-              <div className="sidebar-title">Folders</div>
+              <div className="sidebar-title">{t('txt_folders')}</div>
               <button type="button" className="folder-add-btn" onClick={() => setCreateFolderOpen(true)}>
                 <FolderPlus size={14} />
               </button>
             </div>
             <button type="button" className={`tree-btn ${sidebarFilter.kind === 'folder' && sidebarFilter.folderId === null ? 'active' : ''}`} onClick={() => setSidebarFilter({ kind: 'folder', folderId: null })}>
-              <FolderX size={14} className="tree-icon" /> <span className="tree-label">No Folder</span>
+              <FolderX size={14} className="tree-icon" /> <span className="tree-label">{t('txt_no_folder')}</span>
             </button>
             {props.folders.map((folder) => (
               <button
@@ -735,7 +736,7 @@ export default function VaultPage(props: VaultPageProps) {
           <div className="list-head">
             <input
               className="search-input"
-              placeholder="Search your secure vault..."
+              placeholder={t('txt_search_your_secure_vault')}
               value={searchInput}
               onInput={(e) => setSearchInput((e.currentTarget as HTMLInputElement).value)}
               onCompositionStart={() => setSearchComposing(true)}
@@ -745,12 +746,12 @@ export default function VaultPage(props: VaultPageProps) {
               }}
             />
             <button type="button" className="btn btn-secondary small" disabled={busy || props.loading} onClick={() => void syncVault()}>
-              <RefreshCw size={14} className="btn-icon" /> Sync Vault
+              <RefreshCw size={14} className="btn-icon" /> {t('txt_sync_vault')}
             </button>
           </div>
           <div className="toolbar actions">
             <button type="button" className="btn btn-danger small" disabled={!selectedCount || busy} onClick={() => setBulkDeleteOpen(true)}>
-              <Trash2 size={14} className="btn-icon" /> Delete Selected
+              <Trash2 size={14} className="btn-icon" /> {t('txt_delete_selected')}
             </button>
             <button
               type="button"
@@ -762,11 +763,11 @@ export default function VaultPage(props: VaultPageProps) {
                 setSelectedMap(map);
               }}
             >
-              <CheckCheck size={14} className="btn-icon" /> Select All
+              <CheckCheck size={14} className="btn-icon" /> {t('txt_select_all')}
             </button>
             <div className="create-menu-wrap" ref={createMenuRef}>
               <button type="button" className="btn btn-primary small" onClick={() => setCreateMenuOpen((x) => !x)}>
-                <Plus size={14} className="btn-icon" /> Add
+                <Plus size={14} className="btn-icon" /> {t('txt_add')}
               </button>
               {createMenuOpen && (
                 <div className="create-menu">
@@ -789,12 +790,12 @@ export default function VaultPage(props: VaultPageProps) {
                   setMoveOpen(true);
                 }}
               >
-                <FolderInput size={14} className="btn-icon" /> Move
+                <FolderInput size={14} className="btn-icon" /> {t('txt_move')}
               </button>
             )}
             {selectedCount > 0 && (
               <button type="button" className="btn btn-secondary small" onClick={() => setSelectedMap({})}>
-                <X size={14} className="btn-icon" /> Cancel
+                <X size={14} className="btn-icon" /> {t('txt_cancel')}
               </button>
             )}
           </div>
@@ -825,13 +826,13 @@ export default function VaultPage(props: VaultPageProps) {
                     <VaultListIcon cipher={cipher} />
                   </div>
                   <div className="list-text">
-                    <span className="list-title" title={cipher.decName || '(No Name)'}>{cipher.decName || '(No Name)'}</span>
+                    <span className="list-title" title={cipher.decName || t('txt_no_name')}>{cipher.decName || t('txt_no_name')}</span>
                     <span className="list-sub" title={listSubtitle(cipher)}>{listSubtitle(cipher)}</span>
                   </div>
                 </button>
               </div>
             ))}
-            {!filteredCiphers.length && <div className="empty">No items</div>}
+            {!filteredCiphers.length && <div className="empty">{t('txt_no_items')}</div>}
           </div>
         </section>
 
@@ -847,12 +848,12 @@ export default function VaultPage(props: VaultPageProps) {
                     onClick={() => updateDraft({ favorite: !draft.favorite })}
                   >
                     {draft.favorite ? <Star size={14} className="btn-icon" /> : <StarOff size={14} className="btn-icon" />}
-                    Favorite
+                    {t('txt_favorite')}
                   </button>
                 </div>
                 <div className="field-grid">
                   <label className="field">
-                    <span>Type</span>
+                    <span>{t('txt_type')}</span>
                     <select
                       className="input"
                       value={draft.type}
@@ -871,13 +872,13 @@ export default function VaultPage(props: VaultPageProps) {
                     </select>
                   </label>
                   <label className="field">
-                    <span>Folder</span>
+                    <span>{t('txt_folder')}</span>
                     <select
                       className="input"
                       value={draft.folderId}
                       onInput={(e) => updateDraft({ folderId: (e.currentTarget as HTMLSelectElement).value })}
                     >
-                      <option value="">No Folder</option>
+                      <option value="">{t('txt_no_folder')}</option>
                       {props.folders.map((folder) => (
                         <option key={folder.id} value={folder.id}>
                           {folder.decName || folder.name || folder.id}
@@ -887,32 +888,32 @@ export default function VaultPage(props: VaultPageProps) {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Name</span>
+                  <span>{t('txt_name')}</span>
                   <input className="input" value={draft.name} onInput={(e) => updateDraft({ name: (e.currentTarget as HTMLInputElement).value })} />
                 </label>
               </div>
 
               {draft.type === 1 && (
                 <div className="card">
-                  <h4>Login Credentials</h4>
+                  <h4>{t('txt_login_credentials')}</h4>
                   <div className="field-grid">
                     <label className="field">
-                      <span>Username</span>
+                      <span>{t('txt_username')}</span>
                       <input className="input" value={draft.loginUsername} onInput={(e) => updateDraft({ loginUsername: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                     <label className="field">
-                      <span>Password</span>
+                      <span>{t('txt_password')}</span>
                       <input className="input" value={draft.loginPassword} onInput={(e) => updateDraft({ loginPassword: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                   </div>
                   <label className="field">
-                    <span>TOTP Secret</span>
+                    <span>{t('txt_totp_secret')}</span>
                     <input className="input" value={draft.loginTotp} onInput={(e) => updateDraft({ loginTotp: (e.currentTarget as HTMLInputElement).value })} />
                   </label>
                   <div className="section-head">
-                    <h4>Websites</h4>
+                    <h4>{t('txt_websites')}</h4>
                     <button type="button" className="btn btn-secondary small" onClick={() => updateDraft({ loginUris: [...draft.loginUris, ''] })}>
-                      <Plus size={14} className="btn-icon" /> Add Website
+                      <Plus size={14} className="btn-icon" /> {t('txt_add_website')}
                     </button>
                   </div>
                   {draft.loginUris.map((uri, index) => (
@@ -924,7 +925,7 @@ export default function VaultPage(props: VaultPageProps) {
                           className="btn btn-secondary small"
                           onClick={() => updateDraft({ loginUris: draft.loginUris.filter((_, i) => i !== index) })}
                         >
-                          Remove
+                          {t('txt_remove')}
                         </button>
                       )}
                     </div>
@@ -934,30 +935,30 @@ export default function VaultPage(props: VaultPageProps) {
 
               {draft.type === 3 && (
                 <div className="card">
-                  <h4>Card Details</h4>
+                  <h4>{t('txt_card_details')}</h4>
                   <div className="field-grid">
                     <label className="field">
-                      <span>Cardholder Name</span>
+                      <span>{t('txt_cardholder_name')}</span>
                       <input className="input" value={draft.cardholderName} onInput={(e) => updateDraft({ cardholderName: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                     <label className="field">
-                      <span>Number</span>
+                      <span>{t('txt_number')}</span>
                       <input className="input" value={draft.cardNumber} onInput={(e) => updateDraft({ cardNumber: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                     <label className="field">
-                      <span>Brand</span>
+                      <span>{t('txt_brand')}</span>
                       <input className="input" value={draft.cardBrand} onInput={(e) => updateDraft({ cardBrand: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                     <label className="field">
-                      <span>Security Code (CVV)</span>
+                      <span>{t('txt_security_code_cvv')}</span>
                       <input className="input" value={draft.cardCode} onInput={(e) => updateDraft({ cardCode: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                     <label className="field">
-                      <span>Expiry Month</span>
+                      <span>{t('txt_expiry_month')}</span>
                       <input className="input" value={draft.cardExpMonth} onInput={(e) => updateDraft({ cardExpMonth: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                     <label className="field">
-                      <span>Expiry Year</span>
+                      <span>{t('txt_expiry_year')}</span>
                       <input className="input" value={draft.cardExpYear} onInput={(e) => updateDraft({ cardExpYear: (e.currentTarget as HTMLInputElement).value })} />
                     </label>
                   </div>
@@ -966,66 +967,66 @@ export default function VaultPage(props: VaultPageProps) {
 
               {draft.type === 4 && (
                 <div className="card">
-                  <h4>Identity Details</h4>
+                  <h4>{t('txt_identity_details')}</h4>
                   <div className="field-grid">
-                    <label className="field"><span>Title</span><input className="input" value={draft.identTitle} onInput={(e) => updateDraft({ identTitle: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>First Name</span><input className="input" value={draft.identFirstName} onInput={(e) => updateDraft({ identFirstName: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Middle Name</span><input className="input" value={draft.identMiddleName} onInput={(e) => updateDraft({ identMiddleName: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Last Name</span><input className="input" value={draft.identLastName} onInput={(e) => updateDraft({ identLastName: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Username</span><input className="input" value={draft.identUsername} onInput={(e) => updateDraft({ identUsername: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Company</span><input className="input" value={draft.identCompany} onInput={(e) => updateDraft({ identCompany: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>SSN</span><input className="input" value={draft.identSsn} onInput={(e) => updateDraft({ identSsn: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Passport Number</span><input className="input" value={draft.identPassportNumber} onInput={(e) => updateDraft({ identPassportNumber: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>License Number</span><input className="input" value={draft.identLicenseNumber} onInput={(e) => updateDraft({ identLicenseNumber: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Email</span><input className="input" value={draft.identEmail} onInput={(e) => updateDraft({ identEmail: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Phone</span><input className="input" value={draft.identPhone} onInput={(e) => updateDraft({ identPhone: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Address 1</span><input className="input" value={draft.identAddress1} onInput={(e) => updateDraft({ identAddress1: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Address 2</span><input className="input" value={draft.identAddress2} onInput={(e) => updateDraft({ identAddress2: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Address 3</span><input className="input" value={draft.identAddress3} onInput={(e) => updateDraft({ identAddress3: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>City / Town</span><input className="input" value={draft.identCity} onInput={(e) => updateDraft({ identCity: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>State / Province</span><input className="input" value={draft.identState} onInput={(e) => updateDraft({ identState: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Postal Code</span><input className="input" value={draft.identPostalCode} onInput={(e) => updateDraft({ identPostalCode: (e.currentTarget as HTMLInputElement).value })} /></label>
-                    <label className="field"><span>Country</span><input className="input" value={draft.identCountry} onInput={(e) => updateDraft({ identCountry: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_title')}</span><input className="input" value={draft.identTitle} onInput={(e) => updateDraft({ identTitle: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_first_name')}</span><input className="input" value={draft.identFirstName} onInput={(e) => updateDraft({ identFirstName: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_middle_name')}</span><input className="input" value={draft.identMiddleName} onInput={(e) => updateDraft({ identMiddleName: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_last_name')}</span><input className="input" value={draft.identLastName} onInput={(e) => updateDraft({ identLastName: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_username')}</span><input className="input" value={draft.identUsername} onInput={(e) => updateDraft({ identUsername: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_company')}</span><input className="input" value={draft.identCompany} onInput={(e) => updateDraft({ identCompany: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_ssn')}</span><input className="input" value={draft.identSsn} onInput={(e) => updateDraft({ identSsn: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_passport_number')}</span><input className="input" value={draft.identPassportNumber} onInput={(e) => updateDraft({ identPassportNumber: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_license_number')}</span><input className="input" value={draft.identLicenseNumber} onInput={(e) => updateDraft({ identLicenseNumber: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_email')}</span><input className="input" value={draft.identEmail} onInput={(e) => updateDraft({ identEmail: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_phone')}</span><input className="input" value={draft.identPhone} onInput={(e) => updateDraft({ identPhone: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_address_1')}</span><input className="input" value={draft.identAddress1} onInput={(e) => updateDraft({ identAddress1: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_address_2')}</span><input className="input" value={draft.identAddress2} onInput={(e) => updateDraft({ identAddress2: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_address_3')}</span><input className="input" value={draft.identAddress3} onInput={(e) => updateDraft({ identAddress3: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_city_town')}</span><input className="input" value={draft.identCity} onInput={(e) => updateDraft({ identCity: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_state_province')}</span><input className="input" value={draft.identState} onInput={(e) => updateDraft({ identState: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_postal_code')}</span><input className="input" value={draft.identPostalCode} onInput={(e) => updateDraft({ identPostalCode: (e.currentTarget as HTMLInputElement).value })} /></label>
+                    <label className="field"><span>{t('txt_country')}</span><input className="input" value={draft.identCountry} onInput={(e) => updateDraft({ identCountry: (e.currentTarget as HTMLInputElement).value })} /></label>
                   </div>
                 </div>
               )}
               {draft.type === 5 && (
                 <div className="card">
                   <div className="section-head">
-                    <h4>SSH Key</h4>
+                    <h4>{t('txt_ssh_key')}</h4>
                     <button type="button" className="btn btn-secondary small" onClick={() => void seedSshDefaults(true)}>
-                      <RefreshCw size={14} className="btn-icon" /> Regenerate
+                      <RefreshCw size={14} className="btn-icon" /> {t('txt_regenerate')}
                     </button>
                   </div>
                   <label className="field">
-                    <span>Private Key</span>
+                    <span>{t('txt_private_key')}</span>
                     <textarea className="input textarea" value={draft.sshPrivateKey} onInput={(e) => updateDraft({ sshPrivateKey: (e.currentTarget as HTMLTextAreaElement).value })} />
                   </label>
                   <label className="field">
-                    <span>Public Key</span>
+                    <span>{t('txt_public_key')}</span>
                     <textarea className="input textarea" value={draft.sshPublicKey} onInput={(e) => updateSshPublicKey((e.currentTarget as HTMLTextAreaElement).value)} />
                   </label>
                   <label className="field">
-                    <span>Fingerprint</span>
+                    <span>{t('txt_fingerprint')}</span>
                     <input className="input input-readonly" value={draft.sshFingerprint} readOnly />
                   </label>
                 </div>
               )}
 
               <div className="card">
-                <h4>Additional Options</h4>
+                <h4>{t('txt_additional_options')}</h4>
                 <label className="field">
-                  <span>Notes</span>
+                  <span>{t('txt_notes')}</span>
                   <textarea className="input textarea" value={draft.notes} onInput={(e) => updateDraft({ notes: (e.currentTarget as HTMLTextAreaElement).value })} />
                 </label>
                 <label className="check-line">
                   <input type="checkbox" checked={draft.reprompt} onInput={(e) => updateDraft({ reprompt: (e.currentTarget as HTMLInputElement).checked })} />
-                  Master password reprompt
+                  {t('txt_master_password_reprompt')}
                 </label>
                 <div className="section-head">
-                  <h4>Custom Fields</h4>
+                  <h4>{t('txt_custom_fields')}</h4>
                   <button type="button" className="btn btn-secondary small" onClick={() => setFieldModalOpen(true)}>
-                    <Plus size={14} className="btn-icon" /> Add Field
+                    <Plus size={14} className="btn-icon" /> {t('txt_add_field')}
                   </button>
                 </div>
                 {draft.customFields
@@ -1058,7 +1059,7 @@ export default function VaultPage(props: VaultPageProps) {
                       className="btn btn-secondary small"
                       onClick={() => updateDraftCustomFields(draft.customFields.filter((_, i) => i !== originalIndex))}
                     >
-                      Remove
+                      {t('txt_remove')}
                     </button>
                   </div>
                 ))}
@@ -1067,15 +1068,15 @@ export default function VaultPage(props: VaultPageProps) {
               <div className="detail-actions">
                 <div className="actions">
                   <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void saveDraft()}>
-                    Confirm
+                    {t('txt_confirm')}
                   </button>
                   <button type="button" className="btn btn-secondary" disabled={busy} onClick={cancelEdit}>
-                    Cancel
+                    {t('txt_cancel')}
                   </button>
                 </div>
                 {!isCreating && selectedCipher && (
                   <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setPendingDelete(selectedCipher)}>
-                    Delete
+                    {t('txt_delete')}
                   </button>
                 )}
               </div>
@@ -1087,11 +1088,11 @@ export default function VaultPage(props: VaultPageProps) {
             <>
               {Number(selectedCipher.reprompt || 0) === 1 && repromptApprovedCipherId !== selectedCipher.id && (
                 <div className="card">
-                  <h4>Master Password Reprompt</h4>
-                  <div className="detail-sub">This item requires master password every time before viewing details.</div>
+                  <h4>{t('txt_master_password_reprompt_2')}</h4>
+                  <div className="detail-sub">{t('txt_this_item_requires_master_password_every_time_before_viewing_details')}</div>
                   <div className="actions" style={{ marginTop: '10px' }}>
                     <button type="button" className="btn btn-primary" onClick={() => setRepromptOpen(true)}>
-                      <Eye size={14} className="btn-icon" /> Unlock Details
+                      <Eye size={14} className="btn-icon" /> {t('txt_unlock_details')}
                     </button>
                   </div>
                 </div>
@@ -1099,49 +1100,49 @@ export default function VaultPage(props: VaultPageProps) {
               {(Number(selectedCipher.reprompt || 0) !== 1 || repromptApprovedCipherId === selectedCipher.id) && (
                 <>
               <div className="card">
-                <h3 className="detail-title">{selectedCipher.decName || '(No Name)'}</h3>
+                <h3 className="detail-title">{selectedCipher.decName || t('txt_no_name')}</h3>
                 <div className="detail-sub">{folderName(selectedCipher.folderId)}</div>
               </div>
 
               {selectedCipher.login && (
                 <div className="card">
-                  <h4>Login Credentials</h4>
+                  <h4>{t('txt_login_credentials')}</h4>
                   <div className="kv-row">
-                    <span className="kv-label">Username</span>
+                    <span className="kv-label">{t('txt_username')}</span>
                     <div className="kv-main">
                       <strong className="value-ellipsis" title={selectedCipher.login.decUsername || ''}>{selectedCipher.login.decUsername || ''}</strong>
                     </div>
                     <div className="kv-actions">
                       <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(selectedCipher.login?.decUsername || '')}>
-                        <Clipboard size={14} className="btn-icon" /> Copy
+                        <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                       </button>
                     </div>
                   </div>
                   <div className="kv-row">
-                    <span className="kv-label">Password</span>
+                    <span className="kv-label">{t('txt_password')}</span>
                     <div className="kv-main">
                       <strong>{showPassword ? selectedCipher.login.decPassword || '' : maskSecret(selectedCipher.login.decPassword || '')}</strong>
                     </div>
                     <div className="kv-actions">
                       <button type="button" className="btn btn-secondary small" onClick={() => setShowPassword((v) => !v)}>
                         {showPassword ? <EyeOff size={14} className="btn-icon" /> : <Eye size={14} className="btn-icon" />}
-                        {showPassword ? 'Hide' : 'Reveal'}
+                        {showPassword ? t('txt_hide') : t('txt_reveal')}
                       </button>
                       <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(selectedCipher.login?.decPassword || '')}>
-                        <Clipboard size={14} className="btn-icon" /> Copy
+                        <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                       </button>
                     </div>
                   </div>
                   {!!selectedCipher.login.decTotp && (
                     <div className="kv-row">
-                      <span className="kv-label">TOTP</span>
+                      <span className="kv-label">{t('txt_totp')}</span>
                       <div className="kv-main">
                         <div className="totp-inline">
-                          <strong>{totpLive ? formatTotp(totpLive.code) : '------'}</strong>
+                          <strong>{totpLive ? formatTotp(totpLive.code) : t('txt_text_3')}</strong>
                           <div
                             className="totp-timer"
-                            title={`Refresh in ${totpLive ? totpLive.remain : 0}s`}
-                            aria-label={`Refresh in ${totpLive ? totpLive.remain : 0}s`}
+                            title={t('txt_refresh_in_seconds_s', { seconds: totpLive ? totpLive.remain : 0 })}
+                            aria-label={t('txt_refresh_in_seconds_s', { seconds: totpLive ? totpLive.remain : 0 })}
                           >
                             <svg viewBox="0 0 36 36" className="totp-ring" role="presentation" aria-hidden="true">
                               <circle className="totp-ring-track" cx="18" cy="18" r={TOTP_RING_RADIUS} />
@@ -1166,7 +1167,7 @@ export default function VaultPage(props: VaultPageProps) {
                       </div>
                       <div className="kv-actions">
                         <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(totpLive?.code || '')}>
-                          <Clipboard size={14} className="btn-icon" /> Copy
+                          <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                         </button>
                       </div>
                     </div>
@@ -1176,22 +1177,22 @@ export default function VaultPage(props: VaultPageProps) {
 
               {(selectedCipher.login?.uris || []).length > 0 && (
                 <div className="card">
-                  <h4>Autofill Options</h4>
+                  <h4>{t('txt_autofill_options')}</h4>
                   {(selectedCipher.login?.uris || []).map((uri, index) => {
                     const value = uri.decUri || uri.uri || '';
                     if (!value.trim()) return null;
                     return (
                       <div key={`view-uri-${index}`} className="kv-row">
-                        <span className="kv-label">Website</span>
+                        <span className="kv-label">{t('txt_website')}</span>
                         <div className="kv-main">
                           <strong className="value-ellipsis" title={value}>{value}</strong>
                         </div>
                         <div className="kv-actions">
                           <button type="button" className="btn btn-secondary small" onClick={() => openUri(value)}>
-                            <ExternalLink size={14} className="btn-icon" /> Open
+                            <ExternalLink size={14} className="btn-icon" /> {t('txt_open')}
                           </button>
                           <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(value)}>
-                            <Clipboard size={14} className="btn-icon" /> Copy
+                            <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                           </button>
                         </div>
                       </div>
@@ -1202,51 +1203,51 @@ export default function VaultPage(props: VaultPageProps) {
 
               {selectedCipher.card && (
                 <div className="card">
-                  <h4>Card Details</h4>
-                  <div className="kv-line"><span>Cardholder Name</span><strong>{selectedCipher.card.decCardholderName || ''}</strong></div>
-                  <div className="kv-line"><span>Number</span><strong>{selectedCipher.card.decNumber || ''}</strong></div>
-                  <div className="kv-line"><span>Brand</span><strong>{selectedCipher.card.decBrand || ''}</strong></div>
-                  <div className="kv-line"><span>Expiry</span><strong>{`${selectedCipher.card.decExpMonth || ''}/${selectedCipher.card.decExpYear || ''}`}</strong></div>
-                  <div className="kv-line"><span>Security Code</span><strong>{selectedCipher.card.decCode || ''}</strong></div>
+                  <h4>{t('txt_card_details')}</h4>
+                  <div className="kv-line"><span>{t('txt_cardholder_name')}</span><strong>{selectedCipher.card.decCardholderName || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_number')}</span><strong>{selectedCipher.card.decNumber || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_brand')}</span><strong>{selectedCipher.card.decBrand || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_expiry')}</span><strong>{`${selectedCipher.card.decExpMonth || ''}/${selectedCipher.card.decExpYear || ''}`}</strong></div>
+                  <div className="kv-line"><span>{t('txt_security_code')}</span><strong>{selectedCipher.card.decCode || ''}</strong></div>
                 </div>
               )}
 
               {selectedCipher.identity && (
                 <div className="card">
-                  <h4>Identity Details</h4>
-                  <div className="kv-line"><span>Name</span><strong>{`${selectedCipher.identity.decFirstName || ''} ${selectedCipher.identity.decLastName || ''}`.trim()}</strong></div>
-                  <div className="kv-line"><span>Username</span><strong>{selectedCipher.identity.decUsername || ''}</strong></div>
-                  <div className="kv-line"><span>Email</span><strong>{selectedCipher.identity.decEmail || ''}</strong></div>
-                  <div className="kv-line"><span>Phone</span><strong>{selectedCipher.identity.decPhone || ''}</strong></div>
-                  <div className="kv-line"><span>Company</span><strong>{selectedCipher.identity.decCompany || ''}</strong></div>
-                  <div className="kv-line"><span>Address</span><strong>{[selectedCipher.identity.decAddress1, selectedCipher.identity.decAddress2, selectedCipher.identity.decAddress3, selectedCipher.identity.decCity, selectedCipher.identity.decState, selectedCipher.identity.decPostalCode, selectedCipher.identity.decCountry].filter(Boolean).join(', ')}</strong></div>
+                  <h4>{t('txt_identity_details')}</h4>
+                  <div className="kv-line"><span>{t('txt_name')}</span><strong>{`${selectedCipher.identity.decFirstName || ''} ${selectedCipher.identity.decLastName || ''}`.trim()}</strong></div>
+                  <div className="kv-line"><span>{t('txt_username')}</span><strong>{selectedCipher.identity.decUsername || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_email')}</span><strong>{selectedCipher.identity.decEmail || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_phone')}</span><strong>{selectedCipher.identity.decPhone || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_company')}</span><strong>{selectedCipher.identity.decCompany || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_address')}</span><strong>{[selectedCipher.identity.decAddress1, selectedCipher.identity.decAddress2, selectedCipher.identity.decAddress3, selectedCipher.identity.decCity, selectedCipher.identity.decState, selectedCipher.identity.decPostalCode, selectedCipher.identity.decCountry].filter(Boolean).join(', ')}</strong></div>
                 </div>
               )}
 
               {selectedCipher.sshKey && (
                 <div className="card">
-                  <h4>SSH Key</h4>
-                  <div className="kv-line"><span>Private Key</span><strong>{maskSecret(selectedCipher.sshKey.decPrivateKey || '')}</strong></div>
-                  <div className="kv-line"><span>Public Key</span><strong>{selectedCipher.sshKey.decPublicKey || ''}</strong></div>
-                  <div className="kv-line"><span>Fingerprint</span><strong>{selectedCipher.sshKey.decFingerprint || ''}</strong></div>
+                  <h4>{t('txt_ssh_key')}</h4>
+                  <div className="kv-line"><span>{t('txt_private_key')}</span><strong>{maskSecret(selectedCipher.sshKey.decPrivateKey || '')}</strong></div>
+                  <div className="kv-line"><span>{t('txt_public_key')}</span><strong>{selectedCipher.sshKey.decPublicKey || ''}</strong></div>
+                  <div className="kv-line"><span>{t('txt_fingerprint')}</span><strong>{selectedCipher.sshKey.decFingerprint || ''}</strong></div>
                 </div>
               )}
 
               {!!(selectedCipher.decNotes || '').trim() && (
                 <div className="card">
-                  <h4>Notes</h4>
+                  <h4>{t('txt_notes')}</h4>
                   <div className="notes">{selectedCipher.decNotes || ''}</div>
                 </div>
               )}
 
               {(selectedCipher.fields || []).some((x) => parseFieldType(x.type) !== 3) && (
                 <div className="card">
-                  <h4>Custom Fields</h4>
+                  <h4>{t('txt_custom_fields')}</h4>
                   {(selectedCipher.fields || [])
                     .filter((x) => parseFieldType(x.type) !== 3)
                     .map((field, index) => {
                       const fieldType = parseFieldType(field.type);
-                      const fieldName = field.decName || 'Field';
+                      const fieldName = field.decName || t('txt_field');
                       const rawValue = field.decValue || '';
                       const isHiddenVisible = !!hiddenFieldVisibleMap[index];
                       if (fieldType === 2) {
@@ -1258,8 +1259,8 @@ export default function VaultPage(props: VaultPageProps) {
                               <label className="check-line cf-check view">
                                 <input type="checkbox" checked={checked} disabled />
                               </label>
-                              <span className="boolean-text value-ellipsis" title={checked ? 'Checked' : 'Unchecked'}>
-                                {checked ? 'Checked' : 'Unchecked'}
+                              <span className="boolean-text value-ellipsis" title={checked ? t('txt_checked') : t('txt_unchecked')}>
+                                {checked ? t('txt_checked') : t('txt_unchecked')}
                               </span>
                             </div>
                             <div className="kv-actions" />
@@ -1282,11 +1283,11 @@ export default function VaultPage(props: VaultPageProps) {
                                 onClick={() => setHiddenFieldVisibleMap((prev) => ({ ...prev, [index]: !prev[index] }))}
                               >
                                 {isHiddenVisible ? <EyeOff size={14} className="btn-icon" /> : <Eye size={14} className="btn-icon" />}
-                                {isHiddenVisible ? 'Hide' : 'Reveal'}
+                                {isHiddenVisible ? t('txt_hide') : t('txt_reveal')}
                               </button>
                             )}
                             <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(rawValue)}>
-                              <Clipboard size={14} className="btn-icon" /> Copy
+                              <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                             </button>
                           </div>
                         </div>
@@ -1297,20 +1298,20 @@ export default function VaultPage(props: VaultPageProps) {
 
               {(selectedCipher.creationDate || selectedCipher.revisionDate) && (
                 <div className="card">
-                  <h4>项目历史记录</h4>
-                  <div className="detail-sub">最后编辑于: {formatHistoryTime(selectedCipher.revisionDate)}</div>
-                  <div className="detail-sub">创建于: {formatHistoryTime(selectedCipher.creationDate)}</div>
+                  <h4>{t('txt_item_history')}</h4>
+                  <div className="detail-sub">{t('txt_last_edited_value', { value: formatHistoryTime(selectedCipher.revisionDate) })}</div>
+                  <div className="detail-sub">{t('txt_created_value', { value: formatHistoryTime(selectedCipher.creationDate) })}</div>
                 </div>
               )}
 
               <div className="detail-actions">
                 <div className="actions">
                   <button type="button" className="btn btn-secondary" onClick={startEdit}>
-                    <Pencil size={14} className="btn-icon" /> Edit
+                    <Pencil size={14} className="btn-icon" /> {t('txt_edit')}
                   </button>
                 </div>
                 <button type="button" className="btn btn-danger" onClick={() => setPendingDelete(selectedCipher)}>
-                  <Trash2 size={14} className="btn-icon" /> Delete
+                  <Trash2 size={14} className="btn-icon" /> {t('txt_delete')}
                 </button>
               </div>
                 </>
@@ -1318,20 +1319,20 @@ export default function VaultPage(props: VaultPageProps) {
             </>
           )}
 
-          {!isEditing && !selectedCipher && <div className="empty card">Select an item</div>}
+          {!isEditing && !selectedCipher && <div className="empty card">{t('txt_select_an_item')}</div>}
         </section>
       </div>
 
       <ConfirmDialog
         open={fieldModalOpen}
-        title="Add Field"
-        message="Configure custom field values."
-        confirmText="Add"
-        cancelText="Cancel"
+        title={t('txt_add_field')}
+        message={t('txt_configure_custom_field_values')}
+        confirmText={t('txt_add')}
+        cancelText={t('txt_cancel')}
         onConfirm={() => {
           if (!draft) return;
           if (!fieldLabel.trim()) {
-            setLocalError('Field label is required.');
+            setLocalError(t('txt_field_label_is_required'));
             return;
           }
           updateDraftCustomFields([
@@ -1356,7 +1357,7 @@ export default function VaultPage(props: VaultPageProps) {
         }}
       >
         <label className="field">
-          <span>Field Type</span>
+          <span>{t('txt_field_type')}</span>
           <select className="input" value={fieldType} onInput={(e) => setFieldType(Number((e.currentTarget as HTMLSelectElement).value) as CustomFieldType)}>
             {FIELD_TYPE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -1366,7 +1367,7 @@ export default function VaultPage(props: VaultPageProps) {
           </select>
         </label>
         <label className="field">
-          <span>Field Label</span>
+          <span>{t('txt_field_label')}</span>
           <input className="input" value={fieldLabel} onInput={(e) => setFieldLabel((e.currentTarget as HTMLInputElement).value)} />
         </label>
         {fieldType === 2 ? (
@@ -1376,11 +1377,11 @@ export default function VaultPage(props: VaultPageProps) {
               checked={toBooleanFieldValue(fieldValue)}
               onInput={(e) => setFieldValue((e.currentTarget as HTMLInputElement).checked ? 'true' : 'false')}
             />
-            Enabled
+            {t('txt_enabled')}
           </label>
         ) : (
           <label className="field">
-            <span>Field Value</span>
+            <span>{t('txt_field_value')}</span>
             <input className="input" value={fieldValue} onInput={(e) => setFieldValue((e.currentTarget as HTMLInputElement).value)} />
           </label>
         )}
@@ -1388,8 +1389,8 @@ export default function VaultPage(props: VaultPageProps) {
 
       <ConfirmDialog
         open={!!pendingDelete}
-        title="Delete Item"
-        message="Are you sure you want to delete this item?"
+        title={t('txt_delete_item')}
+        message={t('txt_are_you_sure_you_want_to_delete_this_item')}
         danger
         onConfirm={() => void deleteSelected()}
         onCancel={() => setPendingDelete(null)}
@@ -1397,8 +1398,8 @@ export default function VaultPage(props: VaultPageProps) {
 
       <ConfirmDialog
         open={bulkDeleteOpen}
-        title="Delete Selected Items"
-        message={`Are you sure you want to delete ${selectedCount} selected items?`}
+        title={t('txt_delete_selected_items')}
+        message={t('txt_are_you_sure_you_want_to_delete_count_selected_items', { count: selectedCount })}
         danger
         onConfirm={() => void confirmBulkDelete()}
         onCancel={() => setBulkDeleteOpen(false)}
@@ -1406,17 +1407,17 @@ export default function VaultPage(props: VaultPageProps) {
 
       <ConfirmDialog
         open={moveOpen}
-        title="Move Selected Items"
-        message="Choose destination folder."
-        confirmText="Move"
-        cancelText="Cancel"
+        title={t('txt_move_selected_items')}
+        message={t('txt_choose_destination_folder')}
+        confirmText={t('txt_move')}
+        cancelText={t('txt_cancel')}
         onConfirm={() => void confirmBulkMove()}
         onCancel={() => setMoveOpen(false)}
       >
         <label className="field">
-          <span>Folder</span>
+          <span>{t('txt_folder')}</span>
           <select className="input" value={moveFolderId} onInput={(e) => setMoveFolderId((e.currentTarget as HTMLSelectElement).value)}>
-            <option value="__none__">No Folder</option>
+            <option value="__none__">{t('txt_no_folder')}</option>
             {props.folders.map((folder) => (
               <option key={folder.id} value={folder.id}>
                 {folder.decName || folder.name || folder.id}
@@ -1428,10 +1429,10 @@ export default function VaultPage(props: VaultPageProps) {
 
       <ConfirmDialog
         open={createFolderOpen}
-        title="Create Folder"
-        message="Enter a folder name."
-        confirmText="Create"
-        cancelText="Cancel"
+        title={t('txt_create_folder')}
+        message={t('txt_enter_a_folder_name')}
+        confirmText={t('txt_create')}
+        cancelText={t('txt_cancel')}
         onConfirm={() => void confirmCreateFolder()}
         onCancel={() => {
           setCreateFolderOpen(false);
@@ -1439,17 +1440,17 @@ export default function VaultPage(props: VaultPageProps) {
         }}
       >
         <label className="field">
-          <span>Folder Name</span>
+          <span>{t('txt_folder_name')}</span>
           <input className="input" value={newFolderName} onInput={(e) => setNewFolderName((e.currentTarget as HTMLInputElement).value)} />
         </label>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={repromptOpen}
-        title="Unlock Item"
-        message="Enter master password to view this item."
-        confirmText="Unlock"
-        cancelText="Cancel"
+        title={t('txt_unlock_item')}
+        message={t('txt_enter_master_password_to_view_this_item')}
+        confirmText={t('txt_unlock')}
+        cancelText={t('txt_cancel')}
         showIcon={false}
         onConfirm={() => void verifyReprompt()}
         onCancel={() => {
@@ -1458,13 +1459,14 @@ export default function VaultPage(props: VaultPageProps) {
         }}
       >
         <label className="field">
-          <span>Master Password</span>
+          <span>{t('txt_master_password')}</span>
           <input className="input" type="password" value={repromptPassword} onInput={(e) => setRepromptPassword((e.currentTarget as HTMLInputElement).value)} />
         </label>
       </ConfirmDialog>
     </>
   );
 }
+
 
 
 

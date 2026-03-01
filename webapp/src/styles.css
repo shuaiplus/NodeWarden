@@ -43,6 +43,7 @@ html {
   display: grid;
   place-items: center;
   padding: 24px;
+  background: #e9edf3;
 }
 
 .public-send-page {
@@ -52,17 +53,78 @@ html {
 }
 
 .auth-card {
-  width: min(640px, 100%);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.08);
+  width: 100%;
+  background: #f5f7fb;
+  border: 1px solid #d5dce7;
+  border-radius: 16px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
   padding: 28px;
 }
 
 .auth-card h1 {
   margin: 0 0 4px 0;
   text-align: center;
+}
+
+.standalone-shell {
+  width: min(640px, 100%);
+  display: grid;
+  gap: 12px;
+}
+
+.standalone-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.standalone-brand-outside {
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.standalone-brand-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.standalone-brand-title {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  color: #1e293b;
+}
+
+.standalone-title {
+  margin: 0 0 4px 0;
+  text-align: left;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.standalone-muted {
+  text-align: left;
+}
+
+.standalone-footer {
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.standalone-footer a {
+  color: #1d4ed8;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.standalone-footer a:hover {
+  text-decoration: underline;
 }
 
 .muted {
@@ -1246,5 +1308,18 @@ input[type='file'].input::file-selector-button:hover {
 
   .settings-twofactor-grid {
     grid-template-columns: 1fr;
+  }
+
+  .standalone-title {
+    font-size: 24px;
+  }
+
+  .standalone-brand-title {
+    font-size: 32px;
+  }
+
+  .standalone-footer {
+    font-size: 12px;
+    line-height: 1.4;
   }
 }

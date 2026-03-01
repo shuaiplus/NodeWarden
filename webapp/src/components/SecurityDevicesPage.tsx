@@ -1,5 +1,6 @@
 import { Clock3, RefreshCw, ShieldOff, Trash2 } from 'lucide-preact';
 import type { AuthorizedDevice } from '@/lib/types';
+import { t } from '@/lib/i18n';
 
 interface SecurityDevicesPageProps {
   devices: AuthorizedDevice[];
@@ -11,30 +12,30 @@ interface SecurityDevicesPageProps {
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '-';
+  if (!value) return t('txt_dash');
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
+  if (Number.isNaN(date.getTime())) return t('txt_dash');
   return date.toLocaleString();
 }
 
 function mapDeviceTypeName(type: number): string {
   switch (type) {
-    case 0: return 'Android';
-    case 1: return 'iOS';
-    case 2: return 'Chrome Extension';
-    case 3: return 'Firefox Extension';
-    case 4: return 'Opera Extension';
-    case 5: return 'Edge Extension';
-    case 6: return 'Windows Desktop';
-    case 7: return 'macOS Desktop';
-    case 8: return 'Linux Desktop';
-    case 9: return 'Chrome Browser';
-    case 10: return 'Firefox Browser';
-    case 11: return 'Opera Browser';
-    case 12: return 'Edge Browser';
-    case 13: return 'IE Browser';
-    case 14: return 'Web';
-    default: return `Type ${type}`;
+    case 0: return t('txt_android');
+    case 1: return t('txt_ios');
+    case 2: return t('txt_chrome_extension');
+    case 3: return t('txt_firefox_extension');
+    case 4: return t('txt_opera_extension');
+    case 5: return t('txt_edge_extension');
+    case 6: return t('txt_windows_desktop');
+    case 7: return t('txt_macos_desktop');
+    case 8: return t('txt_linux_desktop');
+    case 9: return t('txt_chrome_browser');
+    case 10: return t('txt_firefox_browser');
+    case 11: return t('txt_opera_browser');
+    case 12: return t('txt_edge_browser');
+    case 13: return t('txt_ie_browser');
+    case 14: return t('txt_web');
+    default: return t('txt_type_type', { type });
   }
 }
 
@@ -44,42 +45,42 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
       <section className="card">
         <div className="section-head">
           <div>
-            <h3 style={{ margin: 0 }}>Account Security</h3>
+            <h3 style={{ margin: 0 }}>{t('txt_device_management')}</h3>
             <div className="muted-inline" style={{ marginTop: 4 }}>
-              Manage authorized devices and 30-day TOTP trusted sessions.
+              {t('txt_manage_authorized_devices_and_30_day_totp_trusted_sessions')}
             </div>
           </div>
           <div className="actions">
             <button type="button" className="btn btn-secondary small" onClick={props.onRefresh}>
               <RefreshCw size={14} className="btn-icon" />
-              Refresh
+              {t('txt_refresh')}
             </button>
             <button type="button" className="btn btn-danger small" onClick={props.onRevokeAll}>
               <ShieldOff size={14} className="btn-icon" />
-              Revoke All Trusted
+              {t('txt_revoke_all_trusted')}
             </button>
           </div>
         </div>
       </section>
 
       <section className="card">
-        <h3 style={{ marginTop: 0 }}>Authorized Devices</h3>
+        <h3 style={{ marginTop: 0 }}>{t('txt_authorized_devices')}</h3>
         <table className="table">
           <thead>
             <tr>
-              <th>Device</th>
-              <th>Type</th>
-              <th>Added</th>
-              <th>Last Seen</th>
-              <th>Trusted Until</th>
-              <th>Actions</th>
+              <th>{t('txt_device')}</th>
+              <th>{t('txt_type')}</th>
+              <th>{t('txt_added')}</th>
+              <th>{t('txt_last_seen')}</th>
+              <th>{t('txt_trusted_until')}</th>
+              <th>{t('txt_actions')}</th>
             </tr>
           </thead>
           <tbody>
             {props.devices.map((device) => (
               <tr key={device.identifier}>
                 <td>
-                  <div>{device.name || 'Unknown device'}</div>
+                  <div>{device.name || t('txt_unknown_device')}</div>
                   <div className="muted-inline">{device.identifier}</div>
                 </td>
                 <td>{mapDeviceTypeName(device.type)}</td>
@@ -92,7 +93,7 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
                       <span>{formatDateTime(device.trustedUntil)}</span>
                     </div>
                   ) : (
-                    <span className="muted-inline">Not trusted</span>
+                    <span className="muted-inline">{t('txt_not_trusted')}</span>
                   )}
                 </td>
                 <td>
@@ -104,11 +105,11 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
                       onClick={() => props.onRevokeTrust(device)}
                     >
                       <ShieldOff size={14} className="btn-icon" />
-                      Revoke Trust
+                      {t('txt_revoke_trust')}
                     </button>
                     <button type="button" className="btn btn-danger small" onClick={() => props.onRemoveDevice(device)}>
                       <Trash2 size={14} className="btn-icon" />
-                      Remove Device
+                      {t('txt_remove_device_2')}
                     </button>
                   </div>
                 </td>
@@ -117,7 +118,7 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
             {!props.loading && props.devices.length === 0 && (
               <tr>
                 <td colSpan={6}>
-                  <div className="empty" style={{ minHeight: 80 }}>No devices found.</div>
+                  <div className="empty" style={{ minHeight: 80 }}>{t('txt_no_devices_found')}</div>
                 </td>
               </tr>
             )}

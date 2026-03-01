@@ -1,5 +1,7 @@
 import { useState } from 'preact/hooks';
-import { Eye, EyeOff } from 'lucide-preact';
+import { Eye, EyeOff, Send, X } from 'lucide-preact';
+import StandalonePageFrame from '@/components/StandalonePageFrame';
+import { t } from '@/lib/i18n';
 
 interface RecoverTwoFactorPageProps {
   values: { email: string; password: string; recoveryCode: string };
@@ -13,12 +15,11 @@ export default function RecoverTwoFactorPage(props: RecoverTwoFactorPageProps) {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <h1>Recover Two-step Login</h1>
-        <p className="muted">Sign in with your one-time recovery code to disable two-step verification.</p>
+      <StandalonePageFrame title={t('txt_recover_two_step_login')}>
+        <p className="muted standalone-muted">{t('txt_use_your_one_time_recovery_code_to_disable_two_step_verification')}</p>
 
         <label className="field">
-          <span>Email</span>
+          <span>{t('txt_email')}</span>
           <input
             className="input"
             type="email"
@@ -28,7 +29,7 @@ export default function RecoverTwoFactorPage(props: RecoverTwoFactorPageProps) {
         </label>
 
         <label className="field">
-          <span>Master Password</span>
+          <span>{t('txt_master_password')}</span>
           <div className="password-wrap">
             <input
               className="input"
@@ -43,7 +44,7 @@ export default function RecoverTwoFactorPage(props: RecoverTwoFactorPageProps) {
         </label>
 
         <label className="field">
-          <span>Recovery Code</span>
+          <span>{t('txt_recovery_code')}</span>
           <input
             className="input"
             value={props.values.recoveryCode}
@@ -53,13 +54,15 @@ export default function RecoverTwoFactorPage(props: RecoverTwoFactorPageProps) {
 
         <div className="field-grid">
           <button type="button" className="btn btn-primary" onClick={props.onSubmit}>
-            Submit
+            <Send size={14} className="btn-icon" />
+            {t('txt_submit')}
           </button>
           <button type="button" className="btn btn-secondary" onClick={props.onCancel}>
-            Cancel
+            <X size={14} className="btn-icon" />
+            {t('txt_cancel')}
           </button>
         </div>
-      </div>
+      </StandalonePageFrame>
     </div>
   );
 }

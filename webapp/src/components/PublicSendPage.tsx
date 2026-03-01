@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Download, Eye, Lock } from 'lucide-preact';
 import { accessPublicSend, accessPublicSendFile, decryptPublicSend, decryptPublicSendFileBytes } from '@/lib/api';
+import StandalonePageFrame from '@/components/StandalonePageFrame';
+import { t } from '@/lib/i18n';
 
 interface PublicSendPageProps {
   accessId: string;
@@ -21,7 +23,7 @@ export default function PublicSendPage(props: PublicSendPageProps) {
     try {
       const data = await accessPublicSend(props.accessId, props.keyPart, pass);
       if (!props.keyPart) {
-        setError('This link is missing decryption key.');
+        setError(t('txt_this_link_is_missing_decryption_key'));
         setSendData(null);
         return;
       }
@@ -32,9 +34,9 @@ export default function PublicSendPage(props: PublicSendPageProps) {
       const err = e as Error & { status?: number };
       if (err.status === 401) {
         setNeedPassword(true);
-        setError('This send is password protected.');
+        setError(t('txt_this_send_is_password_protected'));
       } else {
-        setError(err.message || 'Failed to open send');
+        setError(err.message || t('txt_failed_to_open_send'));
       }
       setSendData(null);
     } finally {
@@ -50,7 +52,7 @@ export default function PublicSendPage(props: PublicSendPageProps) {
     try {
       const url = await accessPublicSendFile(sendData.id, sendData.file.id, props.keyPart, password || undefined);
       const resp = await fetch(url);
-      if (!resp.ok) throw new Error('Download failed');
+      if (!resp.ok) throw new Error(t('txt_download_failed'));
       const encryptedBytes = await resp.arrayBuffer();
       let blob: Blob;
       if (props.keyPart) {
@@ -67,14 +69,14 @@ export default function PublicSendPage(props: PublicSendPageProps) {
       const obj = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = obj;
-      a.download = sendData.decFileName || sendData.file?.fileName || 'send-file';
+      a.download = sendData.decFileName || sendData.file?.fileName || t('txt_send_file');
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(obj);
     } catch (e) {
       const err = e as Error;
-      setError(err.message || 'Download failed');
+      setError(err.message || t('txt_download_failed'));
     } finally {
       setBusy(false);
     }
@@ -86,14 +88,13 @@ export default function PublicSendPage(props: PublicSendPageProps) {
 
   return (
     <div className="auth-page public-send-page">
-      <div className="auth-card">
-        <h1>NodeWarden Send</h1>
-        {loading && <p className="muted">Loading...</p>}
+      <StandalonePageFrame title={t('txt_nodewarden_send')}>
+        {loading && <p className="muted">{t('txt_loading')}</p>}
 
         {!loading && needPassword && (
           <>
             <label className="field">
-              <span>Password</span>
+              <span>{t('txt_password')}</span>
               <div className="password-wrap">
                 <input
                   className="input"
@@ -104,14 +105,14 @@ export default function PublicSendPage(props: PublicSendPageProps) {
               </div>
             </label>
             <button type="button" className="btn btn-primary full" disabled={busy} onClick={() => void loadSend(password)}>
-              <Lock size={14} className="btn-icon" /> Unlock Send
+              <Lock size={14} className="btn-icon" /> {t('txt_unlock_send')}
             </button>
           </>
         )}
 
         {!loading && sendData && (
           <>
-            <h2 style={{ marginTop: '8px' }}>{sendData.decName || '(No Name)'}</h2>
+            <h2 style={{ marginTop: '8px' }}>{sendData.decName || t('txt_no_name')}</h2>
             {sendData.type === 0 ? (
               <div className="card" style={{ marginTop: '10px' }}>
                 <div className="notes">{sendData.decText || ''}</div>
@@ -119,25 +120,25 @@ export default function PublicSendPage(props: PublicSendPageProps) {
             ) : (
               <div className="card" style={{ marginTop: '10px' }}>
                 <div className="kv-line">
-                  <span>File</span>
-                  <strong>{sendData.decFileName || sendData.file?.fileName || sendData.file?.sizeName || 'Encrypted File'}</strong>
+                  <span>{t('txt_file')}</span>
+                  <strong>{sendData.decFileName || sendData.file?.fileName || sendData.file?.sizeName || t('txt_encrypted_file')}</strong>
                 </div>
                 <button type="button" className="btn btn-primary full" disabled={busy} onClick={() => void downloadFile()}>
-                  <Download size={14} className="btn-icon" /> Download
+                  <Download size={14} className="btn-icon" /> {t('txt_download')}
                 </button>
               </div>
             )}
-            {!!sendData.expirationDate && <p className="muted">Expires at: {sendData.expirationDate}</p>}
+            {!!sendData.expirationDate && <p className="muted">{t('txt_expires_at_value', { value: sendData.expirationDate })}</p>}
           </>
         )}
 
         {!loading && !sendData && !needPassword && !error && (
           <p className="muted">
-            <Eye size={14} style={{ verticalAlign: 'text-bottom' }} /> Send unavailable.
+            <Eye size={14} style={{ verticalAlign: 'text-bottom' }} /> {t('txt_send_unavailable')}
           </p>
         )}
         {!!error && <p className="local-error">{error}</p>}
-      </div>
+      </StandalonePageFrame>
     </div>
   );
 }

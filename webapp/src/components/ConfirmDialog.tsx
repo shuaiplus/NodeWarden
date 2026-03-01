@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { t } from '@/lib/i18n';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -27,10 +28,10 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
           className={`btn ${props.danger ? 'btn-danger' : 'btn-primary'} dialog-btn`}
           onClick={props.onConfirm}
         >
-          {props.confirmText || 'Yes'}
+          {props.confirmText || t('txt_yes')}
         </button>
         <button type="button" className="btn btn-secondary dialog-btn" onClick={props.onCancel}>
-          {props.cancelText || 'No'}
+          {props.cancelText || t('txt_no')}
         </button>
         {props.afterActions}
       </div>

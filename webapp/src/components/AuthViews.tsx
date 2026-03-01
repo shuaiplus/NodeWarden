@@ -1,5 +1,7 @@
 import { useState } from 'preact/hooks';
-import { Eye, EyeOff } from 'lucide-preact';
+import { ArrowLeft, Eye, EyeOff, LogIn, LogOut, Unlock, UserPlus } from 'lucide-preact';
+import StandalonePageFrame from '@/components/StandalonePageFrame';
+import { t } from '@/lib/i18n';
 
 interface LoginValues {
   email: string;
@@ -61,23 +63,24 @@ export default function AuthViews(props: AuthViewsProps) {
   if (props.mode === 'locked') {
     return (
       <div className="auth-page">
-        <div className="auth-card">
-          <h1>Unlock Vault</h1>
-          <p className="muted">{props.emailForLock}</p>
+        <StandalonePageFrame title={t('txt_unlock_vault')}>
+          <p className="muted standalone-muted">{props.emailForLock}</p>
           <PasswordField
-            label="Master Password"
+            label={t('txt_master_password')}
             value={props.unlockPassword}
             autoFocus
             onInput={props.onChangeUnlock}
           />
           <button type="button" className="btn btn-primary full" onClick={props.onSubmitUnlock}>
-            Unlock
+            <Unlock size={16} className="btn-icon" />
+            {t('txt_unlock')}
           </button>
-          <div className="or">or</div>
+          <div className="or">{t('txt_or')}</div>
           <button type="button" className="btn btn-secondary full" onClick={props.onLogout}>
-            Log Out
+            <LogOut size={16} className="btn-icon" />
+            {t('txt_log_out')}
           </button>
-        </div>
+        </StandalonePageFrame>
       </div>
     );
   }
@@ -85,11 +88,9 @@ export default function AuthViews(props: AuthViewsProps) {
   if (props.mode === 'register') {
     return (
       <div className="auth-page">
-        <div className="auth-card">
-          <h1>Create Account</h1>
-          <p className="muted">NodeWarden</p>
+        <StandalonePageFrame title={t('txt_create_account')}>
           <label className="field">
-            <span>Name</span>
+            <span>{t('txt_name')}</span>
             <input
               className="input"
               value={props.registerValues.name}
@@ -99,7 +100,7 @@ export default function AuthViews(props: AuthViewsProps) {
             />
           </label>
           <label className="field">
-            <span>Email</span>
+            <span>{t('txt_email')}</span>
             <input
               className="input"
               type="email"
@@ -110,17 +111,17 @@ export default function AuthViews(props: AuthViewsProps) {
             />
           </label>
           <PasswordField
-            label="Master Password"
+            label={t('txt_master_password')}
             value={props.registerValues.password}
             onInput={(v) => props.onChangeRegister({ ...props.registerValues, password: v })}
           />
           <PasswordField
-            label="Confirm Master Password"
+            label={t('txt_confirm_master_password')}
             value={props.registerValues.password2}
             onInput={(v) => props.onChangeRegister({ ...props.registerValues, password2: v })}
           />
           <label className="field">
-            <span>Invite Code (Optional)</span>
+            <span>{t('txt_invite_code_optional')}</span>
             <input
               className="input"
               value={props.registerValues.inviteCode}
@@ -130,24 +131,24 @@ export default function AuthViews(props: AuthViewsProps) {
             />
           </label>
           <button type="button" className="btn btn-primary full" onClick={props.onSubmitRegister}>
-            Create Account
+            <UserPlus size={16} className="btn-icon" />
+            {t('txt_create_account')}
           </button>
-          <div className="or">or</div>
+          <div className="or">{t('txt_or')}</div>
           <button type="button" className="btn btn-secondary full" onClick={props.onGotoLogin}>
-            Back To Login
+            <ArrowLeft size={16} className="btn-icon" />
+            {t('txt_back_to_login')}
           </button>
-        </div>
+        </StandalonePageFrame>
       </div>
     );
   }
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <h1>Log In</h1>
-        <p className="muted">NodeWarden</p>
+      <StandalonePageFrame title={t('txt_log_in')}>
         <label className="field">
-          <span>Email</span>
+          <span>{t('txt_email')}</span>
           <input
             className="input"
             type="email"
@@ -156,19 +157,21 @@ export default function AuthViews(props: AuthViewsProps) {
           />
         </label>
         <PasswordField
-          label="Master Password"
+          label={t('txt_master_password')}
           value={props.loginValues.password}
           onInput={(v) => props.onChangeLogin({ ...props.loginValues, password: v })}
           autoFocus
         />
         <button type="button" className="btn btn-primary full" onClick={props.onSubmitLogin}>
-          Log In
+          <LogIn size={16} className="btn-icon" />
+          {t('txt_log_in')}
         </button>
-        <div className="or">or</div>
+        <div className="or">{t('txt_or')}</div>
         <button type="button" className="btn btn-secondary full" onClick={props.onGotoRegister}>
-          Create Account
+          <UserPlus size={16} className="btn-icon" />
+          {t('txt_create_account')}
         </button>
-      </div>
+      </StandalonePageFrame>
     </div>
   );
 }
