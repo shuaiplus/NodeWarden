@@ -49,6 +49,11 @@ export function applyCors(
   for (const [k, v] of Object.entries(corsHeaders)) {
     headers.set(k, v);
   }
+  // Security headers applied to every response.
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Content-Security-Policy', "frame-ancestors 'none'");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

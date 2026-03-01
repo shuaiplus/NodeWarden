@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { CircleHelp, Lock, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
+import { HardDriveDownload, Lock, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser, Vault } from 'lucide-preact';
 import AuthViews from '@/components/AuthViews';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ToastHost from '@/components/ToastHost';
@@ -978,8 +978,8 @@ export default function App() {
                 <span>{t('nav_device_management')}</span>
               </Link>
               <Link href="/help" className={`side-link ${location === '/help' ? 'active' : ''}`}>
-                <CircleHelp size={16} />
-                <span>{t('nav_support_center')}</span>
+                <HardDriveDownload size={16} />
+                <span>{t('nav_backup_strategy')}</span>
               </Link>
             </aside>
             <main className="content">
