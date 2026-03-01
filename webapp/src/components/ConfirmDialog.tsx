@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   children?: ComponentChildren;
+  afterActions?: ComponentChildren;
 }
 
 export default function ConfirmDialog(props: ConfirmDialogProps) {
@@ -31,6 +32,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
         <button type="button" className="btn btn-secondary dialog-btn" onClick={props.onCancel}>
           {props.cancelText || 'No'}
         </button>
+        {props.afterActions}
       </div>
     </div>
   );

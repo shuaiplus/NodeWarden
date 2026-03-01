@@ -19,6 +19,8 @@ import {
   handleChangePassword,
   handleGetTotpStatus,
   handleSetTotpStatus,
+  handleGetTotpRecoveryCode,
+  handleRecoverTwoFactor,
 } from './handlers/accounts';
 
 // Cipher handlers
@@ -68,7 +70,15 @@ import { handleSync } from './handlers/sync';
 
 // Setup handlers
 import { handleSetupStatus } from './handlers/setup';
-import { handleKnownDevice, handleGetDevices, handleUpdateDeviceToken } from './handlers/devices';
+import {
+  handleKnownDevice,
+  handleGetAuthorizedDevices,
+  handleGetDevices,
+  handleRevokeAllTrustedDevices,
+  handleRevokeTrustedDevice,
+  handleDeleteDevice,
+  handleUpdateDeviceToken
+} from './handlers/devices';
 
 // Import handler
 import { handleCiphersImport } from './handlers/import';
@@ -310,6 +320,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return handlePrelogin(request, env);
     }
 
+    if ((path === '/identity/accounts/recover-2fa' || path === '/api/accounts/recover-2fa') && method === 'POST') {
+      return handleRecoverTwoFactor(request, env);
+    }
+
     // Config endpoint (no auth required for basic config)
     // Bitwarden clients call GET "/config" (relative to the API base URL).
     // They also tolerate different casing, but their response models use PascalCase.
@@ -465,6 +479,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     if (path === '/api/accounts/totp') {
       if (method === 'GET') return handleGetTotpStatus(request, env, userId);
       if (method === 'PUT' || method === 'POST') return handleSetTotpStatus(request, env, userId);
+    }
+
+    if ((path === '/api/accounts/totp/recovery-code' || path === '/api/two-factor/get-recover') && method === 'POST') {
+      return handleGetTotpRecoveryCode(request, env, userId);
     }
 
     // Revision date endpoint
@@ -664,6 +682,23 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     // Devices endpoint
     if (path === '/api/devices' && method === 'GET') {
       return handleGetDevices(request, env, userId);
+    }
+
+    if (path === '/api/devices/authorized') {
+      if (method === 'GET') return handleGetAuthorizedDevices(request, env, userId);
+      if (method === 'DELETE') return handleRevokeAllTrustedDevices(request, env, userId);
+    }
+
+    const authorizedDeviceMatch = path.match(/^\/api\/devices\/authorized\/([^/]+)$/i);
+    if (authorizedDeviceMatch && method === 'DELETE') {
+      const deviceIdentifier = decodeURIComponent(authorizedDeviceMatch[1]);
+      return handleRevokeTrustedDevice(request, env, userId, deviceIdentifier);
+    }
+
+    const deleteDeviceMatch = path.match(/^\/api\/devices\/([^/]+)$/i);
+    if (deleteDeviceMatch && method === 'DELETE') {
+      const deviceIdentifier = decodeURIComponent(deleteDeviceMatch[1]);
+      return handleDeleteDevice(request, env, userId, deviceIdentifier);
     }
 
     // Admin endpoints

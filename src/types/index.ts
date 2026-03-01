@@ -40,6 +40,7 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   totpSecret: string | null;
+  totpRecoveryCode: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -181,6 +182,12 @@ export interface Device {
   type: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TrustedDeviceTokenSummary {
+  deviceIdentifier: string;
+  expiresAt: number;
+  tokenCount: number;
 }
 
 export enum SendType {

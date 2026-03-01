@@ -5,6 +5,7 @@ import { jsonResponse, errorResponse } from '../utils/response';
 import { generateUUID } from '../utils/uuid';
 import { LIMITS } from '../config/limits';
 import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
+import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 
 function looksLikeEncString(value: string): boolean {
   if (!value) return false;
@@ -18,6 +19,10 @@ function looksLikeEncString(value: string): boolean {
 
 function normalizeTotpSecret(input: string): string {
   return input.toUpperCase().replace(/[\s-]/g, '').replace(/=+$/g, '');
+}
+
+function normalizeRecoveryCodeInput(input: string): string {
+  return String(input || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
 }
 
 function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
@@ -132,6 +137,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     role: 'user',
     status: 'active',
     totpSecret: null,
+    totpRecoveryCode: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -375,10 +381,13 @@ export async function handleSetTotpStatus(request: Request, env: Env, userId: st
       return errorResponse('Invalid TOTP token', 400);
     }
     user.totpSecret = normalizedSecret;
+    if (!user.totpRecoveryCode) {
+      user.totpRecoveryCode = createRecoveryCode();
+    }
     user.updatedAt = new Date().toISOString();
     await storage.saveUser(user);
     await storage.deleteRefreshTokensByUserId(user.id);
-    return jsonResponse({ enabled: true, object: 'twoFactor' });
+    return jsonResponse({ enabled: true, recoveryCode: user.totpRecoveryCode, object: 'twoFactor' });
   }
 
   if (body.enabled === false) {
@@ -396,6 +405,96 @@ export async function handleSetTotpStatus(request: Request, env: Env, userId: st
   }
 
   return errorResponse('enabled must be true or false', 400);
+}
+
+// POST /api/accounts/totp/recovery-code
+export async function handleGetTotpRecoveryCode(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: Record<string, string | undefined>;
+  try {
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const formData = await request.formData();
+      body = Object.fromEntries(formData.entries()) as Record<string, string>;
+    } else {
+      body = await request.json();
+    }
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const currentHash = String(body.masterPasswordHash || body.master_password_hash || body.password || '').trim();
+  if (!currentHash) return errorResponse('masterPasswordHash is required', 400);
+  const valid = await auth.verifyPassword(currentHash, user.masterPasswordHash);
+  if (!valid) return errorResponse('Invalid password', 400);
+
+  if (!user.totpRecoveryCode) {
+    user.totpRecoveryCode = createRecoveryCode();
+    user.updatedAt = new Date().toISOString();
+    await storage.saveUser(user);
+  }
+
+  return jsonResponse({
+    code: user.totpRecoveryCode,
+    object: 'twoFactorRecover',
+  });
+}
+
+// POST /identity/accounts/recover-2fa
+// Disable TOTP by recovery code + password, then rotate recovery code.
+export async function handleRecoverTwoFactor(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+
+  let body: Record<string, string | undefined>;
+  try {
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const formData = await request.formData();
+      body = Object.fromEntries(formData.entries()) as Record<string, string>;
+    } else {
+      body = await request.json();
+    }
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = String(body.email || body.username || '').trim().toLowerCase();
+  const masterPasswordHash = String(body.masterPasswordHash || body.password || '').trim();
+  const recoveryCode = normalizeRecoveryCodeInput(String(body.recoveryCode || body.twoFactorToken || body.recovery_code || ''));
+
+  if (!email || !masterPasswordHash || !recoveryCode) {
+    return errorResponse('Email, masterPasswordHash and recoveryCode are required', 400);
+  }
+
+  const user = await storage.getUser(email);
+  if (!user) return errorResponse('Invalid credentials', 400);
+  if (user.status !== 'active') return errorResponse('Account is disabled', 403);
+
+  const validPassword = await auth.verifyPassword(masterPasswordHash, user.masterPasswordHash);
+  if (!validPassword) return errorResponse('Invalid credentials', 400);
+
+  if (!recoveryCodeEquals(recoveryCode, user.totpRecoveryCode)) {
+    return errorResponse('Recovery code is incorrect. Try again.', 400);
+  }
+
+  user.totpSecret = null;
+  user.totpRecoveryCode = createRecoveryCode();
+  user.securityStamp = generateUUID();
+  user.updatedAt = new Date().toISOString();
+  await storage.saveUser(user);
+  await storage.deleteRefreshTokensByUserId(user.id);
+
+  return jsonResponse({
+    success: true,
+    twoFactorEnabled: false,
+    newRecoveryCode: user.totpRecoveryCode,
+    object: 'twoFactorRecovery',
+  });
 }
 
 // GET /api/accounts/revision-date

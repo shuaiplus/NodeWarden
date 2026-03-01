@@ -7,11 +7,13 @@ import { LIMITS } from '../config/limits';
 import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
 import { createRefreshToken } from '../utils/jwt';
 import { readAuthRequestDeviceInfo } from '../utils/device';
+import { createRecoveryCode, recoveryCodeEquals } from '../utils/recovery-code';
 import { issueSendAccessToken } from './sends';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
+const TWO_FACTOR_PROVIDER_RECOVERY_CODE = 8;
 
 function resolveTotpSecret(userSecret: string | null, envSecret: string | undefined): string | null {
   if (userSecret && isTotpEnabled(userSecret)) {
@@ -23,16 +25,20 @@ function resolveTotpSecret(userSecret: string | null, envSecret: string | undefi
   return null;
 }
 
-function twoFactorRequiredResponse(message: string = 'Two factor required.'): Response {
+function twoFactorRequiredResponse(message: string = 'Two factor required.', includeRecoveryCode: boolean = false): Response {
+  const providers = includeRecoveryCode
+    ? [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR), String(TWO_FACTOR_PROVIDER_RECOVERY_CODE)]
+    : [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)];
+  const providers2: Record<string, null> = {};
+  for (const provider of providers) providers2[provider] = null;
+
   // Bitwarden clients rely on these fields to trigger the 2FA UI flow.
   return jsonResponse(
     {
       error: 'invalid_grant',
       error_description: message,
-      TwoFactorProviders: [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)],
-      TwoFactorProviders2: {
-        [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)]: null,
-      },
+      TwoFactorProviders: providers,
+      TwoFactorProviders2: providers2,
       // Required by current Android parser (nullable value is acceptable).
       SsoEmail2faSessionToken: null,
       // Keep payload shape close to upstream implementations.
@@ -148,21 +154,22 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     let trustedTwoFactorTokenToReturn: string | undefined;
     const effectiveTotpSecret = resolveTotpSecret(user.totpSecret, env.TOTP_SECRET);
     if (effectiveTotpSecret) {
+      const canUseRecoveryCode = !!user.totpRecoveryCode;
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
-      const rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
+      let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
       const hasProvider = normalizedTwoFactorProvider.length > 0;
       const hasToken = normalizedTwoFactorToken.length > 0;
 
       // Upstream-compatible behavior: if 2FA is required and either provider or token is missing,
       // respond with a 2FA challenge payload.
       if (!hasProvider || !hasToken) {
-        return twoFactorRequiredResponse();
+        return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
       }
 
       const parsedProvider = Number.parseInt(normalizedTwoFactorProvider, 10);
       if (!Number.isFinite(parsedProvider)) {
-        return twoFactorRequiredResponse();
+        return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
       }
 
       let passedByRememberToken = false;
@@ -177,13 +184,23 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
 
         // Remember token missing/invalid/expired should re-enter the 2FA challenge flow.
         if (!passedByRememberToken) {
-          return twoFactorRequiredResponse();
+          return twoFactorRequiredResponse('Two factor required.', canUseRecoveryCode);
         }
       } else if (parsedProvider === TWO_FACTOR_PROVIDER_AUTHENTICATOR) {
         const totpOk = await verifyTotpToken(effectiveTotpSecret, normalizedTwoFactorToken);
         if (!totpOk) {
           return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
         }
+      } else if (parsedProvider === TWO_FACTOR_PROVIDER_RECOVERY_CODE) {
+        if (!recoveryCodeEquals(normalizedTwoFactorToken, user.totpRecoveryCode)) {
+          return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);
+        }
+        user.totpSecret = null;
+        user.totpRecoveryCode = createRecoveryCode();
+        user.updatedAt = new Date().toISOString();
+        await storage.saveUser(user);
+        await storage.deleteRefreshTokensByUserId(user.id);
+        rememberRequested = false;
       } else {
         // Unsupported provider for this server profile behaves as an invalid 2FA attempt.
         return recordFailedTwoFactorAndBuildResponse(rateLimit, loginIdentifier);

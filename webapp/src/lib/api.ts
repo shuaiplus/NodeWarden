@@ -1,5 +1,6 @@
 import { base64ToBytes, bytesToBase64, decryptBw, decryptBwFileData, decryptStr, encryptBw, encryptBwFileData, hkdf, hkdfExpand, pbkdf2 } from './crypto';
 import type {
+  AuthorizedDevice,
   AdminInvite,
   AdminUser,
   Cipher,
@@ -18,6 +19,8 @@ import type {
 } from './types';
 
 const SESSION_KEY = 'nodewarden.web.session.v4';
+const DEVICE_IDENTIFIER_KEY = 'nodewarden.web.device.identifier.v1';
+const TOTP_REMEMBER_TOKEN_KEY = 'nodewarden.web.totp.remember-token.v1';
 
 type SessionSetter = (next: SessionState | null) => void;
 
@@ -75,6 +78,42 @@ export interface PreloginResult {
   kdfIterations: number;
 }
 
+function randomHex(length: number): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(Math.max(1, Math.ceil(length / 2))));
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, length);
+}
+
+function getOrCreateDeviceIdentifier(): string {
+  const current = (localStorage.getItem(DEVICE_IDENTIFIER_KEY) || '').trim();
+  if (current) return current;
+  const next = `${randomHex(8)}-${randomHex(4)}-${randomHex(4)}-${randomHex(4)}-${randomHex(12)}`;
+  localStorage.setItem(DEVICE_IDENTIFIER_KEY, next);
+  return next;
+}
+
+function guessDeviceName(): string {
+  const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '').toLowerCase();
+  const platform = (typeof navigator !== 'undefined' ? navigator.platform : '').trim();
+  const browser = ua.includes('edg/') ? 'Edge' : ua.includes('chrome/') ? 'Chrome' : ua.includes('firefox/') ? 'Firefox' : ua.includes('safari/') ? 'Safari' : 'Browser';
+  const os = ua.includes('windows') ? 'Windows' : ua.includes('mac os') ? 'macOS' : ua.includes('linux') ? 'Linux' : ua.includes('android') ? 'Android' : ua.includes('iphone') || ua.includes('ipad') ? 'iOS' : platform || 'Unknown OS';
+  return `${browser} on ${os}`.slice(0, 128);
+}
+
+function getRememberTwoFactorToken(): string | null {
+  const token = (localStorage.getItem(TOTP_REMEMBER_TOKEN_KEY) || '').trim();
+  return token || null;
+}
+
+function saveRememberTwoFactorToken(token: string | undefined): void {
+  const normalized = String(token || '').trim();
+  if (!normalized) return;
+  localStorage.setItem(TOTP_REMEMBER_TOKEN_KEY, normalized);
+}
+
+function clearRememberTwoFactorToken(): void {
+  localStorage.removeItem(TOTP_REMEMBER_TOKEN_KEY);
+}
+
 export async function deriveLoginHash(email: string, password: string, fallbackIterations: number): Promise<PreloginResult> {
   const pre = await fetch('/identity/accounts/prelogin', {
     method: 'POST',
@@ -89,15 +128,34 @@ export async function deriveLoginHash(email: string, password: string, fallbackI
   return { hash: bytesToBase64(hash), masterKey, kdfIterations: iterations };
 }
 
-export async function loginWithPassword(email: string, passwordHash: string, totpCode?: string): Promise<TokenSuccess | TokenError> {
+export async function loginWithPassword(
+  email: string,
+  passwordHash: string,
+  options?: {
+    totpCode?: string;
+    rememberDevice?: boolean;
+    useRememberToken?: boolean;
+  }
+): Promise<TokenSuccess | TokenError> {
   const body = new URLSearchParams();
   body.set('grant_type', 'password');
   body.set('username', email.toLowerCase());
   body.set('password', passwordHash);
   body.set('scope', 'api offline_access');
-  if (totpCode) {
+  body.set('deviceIdentifier', getOrCreateDeviceIdentifier());
+  body.set('deviceName', guessDeviceName());
+  body.set('deviceType', '14');
+
+  const rememberedToken = options?.useRememberToken ? getRememberTwoFactorToken() : null;
+  if (rememberedToken) {
+    body.set('twoFactorProvider', '5');
+    body.set('twoFactorToken', rememberedToken);
+  } else if (options?.totpCode) {
     body.set('twoFactorProvider', '0');
-    body.set('twoFactorToken', totpCode);
+    body.set('twoFactorToken', options.totpCode);
+    if (options.rememberDevice) {
+      body.set('twoFactorRemember', '1');
+    }
   }
   const resp = await fetch('/identity/connect/token', {
     method: 'POST',
@@ -105,6 +163,12 @@ export async function loginWithPassword(email: string, passwordHash: string, tot
     body: body.toString(),
   });
   const json = (await parseJson<TokenSuccess & TokenError>(resp)) || {};
+  if (resp.ok) {
+    saveRememberTwoFactorToken((json as TokenSuccess).TwoFactorToken);
+  } else if (rememberedToken) {
+    // Remember-token login failed; force the next attempt to use real TOTP.
+    clearRememberTwoFactorToken();
+  }
   if (!resp.ok) return json;
   return json;
 }
@@ -350,6 +414,76 @@ export async function getTotpStatus(
   if (!resp.ok) throw new Error('Failed to load TOTP status');
   const body = (await parseJson<{ enabled?: boolean }>(resp)) || {};
   return { enabled: !!body.enabled };
+}
+
+export async function getTotpRecoveryCode(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  masterPasswordHash: string
+): Promise<string> {
+  const resp = await authedFetch('/api/accounts/totp/recovery-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ masterPasswordHash }),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Failed to get recovery code');
+  }
+  const body = (await parseJson<{ code?: string }>(resp)) || {};
+  return String(body.code || '');
+}
+
+export async function recoverTwoFactor(
+  email: string,
+  masterPasswordHash: string,
+  recoveryCode: string
+): Promise<{ newRecoveryCode?: string }> {
+  const resp = await fetch('/identity/accounts/recover-2fa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: email.toLowerCase().trim(),
+      masterPasswordHash,
+      recoveryCode,
+    }),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Recover 2FA failed');
+  }
+  return (await parseJson<{ newRecoveryCode?: string }>(resp)) || {};
+}
+
+export async function getAuthorizedDevices(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>
+): Promise<AuthorizedDevice[]> {
+  const resp = await authedFetch('/api/devices/authorized');
+  if (!resp.ok) throw new Error('Failed to load authorized devices');
+  const body = await parseJson<ListResponse<AuthorizedDevice>>(resp);
+  return body?.data || [];
+}
+
+export async function revokeAuthorizedDeviceTrust(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  deviceIdentifier: string
+): Promise<void> {
+  const resp = await authedFetch(`/api/devices/authorized/${encodeURIComponent(deviceIdentifier)}`, { method: 'DELETE' });
+  if (!resp.ok) throw new Error('Failed to revoke device authorization');
+}
+
+export async function revokeAllAuthorizedDeviceTrust(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>
+): Promise<void> {
+  const resp = await authedFetch('/api/devices/authorized', { method: 'DELETE' });
+  if (!resp.ok) throw new Error('Failed to revoke all authorized devices');
+}
+
+export async function deleteAuthorizedDevice(
+  authedFetch: (input: string, init?: RequestInit) => Promise<Response>,
+  deviceIdentifier: string
+): Promise<void> {
+  const resp = await authedFetch(`/api/devices/${encodeURIComponent(deviceIdentifier)}`, { method: 'DELETE' });
+  if (!resp.ok) throw new Error('Failed to remove device');
 }
 
 export async function listAdminUsers(authedFetch: (input: string, init?: RequestInit) => Promise<Response>): Promise<AdminUser[]> {

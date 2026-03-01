@@ -242,6 +242,7 @@ export interface WebConfigResponse {
 export interface TokenSuccess {
   access_token: string;
   refresh_token: string;
+  TwoFactorToken?: string;
 }
 
 export interface TokenError {
@@ -269,4 +270,16 @@ export interface AdminInvite {
   inviteLink?: string;
   status: string;
   expiresAt?: string;
+}
+
+export interface AuthorizedDevice {
+  id: string;
+  name: string;
+  identifier: string;
+  type: number;
+  creationDate: string | null;
+  revisionDate: string | null;
+  trusted: boolean;
+  trustedTokenCount: number;
+  trustedUntil: string | null;
 }

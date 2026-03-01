@@ -1,4 +1,4 @@
-import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, SendAuthType } from '../types';
+import { User, Cipher, Folder, Attachment, Device, Invite, AuditLog, Send, SendAuthType, TrustedDeviceTokenSummary } from '../types';
 import { LIMITS } from '../config/limits';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -11,10 +11,11 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   'id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, master_password_hash TEXT NOT NULL, ' +
   'key TEXT NOT NULL, private_key TEXT, public_key TEXT, kdf_type INTEGER NOT NULL, ' +
   'kdf_iterations INTEGER NOT NULL, kdf_memory INTEGER, kdf_parallelism INTEGER, ' +
-  'security_stamp TEXT NOT NULL, role TEXT NOT NULL DEFAULT \'user\', status TEXT NOT NULL DEFAULT \'active\', totp_secret TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+  'security_stamp TEXT NOT NULL, role TEXT NOT NULL DEFAULT \'user\', status TEXT NOT NULL DEFAULT \'active\', totp_secret TEXT, totp_recovery_code TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
   'ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT \'user\'',
   'ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT \'active\'',
   'ALTER TABLE users ADD COLUMN totp_secret TEXT',
+  'ALTER TABLE users ADD COLUMN totp_recovery_code TEXT',
 
   'CREATE TABLE IF NOT EXISTS user_revisions (' +
   'user_id TEXT PRIMARY KEY, revision_date TEXT NOT NULL, ' +
@@ -224,6 +225,7 @@ export class StorageService {
       role: row.role === 'admin' ? 'admin' : 'user',
       status: row.status === 'banned' ? 'banned' : 'active',
       totpSecret: row.totp_secret ?? null,
+      totpRecoveryCode: row.totp_recovery_code ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -232,7 +234,7 @@ export class StorageService {
   async getUser(email: string): Promise<User | null> {
     const row = await this.db
       .prepare(
-        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at FROM users WHERE email = ?'
+        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users WHERE email = ?'
       )
       .bind(email.toLowerCase())
       .first<any>();
@@ -243,7 +245,7 @@ export class StorageService {
   async getUserById(id: string): Promise<User | null> {
     const row = await this.db
       .prepare(
-        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at FROM users WHERE id = ?'
+        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users WHERE id = ?'
       )
       .bind(id)
       .first<any>();
@@ -259,7 +261,7 @@ export class StorageService {
   async getAllUsers(): Promise<User[]> {
     const res = await this.db
       .prepare(
-        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at FROM users ORDER BY created_at ASC'
+        'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'
       )
       .all<any>();
     return (res.results || []).map(row => this.mapUserRow(row));
@@ -268,11 +270,11 @@ export class StorageService {
   async saveUser(user: User): Promise<void> {
     const email = user.email.toLowerCase();
     const stmt = this.db.prepare(
-      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at) ' +
-      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at) ' +
+      'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
       'ON CONFLICT(id) DO UPDATE SET ' +
       'email=excluded.email, name=excluded.name, master_password_hash=excluded.master_password_hash, key=excluded.key, private_key=excluded.private_key, public_key=excluded.public_key, ' +
-      'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, role=excluded.role, status=excluded.status, totp_secret=excluded.totp_secret, updated_at=excluded.updated_at'
+      'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, role=excluded.role, status=excluded.status, totp_secret=excluded.totp_secret, totp_recovery_code=excluded.totp_recovery_code, updated_at=excluded.updated_at'
     );
     await this.safeBind(stmt,
       user.id,
@@ -290,6 +292,7 @@ export class StorageService {
       user.role,
       user.status,
       user.totpSecret,
+      user.totpRecoveryCode,
       user.createdAt,
       user.updatedAt
     ).run();
@@ -302,8 +305,8 @@ export class StorageService {
   async createFirstUser(user: User): Promise<boolean> {
     const email = user.email.toLowerCase();
     const stmt = this.db.prepare(
-      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, created_at, updated_at) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
+      'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
       'WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)'
     );
     const result = await this.safeBind(stmt,
@@ -322,6 +325,7 @@ export class StorageService {
       user.role,
       user.status,
       user.totpSecret,
+      user.totpRecoveryCode,
       user.createdAt,
       user.updatedAt
     ).run();
@@ -948,6 +952,49 @@ export class StorageService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+  }
+
+  async deleteDevice(userId: string, deviceIdentifier: string): Promise<boolean> {
+    const result = await this.db
+      .prepare('DELETE FROM devices WHERE user_id = ? AND device_identifier = ?')
+      .bind(userId, deviceIdentifier)
+      .run();
+    return Number(result.meta.changes ?? 0) > 0;
+  }
+
+  async getTrustedDeviceTokenSummariesByUserId(userId: string): Promise<TrustedDeviceTokenSummary[]> {
+    const now = Date.now();
+    await this.db.prepare('DELETE FROM trusted_two_factor_device_tokens WHERE expires_at < ?').bind(now).run();
+
+    const res = await this.db
+      .prepare(
+        'SELECT device_identifier, MAX(expires_at) AS expires_at, COUNT(*) AS token_count ' +
+        'FROM trusted_two_factor_device_tokens WHERE user_id = ? GROUP BY device_identifier ORDER BY expires_at DESC'
+      )
+      .bind(userId)
+      .all<any>();
+
+    return (res.results || []).map(row => ({
+      deviceIdentifier: row.device_identifier,
+      expiresAt: Number(row.expires_at || 0),
+      tokenCount: Number(row.token_count || 0),
+    }));
+  }
+
+  async deleteTrustedTwoFactorTokensByDevice(userId: string, deviceIdentifier: string): Promise<number> {
+    const result = await this.db
+      .prepare('DELETE FROM trusted_two_factor_device_tokens WHERE user_id = ? AND device_identifier = ?')
+      .bind(userId, deviceIdentifier)
+      .run();
+    return Number(result.meta.changes ?? 0);
+  }
+
+  async deleteTrustedTwoFactorTokensByUserId(userId: string): Promise<number> {
+    const result = await this.db
+      .prepare('DELETE FROM trusted_two_factor_device_tokens WHERE user_id = ?')
+      .bind(userId)
+      .run();
+    return Number(result.meta.changes ?? 0);
   }
 
   // --- Trusted 2FA remember tokens (device-bound) ---

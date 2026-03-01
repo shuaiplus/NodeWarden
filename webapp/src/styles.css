@@ -1050,6 +1050,12 @@ input[type='file'].input::file-selector-button:hover {
   font-weight: 600;
 }
 
+.trusted-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .dialog-mask {
   position: fixed;
   inset: 0;
@@ -1094,6 +1100,34 @@ input[type='file'].input::file-selector-button:hover {
   height: 50px;
   font-size: 20px;
   margin-top: 8px;
+}
+
+.dialog-extra {
+  margin-top: 8px;
+}
+
+.dialog-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 0 10px;
+}
+
+.settings-twofactor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-subcard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.settings-subcard h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
 }
 
 .toast-stack {
@@ -1207,6 +1241,10 @@ input[type='file'].input::file-selector-button:hover {
   }
 
   .uri-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-twofactor-grid {
     grid-template-columns: 1fr;
   }
 }

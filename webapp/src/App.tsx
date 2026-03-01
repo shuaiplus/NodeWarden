@@ -8,7 +8,9 @@ import ToastHost from '@/components/ToastHost';
 import VaultPage from '@/components/VaultPage';
 import SendsPage from '@/components/SendsPage';
 import PublicSendPage from '@/components/PublicSendPage';
+import RecoverTwoFactorPage from '@/components/RecoverTwoFactorPage';
 import SettingsPage from '@/components/SettingsPage';
+import SecurityDevicesPage from '@/components/SecurityDevicesPage';
 import AdminPage from '@/components/AdminPage';
 import HelpPage from '@/components/HelpPage';
 import {
@@ -27,19 +29,25 @@ import {
   getCiphers,
   getFolders,
   getProfile,
+  getAuthorizedDevices,
   getSetupStatus,
   getSends,
   getTotpStatus,
+  getTotpRecoveryCode,
   getWebConfig,
   listAdminInvites,
   listAdminUsers,
   loadSession,
   loginWithPassword,
   registerAccount,
+  recoverTwoFactor,
   revokeInvite,
+  revokeAuthorizedDeviceTrust,
+  revokeAllAuthorizedDeviceTrust,
   saveSession,
   setTotp,
   setUserStatus,
+  deleteAuthorizedDevice,
   updateCipher,
   updateSend,
   buildSendShareKey,
@@ -48,7 +56,7 @@ import {
   verifyMasterPassword,
 } from '@/lib/api';
 import { base64ToBytes, decryptBw, decryptStr, hkdf } from '@/lib/crypto';
-import type { AppPhase, Cipher, Folder, Profile, Send, SendDraft, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
+import type { AppPhase, AuthorizedDevice, Cipher, Folder, Profile, Send, SendDraft, SessionState, ToastMessage, VaultDraft } from '@/lib/types';
 
 interface PendingTotp {
   email: string;
@@ -90,9 +98,11 @@ export default function App() {
   const [unlockPassword, setUnlockPassword] = useState('');
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
   const [totpCode, setTotpCode] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   const [disableTotpOpen, setDisableTotpOpen] = useState(false);
   const [disableTotpPassword, setDisableTotpPassword] = useState('');
+  const [recoverValues, setRecoverValues] = useState({ email: '', password: '', recoveryCode: '' });
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -201,7 +211,7 @@ export default function App() {
     }
     try {
       const derived = await deriveLoginHash(loginValues.email, loginValues.password, defaultKdfIterations);
-      const token = await loginWithPassword(loginValues.email, derived.hash);
+      const token = await loginWithPassword(loginValues.email, derived.hash, { useRememberToken: true });
       if ('access_token' in token && token.access_token) {
         await finalizeLogin(token.access_token, token.refresh_token, loginValues.email.toLowerCase(), derived.masterKey);
         return;
@@ -214,6 +224,7 @@ export default function App() {
           masterKey: derived.masterKey,
         });
         setTotpCode('');
+        setRememberDevice(true);
         return;
       }
       pushToast('error', tokenError.error_description || tokenError.error || 'Login failed');
@@ -228,13 +239,44 @@ export default function App() {
       pushToast('error', 'Please input TOTP code');
       return;
     }
-    const token = await loginWithPassword(pendingTotp.email, pendingTotp.passwordHash, totpCode.trim());
+    const token = await loginWithPassword(pendingTotp.email, pendingTotp.passwordHash, {
+      totpCode: totpCode.trim(),
+      rememberDevice,
+    });
     if ('access_token' in token && token.access_token) {
       await finalizeLogin(token.access_token, token.refresh_token, pendingTotp.email, pendingTotp.masterKey);
       return;
     }
     const tokenError = token as { error_description?: string; error?: string };
     pushToast('error', tokenError.error_description || tokenError.error || 'TOTP verify failed');
+  }
+
+  async function handleRecoverTwoFactorSubmit() {
+    const email = recoverValues.email.trim().toLowerCase();
+    const password = recoverValues.password;
+    const recoveryCode = recoverValues.recoveryCode.trim();
+    if (!email || !password || !recoveryCode) {
+      pushToast('error', 'Email, password and recovery code are required');
+      return;
+    }
+    try {
+      const derived = await deriveLoginHash(email, password, defaultKdfIterations);
+      const recovered = await recoverTwoFactor(email, derived.hash, recoveryCode);
+      const token = await loginWithPassword(email, derived.hash, { useRememberToken: false });
+      if ('access_token' in token && token.access_token) {
+        await finalizeLogin(token.access_token, token.refresh_token, email, derived.masterKey);
+        if (recovered.newRecoveryCode) {
+          pushToast('success', `2FA recovered. New recovery code: ${recovered.newRecoveryCode}`);
+        } else {
+          pushToast('success', '2FA recovered');
+        }
+        return;
+      }
+      pushToast('error', 'Recovered but auto-login failed, please sign in.');
+      navigate('/login');
+    } catch (error) {
+      pushToast('error', error instanceof Error ? error.message : 'Recover 2FA failed');
+    }
   }
 
   async function handleRegister() {
@@ -343,6 +385,11 @@ export default function App() {
   const totpStatusQuery = useQuery({
     queryKey: ['totp-status', session?.accessToken],
     queryFn: () => getTotpStatus(authedFetch),
+    enabled: phase === 'app' && !!session?.accessToken,
+  });
+  const authorizedDevicesQuery = useQuery({
+    queryKey: ['authorized-devices', session?.accessToken],
+    queryFn: () => getAuthorizedDevices(authedFetch),
     enabled: phase === 'app' && !!session?.accessToken,
   });
 
@@ -592,6 +639,28 @@ export default function App() {
     pushToast('success', 'Vault synced');
   }
 
+  async function refreshAuthorizedDevices() {
+    await authorizedDevicesQuery.refetch();
+  }
+
+  async function revokeDeviceTrustAction(device: AuthorizedDevice) {
+    await revokeAuthorizedDeviceTrust(authedFetch, device.identifier);
+    await authorizedDevicesQuery.refetch();
+    pushToast('success', 'Device authorization revoked');
+  }
+
+  async function revokeAllDeviceTrustAction() {
+    await revokeAllAuthorizedDeviceTrust(authedFetch);
+    await authorizedDevicesQuery.refetch();
+    pushToast('success', 'All device authorizations revoked');
+  }
+
+  async function removeDeviceAction(device: AuthorizedDevice) {
+    await deleteAuthorizedDevice(authedFetch, device.identifier);
+    await authorizedDevicesQuery.refetch();
+    pushToast('success', 'Device removed');
+  }
+
   async function createVaultItem(draft: VaultDraft) {
     if (!session) return;
     try {
@@ -649,6 +718,16 @@ export default function App() {
       pushToast('error', error instanceof Error ? error.message : 'Bulk move failed');
       throw error;
     }
+  }
+
+  async function getRecoveryCodeAction(masterPassword: string): Promise<string> {
+    if (!profile) throw new Error('Profile unavailable');
+    const normalized = String(masterPassword || '');
+    if (!normalized) throw new Error('Master password is required');
+    const derived = await deriveLoginHash(profile.email, normalized, defaultKdfIterations);
+    const code = await getTotpRecoveryCode(authedFetch, derived.hash);
+    if (!code) throw new Error('Recovery code is empty');
+    return code;
   }
 
   async function createSendItem(draft: SendDraft, autoCopyLink: boolean) {
@@ -732,8 +811,9 @@ export default function App() {
 
   const hashPathRaw = typeof window !== 'undefined' ? window.location.hash || '' : '';
   const hashPath = hashPathRaw.startsWith('#') ? hashPathRaw.slice(1) : hashPathRaw;
-  const effectiveLocation = hashPath.startsWith('/send/') ? hashPath : location;
+  const effectiveLocation = hashPath.startsWith('/send/') || hashPath === '/recover-2fa' ? hashPath : location;
   const publicSendMatch = effectiveLocation.match(/^\/send\/([^/]+)(?:\/([^/]+))?\/?$/i);
+  const isRecoverTwoFactorRoute = effectiveLocation === '/recover-2fa';
   const isPublicSendRoute = !!publicSendMatch;
 
   useEffect(() => {
@@ -744,6 +824,23 @@ export default function App() {
     return (
       <>
         <PublicSendPage accessId={decodeURIComponent(publicSendMatch[1])} keyPart={publicSendMatch[2] ? decodeURIComponent(publicSendMatch[2]) : null} />
+        <ToastHost toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />
+      </>
+    );
+  }
+
+  if (isRecoverTwoFactorRoute && phase !== 'app') {
+    return (
+      <>
+        <RecoverTwoFactorPage
+          values={recoverValues}
+          onChange={setRecoverValues}
+          onSubmit={() => void handleRecoverTwoFactorSubmit()}
+          onCancel={() => {
+            setRecoverValues({ email: '', password: '', recoveryCode: '' });
+            navigate('/login');
+          }}
+        />
         <ToastHost toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))} />
       </>
     );
@@ -790,11 +887,33 @@ export default function App() {
           onCancel={() => {
             setPendingTotp(null);
             setTotpCode('');
+            setRememberDevice(true);
           }}
+          afterActions={(
+            <div className="dialog-extra">
+              <div className="dialog-divider" />
+              <button
+                type="button"
+                className="btn btn-secondary dialog-btn"
+                onClick={() => {
+                  setPendingTotp(null);
+                  setTotpCode('');
+                  setRememberDevice(true);
+                  navigate('/recover-2fa');
+                }}
+              >
+                Use Recovery Code
+              </button>
+            </div>
+          )}
         >
           <label className="field">
             <span>TOTP Code</span>
             <input className="input" value={totpCode} onInput={(e) => setTotpCode((e.currentTarget as HTMLInputElement).value)} />
+          </label>
+          <label className="check-line" style={{ marginBottom: 0 }}>
+            <input type="checkbox" checked={rememberDevice} onChange={(e) => setRememberDevice((e.currentTarget as HTMLInputElement).checked)} />
+            <span>Trust this device for 30 days</span>
           </label>
         </ConfirmDialog>
       </>
@@ -815,9 +934,6 @@ export default function App() {
                 <ShieldUser size={16} />
                 <span>{profile?.email}</span>
               </div>
-              <button type="button" className="btn btn-secondary small" onClick={() => navigate('/settings')}>
-                <Shield size={14} className="btn-icon" /> Account Security
-              </button>
               <button type="button" className="btn btn-secondary small" onClick={handleLogout}>
                 <LogOut size={14} className="btn-icon" /> Sign Out
               </button>
@@ -843,6 +959,10 @@ export default function App() {
               <Link href="/settings" className={`side-link ${location === '/settings' ? 'active' : ''}`}>
                 <SettingsIcon size={16} />
                 <span>System Settings</span>
+              </Link>
+              <Link href="/security/devices" className={`side-link ${location === '/security/devices' ? 'active' : ''}`}>
+                <Shield size={16} />
+                <span>Account Security</span>
               </Link>
               <Link href="/help" className={`side-link ${location === '/help' ? 'active' : ''}`}>
                 <CircleHelp size={16} />
@@ -892,8 +1012,50 @@ export default function App() {
                         await totpStatusQuery.refetch();
                       }}
                       onOpenDisableTotp={() => setDisableTotpOpen(true)}
+                      onGetRecoveryCode={getRecoveryCodeAction}
+                      onNotify={pushToast}
                     />
                   )}
+                </Route>
+                <Route path="/security/devices">
+                  <SecurityDevicesPage
+                    devices={authorizedDevicesQuery.data || []}
+                    loading={authorizedDevicesQuery.isFetching}
+                    onRefresh={() => void refreshAuthorizedDevices()}
+                    onRevokeTrust={(device) => {
+                      setConfirm({
+                        title: 'Revoke device authorization',
+                        message: `Revoke 30-day TOTP trust for "${device.name}"?`,
+                        danger: true,
+                        onConfirm: () => {
+                          setConfirm(null);
+                          void revokeDeviceTrustAction(device);
+                        },
+                      });
+                    }}
+                    onRemoveDevice={(device) => {
+                      setConfirm({
+                        title: 'Remove device',
+                        message: `Remove device "${device.name}" and clear its 2FA trust?`,
+                        danger: true,
+                        onConfirm: () => {
+                          setConfirm(null);
+                          void removeDeviceAction(device);
+                        },
+                      });
+                    }}
+                    onRevokeAll={() => {
+                      setConfirm({
+                        title: 'Revoke all trusted devices',
+                        message: 'Revoke 30-day TOTP trust from all devices?',
+                        danger: true,
+                        onConfirm: () => {
+                          setConfirm(null);
+                          void revokeAllDeviceTrustAction();
+                        },
+                      });
+                    }}
+                  />
                 </Route>
                 <Route path="/admin">
                   <AdminPage
