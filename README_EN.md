@@ -34,11 +34,11 @@
 | Import flow (common clients) | ✅ | ✅ | Common import paths covered |
 | Website icon proxy | ✅ | ✅ | Via `/icons/{hostname}/icon.png` |
 | passkey、TOTP | ❌ | ✅ | Official service requires premium; NodeWarden does not |
-| Multi-user | ✅ | ❌ | NodeWarden is single-user by design |
+| Multi-user | ✅ | ✅ | Full User Management |
+| Send | ✅ | ✅ | Text Send and File Send are supported |
 | Organizations / Collections / Member roles | ✅ | ❌ | Not necessary to implement |
 | Login 2FA (TOTP/WebAuthn/Duo/Email) | ✅ | ⚠️ Partial | TOTP-only  via `TOTP_SECRET` |
 | SSO / SCIM / Enterprise directory | ✅ | ❌ | Not necessary to implement |
-| Send | ✅ | ❌ | Not necessary to implement |
 | Emergency access | ✅ | ❌ | Not necessary to implement |
 | Admin console / Billing & subscription | ✅ | ❌ | Free only |
 | Full push notification pipeline | ✅ | ❌ | Not necessary to implement |

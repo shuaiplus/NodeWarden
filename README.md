@@ -33,11 +33,11 @@ English：[`README_EN.md`](./README_EN.md)
 | 导入功能 | ✅ | ✅ | 覆盖常见导入路径 |
 | 网站图标代理 | ✅ | ✅ | 通过 `/icons/{hostname}/icon.png` |
 | passkey、TOTP | ❌ | ✅ |官方需要会员，我们的不需要 |
-| 多用户 | ✅ | ❌ | NodeWarden 定位单用户 |
+| Send | ✅ | ✅ | 已支持文本 Send 与文件 Send |
+| 多用户 | ✅ | ✅ | 完整的用户管理 |
 | 组织/集合/成员权限 | ✅ | ❌ | 没必要实现 |
 | 登录 2FA（TOTP/WebAuthn/Duo/Email） | ✅ | ⚠️ 部分支持 | 仅支持 TOTP（通过 `TOTP_SECRET`） |
 | SSO / SCIM / 企业目录 | ✅ | ❌ | 没必要实现 |
-| Send | ✅ | ❌ | 基本没人用 |
 | 紧急访问 | ✅ | ❌ | 没必要实现 |
 | 管理后台 / 计费订阅 | ✅ | ❌ | 纯免费 |
 | 推送通知完整链路 | ✅ | ❌ | 没必要实现 |
