@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'user',
   status TEXT NOT NULL DEFAULT 'active',
   totp_secret TEXT,
+  totp_recovery_code TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
