@@ -37,3 +37,5 @@ npm-debug.log*
 
 # Package lock (optional - remove if you want to commit it)
 # package-lock.json
+
+tmp/
