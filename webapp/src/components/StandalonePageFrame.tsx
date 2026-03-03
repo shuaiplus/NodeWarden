@@ -21,7 +21,7 @@ export default function StandalonePageFrame(props: StandalonePageFrameProps) {
       </div>
 
       <div className="standalone-footer">
-        <a href="https://bitwarden.inso.gq" target="_blank" rel="noreferrer">https://bitwarden.inso.gq</>
+        <a href="https://bitwarden.inso.gq" target="_blank" rel="noreferrer">https://bitwarden.inso.gq</a>
       </div>
     </div>
   );
