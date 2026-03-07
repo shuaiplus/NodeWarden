@@ -1,7 +1,11 @@
 name = "nodewarden"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
-assets = { directory = "./dist", not_found_handling = "single-page-application", run_worker_first = ["/api/*", "/identity/*", "/icons/*", "/setup/*", "/config", "/notifications/*", "/.well-known/*"] }
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+run_worker_first = [ "/api/*", "/identity/*", "/icons/*", "/setup/*", "/config", "/notifications/*", "/.well-known/*" ]
 
 [build]
 command = "npm run build"
@@ -12,4 +16,4 @@ database_name = "nodewarden-db"
 
 [[kv_namespaces]]
 binding = "ATTACHMENTS_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "5441c718d39e49229fc9c0e5ca0eff8f"

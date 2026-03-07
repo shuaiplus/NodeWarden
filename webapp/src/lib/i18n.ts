@@ -1,4 +1,4 @@
-type Locale = 'en' | 'zh-CN';
+﻿type Locale = 'en' | 'zh-CN';
 
 const LOCALE_STORAGE_KEY = 'nodewarden.locale';
 
@@ -153,7 +153,7 @@ const messages: Record<Locale, Record<string, string>> = {
     txt_identity: "Identity",
     txt_identity_details: "Identity Details",
     txt_ie_browser: "IE Browser",
-    txt_invite_code_optional: "Invite Code (Optional)",
+    txt_invite_code_optional: "Invite Code (Not required for the first account; required for all others)",
     txt_invite_created: "Invite created",
     txt_invite_revoked: "Invite revoked",
     txt_invite_validity_hours: "Invite validity (hours)",
@@ -625,7 +625,7 @@ const zhCNOverrides: Record<string, string> = {
   txt_folder_created: '文件夹已创建',
   txt_folder_name_is_required: '文件夹名称不能为空',
   txt_ie_browser: 'IE 浏览器',
-  txt_invite_code_optional: '邀请码（可选）',
+  txt_invite_code_optional: '邀请码（首位注册者无需填写，其他人必填）',
   txt_invite_created: '邀请码已创建',
   txt_invite_revoked: '邀请码已撤销',
   txt_ios: 'iOS',
@@ -909,3 +909,4 @@ export function setLocale(next: Locale): void {
     // ignore storage errors
   }
 }
+

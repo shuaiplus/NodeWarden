@@ -4,9 +4,6 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -29,41 +26,9 @@ jobs:
         run: |
           git remote add upstream https://github.com/shuaiplus/NodeWarden.git || true
           git fetch upstream
-
           git checkout main
-          git reset --hard upstream/main
-          git push origin main --force
+          git merge upstream/main
 
-      - name: Rebuild kv from main
+      - name: Push synced main
         run: |
-          git fetch origin main kv || true
-          git checkout -B kv origin/main
-
-          python - <<'PY'
-          import re
-          from pathlib import Path
-
-          path = Path("wrangler.toml")
-          text = path.read_text(encoding="utf-8")
-
-          pattern = (
-              r"\[\[r2_buckets\]\]\s*"
-              r'binding\s*=\s*"ATTACHMENTS"\s*'
-              r'bucket_name\s*=\s*"nodewarden-attachments"\s*'
-          )
-          replacement = (
-              '[[kv_namespaces]]\n'
-              'binding = "ATTACHMENTS_KV"\n'
-              'id = "REPLACE_WITH_KV_NAMESPACE_ID"\n'
-          )
-
-          new_text, count = re.subn(pattern, replacement, text, count=1)
-          if count == 0:
-              raise SystemExit("Expected R2 block not found in wrangler.toml")
-
-          path.write_text(new_text, encoding="utf-8")
-          PY
-
-          git add wrangler.toml
-          git commit -m "chore(kv): sync from main" || echo "No changes"
-          git push origin kv --force
+          git push origin main

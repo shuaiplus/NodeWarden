@@ -51,33 +51,22 @@
 
 ---
 
-# Quick start
+## Web deploy
 
-### One-click deploy
+1. Fork this repository. If you find this project helpful, please consider giving it a Star.
+2. Open [Workers](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create) -> `Continue with GitHub` -> select your forked repository (`NodeWarden`) -> `Next` -> (R2 storage is used by default; if R2 is unavailable for your account, switch to KV and change the deploy command to `npm run deploy:kv`) -> deploy -> open the generated URL.
 
-**Deploy steps:**
-
-- **If you just want to try it quickly, you can simply click one of the deploy buttons in step 2.**
-
-1. Fork this repository, name it **NodeWarden**, and make sure **Copy the main branch only** is **unchecked**.
-2. Choose one deployment mode below, rename the project to **NodeWarden2**, and set **JWT_SECRET** to a random 32-character string.
-   - **R2**: requires a payment method; **single attachment/Send file limit is 100 MB** (project-level limit, editable in code); **10 GB free storage**.
-
-     [![Deploy (R2)](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/NodeWarden)
-
-   - **KV**: no card required; **single attachment/Send file limit is 25 MiB** (Cloudflare platform limit, not editable); **1 GB free storage**.
-
-     [![Deploy (KV)](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/shuaiplus/NodeWarden/tree/kv)
-3. After deployment, open the Worker settings on the same page and disconnect the **Git repository**.
-4. Reconnect the **Git repository** to the fork from step 1. This branch selection must match the button you used: **R2 uses `main`, KV uses `kv`**.
-5. The temporary **NodeWarden2** repository can be deleted.
+| Storage | Card required | Single attachment / Send file limit | Free tier |
+|---|---|---|---|
+| R2 | Yes | 100 MB (soft limit, can be changed) | 10 GB |
+| KV | No | 25 MiB (Cloudflare limit, cannot be changed) | 1 GB |
 
 > [!TIP] 
 > Sync upstream (keep your fork updated):
->- Manual: open your fork on GitHub and click **Sync fork** when prompted.
->- Automatic: in your fork, go to **Actions**, click **I understand my workflows, go ahead and enable them**. It will sync `main` from upstream, rebuild `kv` from `main`, and apply the KV `wrangler.toml` changes automatically every day at 3 AM.
+>- Manual: open your fork on GitHub, click `Sync fork`, then click `Update branch`.
+>- Automatic: in your fork, go to `Actions` -> `Sync upstream` -> `Enable workflow`. It will automatically sync from upstream every day at 3 AM.
 
-### CLI deploy 
+## CLI deploy 
 
 ```powershell
 # Clone repository
@@ -90,32 +79,20 @@ npm install
 # Cloudflare CLI login
 npx wrangler login
 
-# Create cloud resources (D1 + R2)
-npx wrangler d1 create nodewarden-db
-npx wrangler r2 bucket create nodewarden-attachments
-
-# Deploy
+# Deploy to Cloudflare
 npm run deploy 
 
 # (Optional) KV mode (no R2 / no credit card)
-npx wrangler kv namespace create ATTACHMENTS_KV
-# Put returned namespace id into wrangler.kv.toml -> [[kv_namespaces]].id
 npm run deploy:kv
 
-# To update later: re-clone and re-deploy — no need to recreate cloud resources
+# Local development
+npm run dev
+npm run dev:kv
+
+# To update later, pull the repository again and redeploy
 git clone https://github.com/shuaiplus/NodeWarden.git
 cd NodeWarden
 npm run deploy 
-```
-
----
-## Local development
-
-This repo is a Cloudflare Workers TypeScript project (Wrangler).
-
-```bash
-npm install
-npm run dev
 ```
 ---
 
