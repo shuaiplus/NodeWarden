@@ -87,6 +87,7 @@ async function handleWebsiteIcon(host: string): Promise<Response> {
   const upstream = `https://favicon.im/${encodeURIComponent(normalizedHost)}`;
   try {
     const resp = await fetch(upstream, {
+      headers: { 'User-Agent': 'NodeWarden/1.0' },
       redirect: 'follow',
       cf: {
         cacheEverything: true,
