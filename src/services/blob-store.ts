@@ -1,6 +1,4 @@
 import { Env } from '../types';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 
 const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 export const KV_MAX_OBJECT_BYTES = 25 * 1024 * 1024;
@@ -89,6 +87,8 @@ export async function putBlobObject(
   }
 
   if (hasLocalStorage(env)) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
     const fullPath = path.join(env.LOCAL_ATTACHMENTS_DIR, key);
     let buffer: Buffer;
     if (value instanceof ReadableStream) {
@@ -108,10 +108,10 @@ export async function putBlobObject(
     } else {
       throw new Error('Unsupported body type for local blob storage');
     }
-    
+
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, buffer);
-    
+
     const metaPath = fullPath + '.meta.json';
     const metadata: KVBlobMetadata = {
       size: options.size,
@@ -152,6 +152,8 @@ export async function getBlobObject(env: Env, key: string): Promise<BlobObject |
   }
 
   if (hasLocalStorage(env)) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
     const fullPath = path.join(env.LOCAL_ATTACHMENTS_DIR, key);
     const metaPath = fullPath + '.meta.json';
     try {
@@ -189,10 +191,12 @@ export async function deleteBlobObject(env: Env, key: string): Promise<void> {
     return;
   }
   if (hasLocalStorage(env)) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
     const fullPath = path.join(env.LOCAL_ATTACHMENTS_DIR, key);
     const metaPath = fullPath + '.meta.json';
-    try { await fs.unlink(fullPath); } catch {}
-    try { await fs.unlink(metaPath); } catch {}
+    try { await fs.unlink(fullPath); } catch { }
+    try { await fs.unlink(metaPath); } catch { }
     return;
   }
 }
