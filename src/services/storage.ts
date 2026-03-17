@@ -101,6 +101,8 @@ import {
 } from './storage-revision-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
+const STORAGE_SCHEMA_VERSION = '2026-03-18.1';
 
 // D1-backed storage.
 // Contract:
@@ -171,7 +173,13 @@ export class StorageService {
   // - Keep statements idempotent so updates are safe.
   async initializeDatabase(): Promise<void> {
     if (StorageService.schemaVerified) return;
-    await ensureStorageSchema(this.db);
+
+    await this.db.prepare('CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)').run();
+    const schemaVersion = await getStoredConfigValue(this.db, STORAGE_SCHEMA_VERSION_KEY);
+    if (schemaVersion !== STORAGE_SCHEMA_VERSION) {
+      await ensureStorageSchema(this.db);
+      await saveConfigValue(this.db, STORAGE_SCHEMA_VERSION_KEY, STORAGE_SCHEMA_VERSION);
+    }
 
     StorageService.schemaVerified = true;
   }

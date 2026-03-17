@@ -1,6 +1,5 @@
 import { DEFAULT_DEV_SECRET, Env } from './types';
 import { AuthService } from './services/auth';
-import { StorageService } from './services/storage';
 import { RateLimitService, getClientIdentifier } from './services/ratelimit';
 import { handleCors, errorResponse } from './utils/response';
 import { LIMITS } from './config/limits';
@@ -96,10 +95,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     const auth = new AuthService(env);
     const authHeader = request.headers.get('Authorization');
-    const payload = await auth.verifyAccessToken(authHeader);
-    if (!payload) {
+    const verified = await auth.verifyAccessTokenWithUser(authHeader);
+    if (!verified) {
       return errorResponse('Unauthorized', 401);
     }
+    const { payload, user: currentUser } = verified;
 
     const actingDeviceId = String(payload.did || '').trim();
     if (actingDeviceId) {
@@ -109,11 +109,6 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     const userId = payload.sub;
-    const storage = new StorageService(env.DB);
-    const currentUser = await storage.getUserById(userId);
-    if (!currentUser) {
-      return errorResponse('Unauthorized', 401);
-    }
     if (currentUser.status !== 'active') {
       return errorResponse('Account is disabled', 403);
     }

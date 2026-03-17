@@ -171,10 +171,23 @@ function normalizeTotpSecret(secret: string): string {
   return secret.toUpperCase().replace(/[\s-]/g, '').replace(/=+$/g, '');
 }
 
+function parseSteamSecret(raw: string): string {
+  const match = raw.trim().match(/^steam:\/\/([^/?#]+)(?:[/?#].*)?$/i);
+  if (!match?.[1]) return '';
+  try {
+    return normalizeTotpSecret(decodeURIComponent(match[1]));
+  } catch {
+    return normalizeTotpSecret(match[1]);
+  }
+}
+
 function parseTotpConfig(raw: string): { secret: string; steam: boolean } {
   if (!raw) return { secret: '', steam: false };
   const s = raw.trim();
   if (!s) return { secret: '', steam: false };
+  if (/^steam:\/\//i.test(s)) {
+    return { secret: parseSteamSecret(s), steam: true };
+  }
   if (/^otpauth:\/\//i.test(s)) {
     try {
       const u = new URL(s);

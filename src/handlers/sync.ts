@@ -11,11 +11,16 @@ import {
 } from '../utils/user-decryption';
 
 interface SyncCacheEntry {
+  userId: string;
+  revisionDate: string;
   body: string;
   expiresAt: number;
+  bytes: number;
 }
 
 const syncResponseCache = new Map<string, SyncCacheEntry>();
+let syncResponseCacheTotalBytes = 0;
+const textEncoder = new TextEncoder();
 
 function buildSyncCacheKey(userId: string, revisionDate: string, excludeDomains: boolean): string {
   return `${userId}:${revisionDate}:${excludeDomains ? '1' : '0'}`;
@@ -25,21 +30,67 @@ function readSyncCache(key: string): string | null {
   const hit = syncResponseCache.get(key);
   if (!hit) return null;
   if (hit.expiresAt <= Date.now()) {
-    syncResponseCache.delete(key);
+    deleteSyncCacheEntry(key, hit);
     return null;
   }
   return hit.body;
 }
 
-function writeSyncCache(key: string, body: string): void {
-  if (syncResponseCache.size >= LIMITS.cache.syncResponseMaxEntries) {
-    const oldestKey = syncResponseCache.keys().next().value as string | undefined;
-    if (oldestKey) syncResponseCache.delete(oldestKey);
+function deleteSyncCacheEntry(key: string, entry?: SyncCacheEntry): void {
+  const existing = entry ?? syncResponseCache.get(key);
+  if (!existing) return;
+  syncResponseCache.delete(key);
+  syncResponseCacheTotalBytes = Math.max(0, syncResponseCacheTotalBytes - existing.bytes);
+}
+
+function pruneExpiredSyncCache(nowMs: number = Date.now()): void {
+  for (const [key, entry] of syncResponseCache.entries()) {
+    if (entry.expiresAt <= nowMs) {
+      deleteSyncCacheEntry(key, entry);
+    }
   }
+}
+
+function pruneStaleUserSyncCache(userId: string, revisionDate: string): void {
+  for (const [key, entry] of syncResponseCache.entries()) {
+    if (entry.userId === userId && entry.revisionDate !== revisionDate) {
+      deleteSyncCacheEntry(key, entry);
+    }
+  }
+}
+
+function writeSyncCache(userId: string, revisionDate: string, key: string, body: string): void {
+  const nowMs = Date.now();
+  pruneExpiredSyncCache(nowMs);
+  pruneStaleUserSyncCache(userId, revisionDate);
+
+  const bodyBytes = textEncoder.encode(body).byteLength;
+  if (bodyBytes > LIMITS.cache.syncResponseMaxBodyBytes) {
+    return;
+  }
+
+  const existing = syncResponseCache.get(key);
+  if (existing) {
+    deleteSyncCacheEntry(key, existing);
+  }
+
+  while (
+    syncResponseCache.size >= LIMITS.cache.syncResponseMaxEntries ||
+    syncResponseCacheTotalBytes + bodyBytes > LIMITS.cache.syncResponseMaxTotalBytes
+  ) {
+    const oldestKey = syncResponseCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    deleteSyncCacheEntry(oldestKey);
+  }
+
   syncResponseCache.set(key, {
+    userId,
+    revisionDate,
     body,
-    expiresAt: Date.now() + LIMITS.cache.syncResponseTtlMs,
+    expiresAt: nowMs + LIMITS.cache.syncResponseTtlMs,
+    bytes: bodyBytes,
   });
+  syncResponseCacheTotalBytes += bodyBytes;
 }
 
 // GET /api/sync
@@ -137,7 +188,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   };
 
   const body = JSON.stringify(syncResponse);
-  writeSyncCache(cacheKey, body);
+  writeSyncCache(userId, revisionDate, cacheKey, body);
 
   return new Response(body, {
     status: 200,

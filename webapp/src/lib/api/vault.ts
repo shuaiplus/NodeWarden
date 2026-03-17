@@ -110,6 +110,8 @@ export interface ImportedCipherMapEntry {
   id: string;
 }
 
+const IMPORT_ITEM_LIMIT = 5000;
+
 export async function importCiphers(
   authedFetch: AuthedFetch,
   payload: CiphersImportPayload,
@@ -118,95 +120,36 @@ export async function importCiphers(
   const returnCipherMap = !!options?.returnCipherMap;
   const url = returnCipherMap ? '/api/ciphers/import?returnCipherMap=1' : '/api/ciphers/import';
   const totalItems = (payload.folders?.length || 0) + (payload.ciphers?.length || 0);
+  if (totalItems > IMPORT_ITEM_LIMIT) {
+    throw new Error(`Import exceeds maximum of ${IMPORT_ITEM_LIMIT} items`);
+  }
+  const resp = await authedFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Import failed'));
+  if (!returnCipherMap) return null;
+
+  const body =
+    (await parseJson<{
+      cipherMap?: Array<{ index?: number; sourceId?: string | null; id?: string }>;
+    }>(resp)) || {};
+  if (!Array.isArray(body.cipherMap)) return [];
+
   const responses: ImportedCipherMapEntry[] = [];
-  const folderChunkSize = Math.min(BULK_API_CHUNK_SIZE, Math.max(0, BULK_API_CHUNK_SIZE - 1));
-
-  if (totalItems <= BULK_API_CHUNK_SIZE || payload.folders.length > folderChunkSize) {
-    const resp = await authedFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+  for (const row of body.cipherMap) {
+    const index = Number(row?.index);
+    const id = String(row?.id || '').trim();
+    if (!Number.isFinite(index) || !id) continue;
+    const sourceRaw = String(row?.sourceId || '').trim();
+    responses.push({
+      index,
+      id,
+      sourceId: sourceRaw || null,
     });
-    if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Import failed'));
-    if (!returnCipherMap) return null;
-    const body =
-      (await parseJson<{
-        cipherMap?: Array<{ index?: number; sourceId?: string | null; id?: string }>;
-      }>(resp)) || {};
-    if (!Array.isArray(body.cipherMap)) return [];
-    for (const row of body.cipherMap) {
-      const index = Number(row?.index);
-      const id = String(row?.id || '').trim();
-      if (!Number.isFinite(index) || !id) continue;
-      const sourceRaw = String(row?.sourceId || '').trim();
-      responses.push({
-        index,
-        id,
-        sourceId: sourceRaw || null,
-      });
-    }
-    return responses;
   }
-
-  const folders = payload.folders || [];
-  const relationshipsByCipher = new Map<number, number | null>();
-  for (const relation of payload.folderRelationships || []) {
-    relationshipsByCipher.set(Number(relation.key), Number(relation.value));
-  }
-
-  for (const cipherChunkStart of Array.from({ length: Math.ceil(payload.ciphers.length / BULK_API_CHUNK_SIZE) }, (_, i) => i * BULK_API_CHUNK_SIZE)) {
-    const cipherChunk = payload.ciphers.slice(cipherChunkStart, cipherChunkStart + BULK_API_CHUNK_SIZE);
-    const usedFolderIndices = Array.from(
-      new Set(
-        cipherChunk
-          .map((_, localIndex) => relationshipsByCipher.get(cipherChunkStart + localIndex))
-          .filter((value): value is number => Number.isFinite(value as number) && (value as number) >= 0)
-      )
-    );
-    const folderIndexMap = new Map<number, number>();
-    const chunkFolders = usedFolderIndices.map((folderIndex, localIndex) => {
-      folderIndexMap.set(folderIndex, localIndex);
-      return folders[folderIndex];
-    });
-    const chunkRelationships = cipherChunk
-      .map((_, localIndex) => {
-        const originalCipherIndex = cipherChunkStart + localIndex;
-        const originalFolderIndex = relationshipsByCipher.get(originalCipherIndex);
-        if (!Number.isFinite(originalFolderIndex as number)) return null;
-        const localFolderIndex = folderIndexMap.get(Number(originalFolderIndex));
-        if (!Number.isFinite(localFolderIndex as number)) return null;
-        return { key: localIndex, value: Number(localFolderIndex) };
-      })
-      .filter((value): value is { key: number; value: number } => !!value);
-
-    const resp = await authedFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ciphers: cipherChunk,
-        folders: chunkFolders,
-        folderRelationships: chunkRelationships,
-      }),
-    });
-    if (!resp.ok) throw new Error(await parseErrorMessage(resp, 'Import failed'));
-    if (!returnCipherMap) continue;
-    const body =
-      (await parseJson<{
-        cipherMap?: Array<{ index?: number; sourceId?: string | null; id?: string }>;
-      }>(resp)) || {};
-    for (const row of body.cipherMap || []) {
-      const localIndex = Number(row?.index);
-      const id = String(row?.id || '').trim();
-      if (!Number.isFinite(localIndex) || !id) continue;
-      const sourceRaw = String(row?.sourceId || '').trim();
-      responses.push({
-        index: cipherChunkStart + localIndex,
-        id,
-        sourceId: sourceRaw || null,
-      });
-    }
-  }
-  return returnCipherMap ? responses : null;
+  return responses;
 }
 
 export interface AttachmentDownloadInfo {

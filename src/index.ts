@@ -3,7 +3,7 @@ import { NotificationsHub } from './durable/notifications-hub';
 import { handleRequest } from './router';
 import { StorageService } from './services/storage';
 import { applyCors, jsonResponse } from './utils/response';
-import { runScheduledBackupIfDue, seedDefaultBackupSettings } from './handlers/backup';
+import { runScheduledBackupIfDue } from './handlers/backup';
 import { buildWebBootstrapResponse } from './router-public';
 
 let dbInitialized = false;
@@ -59,7 +59,6 @@ async function ensureDatabaseInitialized(env: Env): Promise<void> {
     dbInitPromise = (async () => {
       const storage = new StorageService(env.DB);
       await storage.initializeDatabase();
-      await seedDefaultBackupSettings(env);
       dbInitialized = true;
       dbInitError = null;
     })()

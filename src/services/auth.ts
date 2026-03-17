@@ -7,6 +7,11 @@ import { StorageService } from './storage';
 // This second layer only needs to be non-trivial, not expensive.
 const SERVER_HASH_ITERATIONS = 100_000;
 
+export interface VerifiedAccessContext {
+  payload: JWTPayload;
+  user: User;
+}
+
 export class AuthService {
   private storage: StorageService;
 
@@ -81,8 +86,7 @@ export class AuthService {
     return token;
   }
 
-  // Verify access token from Authorization header
-  async verifyAccessToken(authHeader: string | null): Promise<JWTPayload | null> {
+  async verifyAccessTokenWithUser(authHeader: string | null): Promise<VerifiedAccessContext | null> {
     if (!authHeader) return null;
 
     const parts = authHeader.split(' ');
@@ -93,12 +97,11 @@ export class AuthService {
     const payload = await verifyJWT(parts[1], this.env.JWT_SECRET);
     if (!payload) return null;
 
-    // Verify security stamp - ensures token is invalidated after password change
     const user = await this.storage.getUserById(payload.sub);
     if (!user) return null;
-    
+
     if (payload.sstamp !== user.securityStamp) {
-      return null; // Token was issued before password change
+      return null;
     }
 
     if (payload.did) {
@@ -107,7 +110,13 @@ export class AuthService {
       if (!payload.dstamp || payload.dstamp !== device.sessionStamp) return null;
     }
 
-    return payload;
+    return { payload, user };
+  }
+
+  // Verify access token from Authorization header
+  async verifyAccessToken(authHeader: string | null): Promise<JWTPayload | null> {
+    const verified = await this.verifyAccessTokenWithUser(authHeader);
+    return verified?.payload ?? null;
   }
 
   // Refresh access token
