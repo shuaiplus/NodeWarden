@@ -235,7 +235,9 @@ export function maskSecret(value: string): string {
 }
 
 export function formatTotp(code: string): string {
-  if (!code || code.length < 6) return code;
+  if (!code) return code;
+  if (code.length === 5) return `${code.slice(0, 2)} ${code.slice(2)}`;
+  if (code.length < 6) return code;
   return `${code.slice(0, 3)} ${code.slice(3, 6)}`;
 }
 

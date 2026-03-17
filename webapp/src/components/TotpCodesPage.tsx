@@ -18,7 +18,9 @@ const TOTP_RING_CIRCUMFERENCE = 2 * Math.PI * TOTP_RING_RADIUS;
 const failedIconHosts = new Set<string>();
 
 function formatTotp(code: string): string {
-  if (!code || code.length < 6) return code;
+  if (!code) return code;
+  if (code.length === 5) return `${code.slice(0, 2)} ${code.slice(2)}`;
+  if (code.length < 6) return code;
   return `${code.slice(0, 3)} ${code.slice(3, 6)}`;
 }
 
