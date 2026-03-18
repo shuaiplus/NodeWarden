@@ -62,6 +62,11 @@ function normalizeRecoveryCodeInput(input: string): string {
   return String(input || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
 }
 
+function normalizeMasterPasswordHint(input: string | null | undefined): string | null {
+  const normalized = String(input || '').trim();
+  return normalized ? normalized : null;
+}
+
 function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | null {
   const secret = (env.JWT_SECRET || '').trim();
   if (!secret) return 'missing';
@@ -80,7 +85,7 @@ function toProfile(user: User, env: Env): ProfileResponse {
     premium: true,
     premiumFromOrganization: false,
     usesKeyConnector: false,
-    masterPasswordHint: null,
+    masterPasswordHint: user.masterPasswordHint,
     culture: 'en-US',
     twoFactorEnabled: !!user.totpSecret,
     key: user.key,
@@ -125,6 +130,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     kdfMemory?: number;
     kdfParallelism?: number;
     inviteCode?: string;
+    masterPasswordHint?: string;
     keys?: {
       publicKey?: string;
       encryptedPrivateKey?: string;
@@ -144,6 +150,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   const privateKey = body.keys?.encryptedPrivateKey;
   const publicKey = body.keys?.publicKey;
   const inviteCode = (body.inviteCode || '').trim();
+  const masterPasswordHint = normalizeMasterPasswordHint(body.masterPasswordHint);
 
   if (!email || !masterPasswordHash || !key) {
     return errorResponse('Email, masterPasswordHash, and key are required', 400);
@@ -160,6 +167,9 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   if (!looksLikeEncString(privateKey)) {
     return errorResponse('encryptedPrivateKey is not a valid encrypted string', 400);
   }
+  if (masterPasswordHint && masterPasswordHint.length > 120) {
+    return errorResponse('masterPasswordHint must be 120 characters or fewer', 400);
+  }
 
   const kdfErr = validateKdfParams(body.kdf, body.kdfIterations, body.kdfMemory, body.kdfParallelism);
   if (kdfErr) return errorResponse(kdfErr, 400);
@@ -172,6 +182,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     id: generateUUID(),
     email,
     name: name || email,
+    masterPasswordHint,
     masterPasswordHash: serverHash,
     key,
     privateKey,
@@ -242,12 +253,113 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   return jsonResponse({ success: true, role: user.role }, 200);
 }
 
+// POST /api/accounts/password-hint
+export async function handleGetPasswordHint(request: Request, env: Env): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const clientIdentifier = getClientIdentifier(request);
+  if (!clientIdentifier) {
+    return errorResponse('Client IP is required', 403);
+  }
+
+  let body: { email?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!email) {
+    return errorResponse('Email is required', 400);
+  }
+
+  const rateLimit = new RateLimitService(env.DB);
+  const minuteBudget = await rateLimit.consumeBudgetWithWindow(
+    `${clientIdentifier}:password-hint`,
+    LIMITS.rateLimit.passwordHintRequestsPerMinute,
+    60
+  );
+  if (!minuteBudget.allowed) {
+    return new Response(
+      JSON.stringify({
+        error: 'Too many requests',
+        error_description: `Rate limit exceeded. Try again in ${minuteBudget.retryAfterSeconds || 60} seconds.`,
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(minuteBudget.retryAfterSeconds || 60),
+          'X-RateLimit-Remaining': '0',
+        },
+      }
+    );
+  }
+
+  const hourlyBudget = await rateLimit.consumeBudgetWithWindow(
+    `${clientIdentifier}:password-hint-hour`,
+    LIMITS.rateLimit.passwordHintRequestsPerHour,
+    60 * 60
+  );
+  if (!hourlyBudget.allowed) {
+    return new Response(
+      JSON.stringify({
+        error: 'Too many requests',
+        error_description: `Rate limit exceeded. Try again in ${hourlyBudget.retryAfterSeconds || 3600} seconds.`,
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(hourlyBudget.retryAfterSeconds || 3600),
+          'X-RateLimit-Remaining': '0',
+        },
+      }
+    );
+  }
+
+  const user = await storage.getUser(email);
+  const hint = user?.status === 'active' ? normalizeMasterPasswordHint(user.masterPasswordHint) : null;
+  return jsonResponse({
+    object: 'passwordHint',
+    hasHint: !!hint,
+    masterPasswordHint: hint,
+  });
+}
+
 // GET /api/accounts/profile
 export async function handleGetProfile(request: Request, env: Env, userId: string): Promise<Response> {
   void request;
   const storage = new StorageService(env.DB);
   const user = await storage.getUserById(userId);
   if (!user) return errorResponse('User not found', 404);
+  return jsonResponse(toProfile(user, env));
+}
+
+// PUT /api/accounts/profile
+export async function handleUpdateProfile(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: {
+    masterPasswordHint?: string | null;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const masterPasswordHint = normalizeMasterPasswordHint(body.masterPasswordHint);
+  if (masterPasswordHint && masterPasswordHint.length > 120) {
+    return errorResponse('masterPasswordHint must be 120 characters or fewer', 400);
+  }
+
+  user.masterPasswordHint = masterPasswordHint;
+  user.updatedAt = new Date().toISOString();
+  await storage.saveUser(user);
+
   return jsonResponse(toProfile(user, env));
 }
 

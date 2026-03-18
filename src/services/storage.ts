@@ -102,7 +102,7 @@ import {
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
-const STORAGE_SCHEMA_VERSION = '2026-03-18.1';
+const STORAGE_SCHEMA_VERSION = '2026-03-19.1';
 
 // D1-backed storage.
 // Contract:

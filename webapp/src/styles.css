@@ -402,6 +402,41 @@ input[type='file'].input::file-selector-button:hover {
   color: #334155;
 }
 
+.field-help {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #667085;
+}
+
+.auth-support-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -2px 0 12px;
+}
+
+.auth-link-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-link-btn:hover {
+  text-decoration: underline;
+}
+
+.auth-link-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .app-page {
   min-height: 100%;
   padding: 20px;
@@ -2415,6 +2450,11 @@ input[type='file'].input::file-selector-button:hover {
   .btn.full {
     height: 48px;
     font-size: 18px;
+  }
+
+  .auth-support-row {
+    align-items: center;
+    flex-direction: row;
   }
 
   .app-page {

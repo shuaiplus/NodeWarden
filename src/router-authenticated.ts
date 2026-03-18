@@ -2,6 +2,7 @@ import type { Env, User } from './types';
 import { errorResponse, jsonResponse } from './utils/response';
 import {
   handleGetProfile,
+  handleUpdateProfile,
   handleSetKeys,
   handleGetRevisionDate,
   handleVerifyPassword,
@@ -79,6 +80,7 @@ export async function handleAuthenticatedRoute(
 
   if (path === '/api/accounts/profile') {
     if (method === 'GET') return handleGetProfile(request, env, userId);
+    if (method === 'PUT') return handleUpdateProfile(request, env, userId);
     return errorResponse('Method not allowed', 405);
   }
 

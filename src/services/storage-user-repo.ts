@@ -7,6 +7,7 @@ function mapUserRow(row: any): User {
     id: row.id,
     email: row.email,
     name: row.name,
+    masterPasswordHint: row.master_password_hint ?? null,
     masterPasswordHash: row.master_password_hash,
     key: row.key,
     privateKey: row.private_key,
@@ -28,7 +29,7 @@ function mapUserRow(row: any): User {
 export async function getUser(db: D1Database, email: string): Promise<User | null> {
   const row = await db
     .prepare(
-      'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users WHERE email = ?'
+      'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users WHERE email = ?'
     )
     .bind(email.toLowerCase())
     .first<any>();
@@ -39,7 +40,7 @@ export async function getUser(db: D1Database, email: string): Promise<User | nul
 export async function getUserById(db: D1Database, id: string): Promise<User | null> {
   const row = await db
     .prepare(
-      'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users WHERE id = ?'
+      'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users WHERE id = ?'
     )
     .bind(id)
     .first<any>();
@@ -55,7 +56,7 @@ export async function getUserCount(db: D1Database): Promise<number> {
 export async function getAllUsers(db: D1Database): Promise<User[]> {
   const res = await db
     .prepare(
-      'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'
+      'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'
     )
     .all<any>();
   return (res.results || []).map((row) => mapUserRow(row));
@@ -64,10 +65,10 @@ export async function getAllUsers(db: D1Database): Promise<User[]> {
 export async function saveUser(db: D1Database, safeBind: SafeBind, user: User): Promise<void> {
   const email = user.email.toLowerCase();
   const stmt = db.prepare(
-    'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at) ' +
-    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+    'INSERT INTO users(id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at) ' +
+    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
     'ON CONFLICT(id) DO UPDATE SET ' +
-    'email=excluded.email, name=excluded.name, master_password_hash=excluded.master_password_hash, key=excluded.key, private_key=excluded.private_key, public_key=excluded.public_key, ' +
+    'email=excluded.email, name=excluded.name, master_password_hint=excluded.master_password_hint, master_password_hash=excluded.master_password_hash, key=excluded.key, private_key=excluded.private_key, public_key=excluded.public_key, ' +
     'kdf_type=excluded.kdf_type, kdf_iterations=excluded.kdf_iterations, kdf_memory=excluded.kdf_memory, kdf_parallelism=excluded.kdf_parallelism, security_stamp=excluded.security_stamp, role=excluded.role, status=excluded.status, totp_secret=excluded.totp_secret, totp_recovery_code=excluded.totp_recovery_code, updated_at=excluded.updated_at'
   );
   await safeBind(
@@ -75,6 +76,7 @@ export async function saveUser(db: D1Database, safeBind: SafeBind, user: User): 
     user.id,
     email,
     user.name,
+    user.masterPasswordHint,
     user.masterPasswordHash,
     user.key,
     user.privateKey,
@@ -100,8 +102,8 @@ export async function createUser(db: D1Database, safeBind: SafeBind, user: User)
 export async function createFirstUser(db: D1Database, safeBind: SafeBind, user: User): Promise<boolean> {
   const email = user.email.toLowerCase();
   const stmt = db.prepare(
-    'INSERT INTO users(id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at) ' +
-    'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
+    'INSERT INTO users(id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at) ' +
+    'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ' +
     'WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)'
   );
   const result = await safeBind(
@@ -109,6 +111,7 @@ export async function createFirstUser(db: D1Database, safeBind: SafeBind, user: 
     user.id,
     email,
     user.name,
+    user.masterPasswordHint,
     user.masterPasswordHash,
     user.key,
     user.privateKey,

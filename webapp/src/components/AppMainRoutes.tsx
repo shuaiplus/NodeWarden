@@ -77,6 +77,7 @@ export interface AppMainRoutesProps {
   uploadingSendFileName: string;
   sendUploadPercent: number | null;
   onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
+  onSavePasswordHint: (masterPasswordHint: string) => Promise<void>;
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
   onGetRecoveryCode: (masterPassword: string) => Promise<string>;
@@ -198,6 +199,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 profile={props.profile}
                 totpEnabled={props.totpEnabled}
                 onChangePassword={props.onChangePassword}
+                onSavePasswordHint={props.onSavePasswordHint}
                 onEnableTotp={props.onEnableTotp}
                 onOpenDisableTotp={props.onOpenDisableTotp}
                 onGetRecoveryCode={props.onGetRecoveryCode}

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   name TEXT,
+  master_password_hint TEXT,
   master_password_hash TEXT NOT NULL,
   key TEXT NOT NULL,
   private_key TEXT,

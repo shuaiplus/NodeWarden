@@ -13,6 +13,7 @@ export interface Profile {
   email: string;
   name: string;
   key: string;
+  masterPasswordHint?: string | null;
   privateKey?: string | null;
   publicKey?: string | null;
   role: 'admin' | 'user';

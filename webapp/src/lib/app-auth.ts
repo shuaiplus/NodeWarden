@@ -92,6 +92,35 @@ function readWindowBootstrap(): WebBootstrapResponse {
   return raw && typeof raw === 'object' ? raw : {};
 }
 
+function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'jwtWarning'> {
+  const defaultKdfIterations = Number(boot.defaultKdfIterations || 600000);
+  const jwtUnsafeReason = boot.jwtUnsafeReason || null;
+  const jwtWarning = jwtUnsafeReason
+    ? {
+        reason: jwtUnsafeReason,
+        minLength: Number(boot.jwtSecretMinLength || 32),
+      }
+    : null;
+
+  return {
+    defaultKdfIterations,
+    jwtWarning,
+  };
+}
+
+async function fetchBootstrapConfig(): Promise<WebBootstrapResponse> {
+  try {
+    const resp = await fetch('/api/web-bootstrap', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!resp.ok) return {};
+    return ((await resp.json()) as WebBootstrapResponse) || {};
+  } catch {
+    return {};
+  }
+}
+
 interface AccessTokenClaims {
   sub?: string;
   email?: string;
@@ -129,15 +158,7 @@ function buildTransientProfile(token: TokenSuccess, email: string): Profile {
 }
 
 export function readInitialAppBootstrapState(): InitialAppBootstrapState {
-  const boot = readWindowBootstrap();
-  const defaultKdfIterations = Number(boot.defaultKdfIterations || 600000);
-  const jwtUnsafeReason = boot.jwtUnsafeReason || null;
-  const jwtWarning = jwtUnsafeReason
-    ? {
-        reason: jwtUnsafeReason,
-        minLength: Number(boot.jwtSecretMinLength || 32),
-      }
-    : null;
+  const { defaultKdfIterations, jwtWarning } = normalizeBootstrapResponse(readWindowBootstrap());
   const session = loadSession();
   const hasInviteCode = !!readInviteCodeFromUrl();
 
@@ -149,10 +170,11 @@ export function readInitialAppBootstrapState(): InitialAppBootstrapState {
   };
 }
 
-export async function bootstrapAppSession(): Promise<BootstrapAppResult> {
-  const initial = readInitialAppBootstrapState();
-  const defaultKdfIterations = initial.defaultKdfIterations;
-  const jwtWarning = initial.jwtWarning;
+export async function bootstrapAppSession(initial: InitialAppBootstrapState = readInitialAppBootstrapState()): Promise<BootstrapAppResult> {
+  const remoteBoot = await fetchBootstrapConfig();
+  const normalizedBoot = normalizeBootstrapResponse(remoteBoot);
+  const defaultKdfIterations = normalizedBoot.defaultKdfIterations || initial.defaultKdfIterations;
+  const jwtWarning = normalizedBoot.jwtWarning ?? initial.jwtWarning;
 
   if (jwtWarning) {
     return {
@@ -309,6 +331,7 @@ export async function performRegistration(args: {
   email: string;
   name: string;
   password: string;
+  masterPasswordHint: string;
   inviteCode: string;
   fallbackIterations: number;
 }) {
@@ -316,6 +339,7 @@ export async function performRegistration(args: {
     email: args.email.trim().toLowerCase(),
     name: args.name.trim(),
     password: args.password,
+    masterPasswordHint: args.masterPasswordHint.trim(),
     inviteCode: args.inviteCode.trim(),
     fallbackIterations: args.fallbackIterations,
   });

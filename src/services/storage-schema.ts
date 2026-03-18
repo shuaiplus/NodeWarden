@@ -3,10 +3,11 @@
 // Any new table/column/index must be added to both places together.
 const SCHEMA_STATEMENTS: readonly string[] = [
   'CREATE TABLE IF NOT EXISTS users (' +
-  'id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, master_password_hash TEXT NOT NULL, ' +
+  'id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT, master_password_hint TEXT, master_password_hash TEXT NOT NULL, ' +
   'key TEXT NOT NULL, private_key TEXT, public_key TEXT, kdf_type INTEGER NOT NULL, ' +
   'kdf_iterations INTEGER NOT NULL, kdf_memory INTEGER, kdf_parallelism INTEGER, ' +
   'security_stamp TEXT NOT NULL, role TEXT NOT NULL DEFAULT \'user\', status TEXT NOT NULL DEFAULT \'active\', totp_secret TEXT, totp_recovery_code TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)',
+  'ALTER TABLE users ADD COLUMN master_password_hint TEXT',
   'ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT \'user\'',
   'ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT \'active\'',
   'ALTER TABLE users ADD COLUMN totp_secret TEXT',

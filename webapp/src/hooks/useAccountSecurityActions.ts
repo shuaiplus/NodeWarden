@@ -9,6 +9,7 @@ import {
   revokeAuthorizedDeviceTrust,
   revokeAllAuthorizedDeviceTrust,
   setTotp,
+  updateProfile,
 } from '@/lib/api/auth';
 import { t } from '@/lib/i18n';
 import type { AppConfirmState } from '@/components/AppGlobalOverlays';
@@ -25,6 +26,7 @@ interface UseAccountSecurityActionsOptions {
   clearDisableTotpDialog: () => void;
   onLogoutNow: () => void;
   onNotify: Notify;
+  onProfileUpdated: (profile: Profile) => void;
   onSetConfirm: (next: AppConfirmState | null) => void;
   refetchTotpStatus: () => Promise<unknown>;
   refetchAuthorizedDevices: () => Promise<unknown>;
@@ -39,6 +41,7 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
     clearDisableTotpDialog,
     onLogoutNow,
     onNotify,
+    onProfileUpdated,
     onSetConfirm,
     refetchTotpStatus,
     refetchAuthorizedDevices,
@@ -83,6 +86,22 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
             })();
           },
         });
+      },
+
+      async savePasswordHint(masterPasswordHint: string) {
+        if (!profile) return;
+        const normalized = String(masterPasswordHint || '').trim();
+        if (normalized.length > 120) {
+          onNotify('error', t('txt_password_hint_too_long'));
+          return;
+        }
+        try {
+          const nextProfile = await updateProfile(authedFetch, { masterPasswordHint: normalized });
+          onProfileUpdated(nextProfile);
+          onNotify('success', t('txt_profile_updated'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_save_profile_failed'));
+        }
       },
 
       async enableTotp(secret: string, token: string) {
@@ -208,6 +227,7 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
       disableTotpPassword,
       onLogoutNow,
       onNotify,
+      onProfileUpdated,
       onSetConfirm,
       profile,
       refetchAuthorizedDevices,

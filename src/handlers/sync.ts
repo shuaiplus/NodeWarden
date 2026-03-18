@@ -135,7 +135,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     premium: true,
     premiumFromOrganization: false,
     usesKeyConnector: false,
-    masterPasswordHint: null,
+    masterPasswordHint: user.masterPasswordHint,
     culture: 'en-US',
     twoFactorEnabled: !!user.totpSecret,
     key: user.key,
