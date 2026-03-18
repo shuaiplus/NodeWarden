@@ -92,28 +92,48 @@ async function handleWebsiteIcon(host: string): Promise<Response> {
   const normalizedHost = normalizeIconHost(host);
   if (!normalizedHost) return handleNwFavicon();
 
-  const upstream = `https://favicon.im/${encodeURIComponent(normalizedHost)}`;
+  const encodedHost = encodeURIComponent(normalizedHost);
+  const requestHeaders = { 'User-Agent': 'NodeWarden/1.0' };
+  const upstreamSources: Array<{ url: string; headers?: HeadersInit }> = [
+    {
+      url: `https://icons.bitwarden.net/${encodedHost}/icon.png`,
+      headers: requestHeaders,
+    },
+    {
+      url: `https://favicon.im/${encodedHost}`,
+      headers: requestHeaders,
+    },
+    {
+      url: `https://icons.duckduckgo.com/ip3/${encodedHost}.ico`,
+      headers: requestHeaders,
+    },
+  ];
+
   try {
-    const resp = await fetch(upstream, {
-      headers: { 'User-Agent': 'NodeWarden/1.0' },
-      redirect: 'follow',
-      cf: {
-        cacheEverything: true,
-        cacheTtl: LIMITS.cache.iconTtlSeconds,
-      },
-    } as RequestInit & { cf: { cacheEverything: boolean; cacheTtl: number } });
+    for (const source of upstreamSources) {
+      const resp = await fetch(source.url, {
+        headers: source.headers,
+        redirect: 'follow',
+        cf: {
+          cacheEverything: true,
+          cacheTtl: LIMITS.cache.iconTtlSeconds,
+        },
+      } as RequestInit & { cf: { cacheEverything: boolean; cacheTtl: number } });
 
-    if (!resp.ok) return handleNwFavicon();
-    const contentType = String(resp.headers.get('Content-Type') || '').toLowerCase();
-    if (!contentType.startsWith('image/')) return handleNwFavicon();
+      if (!resp.ok) continue;
+      const contentType = String(resp.headers.get('Content-Type') || '').toLowerCase();
+      if (!contentType.startsWith('image/')) continue;
 
-    return new Response(resp.body, {
-      status: 200,
-      headers: {
-        'Content-Type': resp.headers.get('Content-Type') || 'image/png',
-        'Cache-Control': `public, max-age=${LIMITS.cache.iconTtlSeconds}`,
-      },
-    });
+      return new Response(resp.body, {
+        status: 200,
+        headers: {
+          'Content-Type': resp.headers.get('Content-Type') || 'image/png',
+          'Cache-Control': `public, max-age=${LIMITS.cache.iconTtlSeconds}`,
+        },
+      });
+    }
+
+    return handleNwFavicon();
   } catch {
     return handleNwFavicon();
   }
