@@ -12,6 +12,8 @@ interface SendsPageProps {
   onUpdate: (send: Send, draft: SendDraft, autoCopyLink: boolean) => Promise<void>;
   onDelete: (send: Send) => Promise<void>;
   onBulkDelete: (ids: string[]) => Promise<void>;
+  uploadingSendFileName: string;
+  sendUploadPercent: number | null;
   onNotify: (type: 'success' | 'error', text: string) => void;
 }
 
@@ -79,6 +81,13 @@ export default function SendsPage(props: SendsPageProps) {
       return false;
     }
   });
+  const sendUploadLabel =
+    props.sendUploadPercent == null
+      ? t('txt_uploading_file_named', { name: props.uploadingSendFileName || t('txt_file') })
+      : t('txt_uploading_file_named_percent', {
+          name: props.uploadingSendFileName || t('txt_file'),
+          percent: props.sendUploadPercent,
+        });
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -370,6 +379,7 @@ export default function SendsPage(props: SendsPageProps) {
         {isEditing && draft && (
           <div className="card">
             <h3 className="detail-title">{isCreating ? t('txt_new_send') : t('txt_edit_send')}</h3>
+            {!!props.uploadingSendFileName && <div className="detail-sub">{sendUploadLabel}</div>}
             <div className="field-grid">
               <label className="field field-span-2">
                 <span>{t('txt_name')}</span>

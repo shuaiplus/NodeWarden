@@ -165,7 +165,7 @@ export async function handleAuthenticatedRoute(
     const attachmentMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)$/i);
     if (attachmentMatch) {
       const attachmentId = attachmentMatch[1];
-      if (method === 'POST') return handleUploadAttachment(request, env, userId, cipherId, attachmentId);
+      if (method === 'POST' || method === 'PUT') return handleUploadAttachment(request, env, userId, cipherId, attachmentId);
       if (method === 'GET') return handleGetAttachment(request, env, userId, cipherId, attachmentId);
       if (method === 'DELETE') return handleDeleteAttachment(request, env, userId, cipherId, attachmentId);
     }

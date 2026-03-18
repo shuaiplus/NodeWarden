@@ -14,10 +14,12 @@ import {
   handleRecoverTwoFactor,
 } from './handlers/accounts';
 import { handlePublicDownloadAttachment } from './handlers/attachments';
+import { handlePublicUploadAttachment } from './handlers/attachments';
 import {
   handleNotificationsHub,
   handleNotificationsNegotiate,
 } from './handlers/notifications';
+import { handlePublicUploadSendFile } from './handlers/sends';
 import { jsonResponse } from './utils/response';
 import type { Env } from './types';
 
@@ -160,6 +162,16 @@ export async function handlePublicRoute(
   const publicAttachmentMatch = path.match(/^\/api\/attachments\/([a-f0-9-]+)\/([a-f0-9-]+)$/i);
   if (publicAttachmentMatch && method === 'GET') {
     return handlePublicDownloadAttachment(request, env, publicAttachmentMatch[1], publicAttachmentMatch[2]);
+  }
+
+  const publicAttachmentUploadMatch = path.match(/^\/api\/ciphers\/([a-f0-9-]+)\/attachment\/([a-f0-9-]+)$/i);
+  if (publicAttachmentUploadMatch && (method === 'POST' || method === 'PUT') && new URL(request.url).searchParams.has('token')) {
+    return handlePublicUploadAttachment(request, env, publicAttachmentUploadMatch[1], publicAttachmentUploadMatch[2]);
+  }
+
+  const publicSendUploadMatch = path.match(/^\/api\/sends\/([^/]+)\/file\/([^/]+)\/?$/i);
+  if (publicSendUploadMatch && (method === 'POST' || method === 'PUT') && new URL(request.url).searchParams.has('token')) {
+    return handlePublicUploadSendFile(request, env, publicSendUploadMatch[1], publicSendUploadMatch[2]);
   }
 
   const sendAccessMatch = path.match(/^\/api\/sends\/access\/([^/]+)$/i);

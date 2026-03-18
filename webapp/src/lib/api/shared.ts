@@ -58,3 +58,99 @@ export function createApiError(message: string, status?: number): Error & { stat
 export function requiredError(messageKey: string): never {
   throw new Error(t(messageKey));
 }
+
+interface UploadWithProgressOptions {
+  accessToken?: string;
+  method?: string;
+  headers?: HeadersInit;
+  body?: Document | XMLHttpRequestBodyInit | null;
+  onProgress?: (percent: number | null) => void;
+}
+
+interface DirectEncryptedUploadOptions {
+  accessToken: string;
+  uploadUrl: string;
+  payload: ArrayBuffer | Uint8Array;
+  fileUploadType: number | null | undefined;
+  unsupportedMessage: string;
+  onProgress?: (percent: number | null) => void;
+}
+
+function toAbsoluteUrl(input: string): string {
+  if (typeof window === 'undefined') return input;
+  return new URL(input, window.location.origin).toString();
+}
+
+function parseXhrHeaders(raw: string): Headers {
+  const headers = new Headers();
+  for (const line of raw.split(/\r?\n/)) {
+    const index = line.indexOf(':');
+    if (index <= 0) continue;
+    const name = line.slice(0, index).trim();
+    const value = line.slice(index + 1).trim();
+    if (name) headers.append(name, value);
+  }
+  return headers;
+}
+
+export async function uploadWithProgress(input: string, options: UploadWithProgressOptions = {}): Promise<Response> {
+  if (typeof XMLHttpRequest === 'undefined') {
+    const headers = new Headers(options.headers || {});
+    if (options.accessToken) headers.set('Authorization', `Bearer ${options.accessToken}`);
+    return fetch(input, {
+      method: options.method || 'POST',
+      headers,
+      body: options.body ?? null,
+    });
+  }
+
+  return new Promise<Response>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method || 'POST', toAbsoluteUrl(input), true);
+
+    const headers = new Headers(options.headers || {});
+    if (options.accessToken) headers.set('Authorization', `Bearer ${options.accessToken}`);
+    headers.forEach((value, key) => xhr.setRequestHeader(key, value));
+
+    xhr.upload.onprogress = (event) => {
+      if (!options.onProgress) return;
+      if (!event.lengthComputable || event.total <= 0) {
+        options.onProgress(null);
+        return;
+      }
+      options.onProgress(Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100))));
+    };
+
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.onabort = () => reject(new Error('Upload aborted'));
+    xhr.onload = () => {
+      options.onProgress?.(100);
+      resolve(
+        new Response(xhr.responseText || null, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: parseXhrHeaders(xhr.getAllResponseHeaders()),
+        })
+      );
+    };
+
+    xhr.send(options.body ?? null);
+  });
+}
+
+export async function uploadDirectEncryptedPayload(options: DirectEncryptedUploadOptions): Promise<Response> {
+  if (options.fileUploadType !== 1) {
+    throw new Error(options.unsupportedMessage);
+  }
+
+  return uploadWithProgress(options.uploadUrl, {
+    accessToken: options.accessToken,
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'x-ms-blob-type': 'BlockBlob',
+    },
+    body: options.payload,
+    onProgress: options.onProgress,
+  });
+}

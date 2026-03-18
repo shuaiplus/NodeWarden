@@ -1,6 +1,7 @@
 import { Env, Send, SendAuthType, SendType } from '../types';
 import { StorageService } from '../services/storage';
 import { jsonResponse, errorResponse } from '../utils/response';
+import { buildDirectUploadUrl, getSafeJwtSecret, parseDirectUploadPayload } from '../utils/direct-upload';
 import { generateUUID } from '../utils/uuid';
 import { parsePagination, encodeContinuationToken } from '../utils/pagination';
 import { LIMITS } from '../config/limits';
@@ -10,6 +11,7 @@ import {
   putBlobObject,
   deleteBlobObject,
 } from '../services/blob-store';
+import { createSendFileUploadToken, verifySendFileUploadToken } from '../utils/jwt';
 import {
   formatSize,
   getAliasedProp,
@@ -27,6 +29,57 @@ import {
   setSendPassword,
   validateDeletionDate,
 } from './sends-shared';
+
+async function processSendFileUpload(
+  request: Request,
+  env: Env,
+  send: Send,
+  fileId: string
+): Promise<Response> {
+  const maxFileSize = getBlobStorageMaxBytes(env, LIMITS.send.maxFileSizeBytes);
+  const sendData = parseStoredSendData(send);
+  const expectedFileId = typeof sendData.id === 'string' ? sendData.id : null;
+  if (!expectedFileId || expectedFileId !== fileId) {
+    return errorResponse('Send file does not match send data.', 400);
+  }
+
+  const expectedFileName = typeof sendData.fileName === 'string' ? sendData.fileName : null;
+  const expectedSize = parseInteger(sendData.size);
+  const upload = await parseDirectUploadPayload(request, {
+    expectedSize,
+    expectedFileName,
+    maxFileSize,
+    tooLargeMessage: 'Send storage limit exceeded with this file',
+    sizeMismatchMessage: 'Send file size does not match.',
+    fileNameMismatchMessage: 'Send file name does not match.',
+  });
+  if (upload instanceof Response) {
+    return upload;
+  }
+
+  try {
+    await putBlobObject(env, getSendFileObjectKey(send.id, fileId), upload.body, {
+      size: upload.size,
+      contentType: upload.contentType,
+      customMetadata: {
+        sendId: send.id,
+        fileId,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('KV object too large')) {
+      return errorResponse('Send storage limit exceeded with this file', 413);
+    }
+    return errorResponse('Attachment storage is not configured', 500);
+  }
+
+  const storage = new StorageService(env.DB);
+  const revisionDate = await storage.updateRevisionDate(send.userId);
+  await notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
+
+  return new Response(null, { status: 201 });
+}
 
 export async function handleGetSends(request: Request, env: Env, userId: string): Promise<Response> {
   const storage = new StorageService(env.DB);
@@ -296,11 +349,16 @@ export async function handleCreateFileSendV2(request: Request, env: Env, userId:
   await storage.saveSend(send);
   const revisionDate = await storage.updateRevisionDate(userId);
   await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  const jwtSecret = getSafeJwtSecret(env);
+  if (!jwtSecret) {
+    return errorResponse('Server configuration error', 500);
+  }
+  const uploadToken = await createSendFileUploadToken(userId, send.id, fileId, jwtSecret);
 
   return jsonResponse({
-    fileUploadType: 0,
+    fileUploadType: 1,
     object: 'send-fileUpload',
-    url: `/api/sends/${send.id}/file/${fileId}`,
+    url: buildDirectUploadUrl(request, `/api/sends/${send.id}/file/${fileId}`, uploadToken),
     sendResponse: sendToResponse(send),
   });
 }
@@ -327,11 +385,16 @@ export async function handleGetSendFileUpload(
   if (!expectedFileId || expectedFileId !== fileId) {
     return errorResponse('Send file does not match send data.', 400);
   }
+  const jwtSecret = getSafeJwtSecret(env);
+  if (!jwtSecret) {
+    return errorResponse('Server configuration error', 500);
+  }
+  const uploadToken = await createSendFileUploadToken(userId, send.id, fileId, jwtSecret);
 
   return jsonResponse({
-    fileUploadType: 0,
+    fileUploadType: 1,
     object: 'send-fileUpload',
-    url: `/api/sends/${send.id}/file/${fileId}`,
+    url: buildDirectUploadUrl(request, `/api/sends/${send.id}/file/${fileId}`, uploadToken),
     sendResponse: sendToResponse(send),
   });
 }
@@ -344,7 +407,6 @@ export async function handleUploadSendFile(
   fileId: string
 ): Promise<Response> {
   const storage = new StorageService(env.DB);
-  const maxFileSize = getBlobStorageMaxBytes(env, LIMITS.send.maxFileSizeBytes);
   const send = await storage.getSend(sendId);
   if (!send || send.userId !== userId) {
     return errorResponse('Send not found. Unable to save the file.', 404);
@@ -353,58 +415,43 @@ export async function handleUploadSendFile(
     return errorResponse('Send is not a file type send.', 400);
   }
 
-  const sendData = parseStoredSendData(send);
-  const expectedFileId = typeof sendData.id === 'string' ? sendData.id : null;
-  if (!expectedFileId || expectedFileId !== fileId) {
-    return errorResponse('Send file does not match send data.', 400);
+  return processSendFileUpload(request, env, send, fileId);
+}
+
+export async function handlePublicUploadSendFile(
+  request: Request,
+  env: Env,
+  sendId: string,
+  fileId: string
+): Promise<Response> {
+  const jwtSecret = getSafeJwtSecret(env);
+  if (!jwtSecret) {
+    return errorResponse('Server configuration error', 500);
   }
 
-  const contentType = request.headers.get('content-type') || '';
-  if (!contentType.includes('multipart/form-data')) {
-    return errorResponse('Content-Type must be multipart/form-data', 400);
+  const token = new URL(request.url).searchParams.get('token');
+  if (!token) {
+    return errorResponse('Token required', 401);
   }
 
-  const formData = await request.formData();
-  const file = formData.get('data') as File | null;
-  if (!file) {
-    return errorResponse('No file uploaded', 400);
+  const claims = await verifySendFileUploadToken(token, jwtSecret);
+  if (!claims) {
+    return errorResponse('Invalid or expired token', 401);
+  }
+  if (claims.sendId !== sendId || claims.fileId !== fileId) {
+    return errorResponse('Token mismatch', 401);
   }
 
-  if (file.size > maxFileSize) {
-    return errorResponse('Send storage limit exceeded with this file', 413);
+  const storage = new StorageService(env.DB);
+  const send = await storage.getSend(sendId);
+  if (!send || send.userId !== claims.userId) {
+    return errorResponse('Send not found. Unable to save the file.', 404);
+  }
+  if (send.type !== SendType.File) {
+    return errorResponse('Send is not a file type send.', 400);
   }
 
-  const expectedFileName = typeof sendData.fileName === 'string' ? sendData.fileName : null;
-  if (expectedFileName && file.name !== expectedFileName) {
-    return errorResponse('Send file name does not match.', 400);
-  }
-
-  const expectedSize = parseInteger(sendData.size);
-  if (expectedSize !== null && file.size !== expectedSize) {
-    return errorResponse('Send file size does not match.', 400);
-  }
-
-  try {
-    await putBlobObject(env, getSendFileObjectKey(sendId, fileId), file.stream(), {
-      size: file.size,
-      contentType: 'application/octet-stream',
-      customMetadata: {
-        sendId,
-        fileId,
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('KV object too large')) {
-      return errorResponse('Send storage limit exceeded with this file', 413);
-    }
-    return errorResponse('Attachment storage is not configured', 500);
-  }
-
-  const revisionDate = await storage.updateRevisionDate(userId);
-  await notifyVaultSyncForRequest(request, env, userId, revisionDate);
-
-  return new Response(null, { status: 200 });
+  return processSendFileUpload(request, env, send, fileId);
 }
 
 export async function handleUpdateSend(request: Request, env: Env, userId: string, sendId: string): Promise<Response> {

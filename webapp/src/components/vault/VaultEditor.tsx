@@ -18,6 +18,8 @@ interface VaultEditorProps {
   localError: string;
   downloadingAttachmentKey: string;
   attachmentDownloadPercent: number | null;
+  uploadingAttachmentName: string;
+  attachmentUploadPercent: number | null;
   onUpdateDraft: (patch: Partial<VaultDraft>) => void;
   onSeedSshDefaults: (force?: boolean) => void;
   onUpdateSshPublicKey: (value: string) => void;
@@ -42,6 +44,13 @@ export default function VaultEditor(props: VaultEditorProps) {
       ? t('txt_downloading')
       : t('txt_downloading_percent', { percent: props.attachmentDownloadPercent });
   };
+  const uploadLabel =
+    props.attachmentUploadPercent == null
+      ? t('txt_uploading_attachment_named', { name: props.uploadingAttachmentName || t('txt_attachment') })
+      : t('txt_uploading_attachment_named_percent', {
+          name: props.uploadingAttachmentName || t('txt_attachment'),
+          percent: props.attachmentUploadPercent,
+        });
 
   return (
     <>
@@ -220,6 +229,7 @@ export default function VaultEditor(props: VaultEditorProps) {
             <Plus size={14} className="btn-icon" />
           </button>
         </div>
+        {!!props.uploadingAttachmentName && <div className="detail-sub">{uploadLabel}</div>}
         {!props.isCreating && props.selectedCipher && props.editExistingAttachments.length > 0 && (
           <div className="attachment-list">
             {props.editExistingAttachments.map((attachment) => {

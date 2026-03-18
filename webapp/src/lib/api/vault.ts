@@ -12,6 +12,7 @@ import {
   chunkArray,
   parseErrorMessage,
   parseJson,
+  uploadDirectEncryptedPayload,
   type AuthedFetch,
 } from './shared';
 import { readResponseBytesWithProgress } from '../download';
@@ -199,7 +200,8 @@ export async function uploadCipherAttachment(
   session: SessionState,
   cipherId: string,
   file: File,
-  cipherForKey?: Cipher | null
+  cipherForKey?: Cipher | null,
+  onProgress?: (percent: number | null) => void
 ): Promise<void> {
   if (!session.symEncKey || !session.symMacKey) throw new Error('Vault key unavailable');
   const id = String(cipherId || '').trim();
@@ -233,6 +235,7 @@ export async function uploadCipherAttachment(
     (await parseJson<{
       attachmentId?: string;
       url?: string;
+      fileUploadType?: number;
     }>(metaResp)) || {};
   const attachmentId = String(meta.attachmentId || '').trim();
   const uploadUrl = String(meta.url || '').trim();
@@ -240,12 +243,13 @@ export async function uploadCipherAttachment(
 
   const payload = new ArrayBuffer(encryptedBytes.byteLength);
   new Uint8Array(payload).set(encryptedBytes);
-  const formData = new FormData();
-  formData.set('data', new Blob([payload], { type: 'application/octet-stream' }), encryptedFileName);
-
-  const uploadResp = await authedFetch(uploadUrl, {
-    method: 'POST',
-    body: formData,
+  const uploadResp = await uploadDirectEncryptedPayload({
+    accessToken: session.accessToken,
+    uploadUrl,
+    payload,
+    fileUploadType: meta.fileUploadType,
+    unsupportedMessage: 'Unsupported attachment upload type',
+    onProgress,
   });
   if (!uploadResp.ok) {
     try {

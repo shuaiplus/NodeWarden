@@ -93,6 +93,10 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
   } = options;
   const [downloadingAttachmentKey, setDownloadingAttachmentKey] = useState('');
   const [attachmentDownloadPercent, setAttachmentDownloadPercent] = useState<number | null>(null);
+  const [uploadingAttachmentName, setUploadingAttachmentName] = useState('');
+  const [attachmentUploadPercent, setAttachmentUploadPercent] = useState<number | null>(null);
+  const [uploadingSendFileName, setUploadingSendFileName] = useState('');
+  const [sendUploadPercent, setSendUploadPercent] = useState<number | null>(null);
 
   return useMemo(() => {
     const refetchVault = async () => {
@@ -132,13 +136,18 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         const file = new File([fileBytes], name, { type: 'application/octet-stream' });
         const cipher = cipherById.get(targetCipherId) || null;
         try {
-          await uploadCipherAttachment(importAuthedFetch, session, targetCipherId, file, cipher);
+          setUploadingAttachmentName(name);
+          setAttachmentUploadPercent(0);
+          await uploadCipherAttachment(importAuthedFetch, session, targetCipherId, file, cipher, setAttachmentUploadPercent);
           imported += 1;
         } catch (error) {
           failed.push({
             fileName: name,
             reason: error instanceof Error ? error.message : t('txt_upload_attachment_failed'),
           });
+        } finally {
+          setUploadingAttachmentName('');
+          setAttachmentUploadPercent(null);
         }
       }
 
@@ -157,13 +166,18 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         try {
           const created = await createCipher(authedFetch, session, draft);
           for (const file of attachments) {
-            await uploadCipherAttachment(authedFetch, session, created.id, file);
+            setUploadingAttachmentName(file.name);
+            setAttachmentUploadPercent(0);
+            await uploadCipherAttachment(authedFetch, session, created.id, file, undefined, setAttachmentUploadPercent);
           }
           await Promise.all([refetchCiphers(), refetchFolders()]);
           onNotify('success', t('txt_item_created'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_create_item_failed'));
           throw error;
+        } finally {
+          setUploadingAttachmentName('');
+          setAttachmentUploadPercent(null);
         }
       },
 
@@ -179,13 +193,18 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
             await deleteCipherAttachment(authedFetch, cipher.id, id);
           }
           for (const file of addFiles) {
-            await uploadCipherAttachment(authedFetch, session, cipher.id, file, cipher);
+            setUploadingAttachmentName(file.name);
+            setAttachmentUploadPercent(0);
+            await uploadCipherAttachment(authedFetch, session, cipher.id, file, cipher, setAttachmentUploadPercent);
           }
           await Promise.all([refetchCiphers(), refetchFolders()]);
           onNotify('success', t('txt_item_updated'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_update_item_failed'));
           throw error;
+        } finally {
+          setUploadingAttachmentName('');
+          setAttachmentUploadPercent(null);
         }
       },
 
@@ -316,7 +335,12 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
       async createSend(draft: SendDraft, autoCopyLink: boolean) {
         if (!session) return;
         try {
-          const created = await createSend(authedFetch, session, draft);
+          const fileName = draft.type === 'file' ? String(draft.file?.name || '').trim() : '';
+          if (fileName) {
+            setUploadingSendFileName(fileName);
+            setSendUploadPercent(0);
+          }
+          const created = await createSend(authedFetch, session, draft, fileName ? setSendUploadPercent : undefined);
           await refetchSends();
           if (autoCopyLink && created.key && session.symEncKey && session.symMacKey) {
             const keyPart = await buildSendShareKey(created.key, session.symEncKey, session.symMacKey);
@@ -327,6 +351,9 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_create_send_failed'));
           throw error;
+        } finally {
+          setUploadingSendFileName('');
+          setSendUploadPercent(null);
         }
       },
 
@@ -696,9 +723,14 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
       },
       downloadingAttachmentKey,
       attachmentDownloadPercent,
+      uploadingAttachmentName,
+      attachmentUploadPercent,
+      uploadingSendFileName,
+      sendUploadPercent,
     };
   }, [
     attachmentDownloadPercent,
+    attachmentUploadPercent,
     authedFetch,
     defaultKdfIterations,
     downloadingAttachmentKey,
@@ -711,5 +743,8 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
     refetchFolders,
     refetchSends,
     session,
+    sendUploadPercent,
+    uploadingAttachmentName,
+    uploadingSendFileName,
   ]);
 }

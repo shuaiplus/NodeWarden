@@ -913,11 +913,15 @@ export default function App() {
     onDownloadVaultAttachment: vaultSendActions.downloadVaultAttachment,
     downloadingAttachmentKey: vaultSendActions.downloadingAttachmentKey,
     attachmentDownloadPercent: vaultSendActions.attachmentDownloadPercent,
+    uploadingAttachmentName: vaultSendActions.uploadingAttachmentName,
+    attachmentUploadPercent: vaultSendActions.attachmentUploadPercent,
     onRefreshVault: vaultSendActions.refreshVault,
     onCreateSend: vaultSendActions.createSend,
     onUpdateSend: vaultSendActions.updateSend,
     onDeleteSend: vaultSendActions.deleteSend,
     onBulkDeleteSends: vaultSendActions.bulkDeleteSends,
+    uploadingSendFileName: vaultSendActions.uploadingSendFileName,
+    sendUploadPercent: vaultSendActions.sendUploadPercent,
     onChangePassword: accountSecurityActions.changePassword,
     onEnableTotp: async (secret: string, token: string) => {
       await accountSecurityActions.enableTotp(secret, token);

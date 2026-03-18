@@ -14,6 +14,7 @@ import {
   createEmptyDraft,
   creationTimeValue,
   draftFromCipher,
+  buildCipherDuplicateSignature,
   firstCipherUri,
   firstPasskeyCreationTime,
   sortTimeValue,
@@ -47,6 +48,8 @@ interface VaultPageProps {
   onDownloadAttachment: (cipher: Cipher, attachmentId: string) => Promise<void>;
   downloadingAttachmentKey: string;
   attachmentDownloadPercent: number | null;
+  uploadingAttachmentName: string;
+  attachmentUploadPercent: number | null;
 }
 
 
@@ -223,6 +226,17 @@ export default function VaultPage(props: VaultPageProps) {
     void recalculateSshFingerprint(draft.sshPublicKey);
   }, [isEditing, draft?.id, draft?.type]);
 
+  const duplicateSignatureCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const cipher of props.ciphers) {
+      const isDeleted = !!(cipher.deletedDate || (cipher as { deletedAt?: string | null }).deletedAt);
+      if (isDeleted) continue;
+      const signature = buildCipherDuplicateSignature(cipher);
+      counts.set(signature, (counts.get(signature) || 0) + 1);
+    }
+    return counts;
+  }, [props.ciphers]);
+
   const filteredCiphers = useMemo(() => {
     const next = props.ciphers.filter((cipher) => {
       const isDeleted = !!(cipher.deletedDate || (cipher as any).deletedAt);
@@ -230,6 +244,9 @@ export default function VaultPage(props: VaultPageProps) {
         if (!isDeleted) return false;
       } else {
         if (isDeleted) return false;
+        if (sidebarFilter.kind === 'duplicates' && (duplicateSignatureCounts.get(buildCipherDuplicateSignature(cipher)) || 0) < 2) {
+          return false;
+        }
         if (sidebarFilter.kind === 'favorite' && !cipher.favorite) return false;
         if (sidebarFilter.kind === 'type' && cipherTypeKey(Number(cipher.type || 1)) !== sidebarFilter.value) return false;
         if (sidebarFilter.kind === 'folder') {
@@ -266,7 +283,7 @@ export default function VaultPage(props: VaultPageProps) {
     });
 
     return next;
-  }, [props.ciphers, sidebarFilter, searchQuery, sortMode]);
+  }, [props.ciphers, sidebarFilter, searchQuery, sortMode, duplicateSignatureCounts]);
 
   const sidebarFilterKey = useMemo(() => {
     if (sidebarFilter.kind === 'folder') return `folder:${sidebarFilter.folderId ?? 'none'}`;
@@ -278,6 +295,12 @@ export default function VaultPage(props: VaultPageProps) {
     setListScrollTop(0);
     listPanelRef.current?.scrollTo({ top: 0 });
   }, [searchQuery, sortMode, sidebarFilterKey]);
+
+  useEffect(() => {
+    if (sidebarFilter.kind === 'duplicates' && sortMode !== 'name') {
+      setSortMode('name');
+    }
+  }, [sidebarFilter.kind, sortMode]);
 
   useEffect(() => {
     if (isCreating) return;
@@ -716,6 +739,19 @@ function folderName(id: string | null | undefined): string {
           }}
           onSyncVault={() => void syncVault()}
           onOpenBulkDelete={() => setBulkDeleteOpen(true)}
+          onSelectDuplicates={() => {
+            const map: Record<string, boolean> = {};
+            const seen = new Set<string>();
+            for (const cipher of filteredCiphers) {
+              const signature = buildCipherDuplicateSignature(cipher);
+              if (seen.has(signature)) {
+                map[cipher.id] = true;
+                continue;
+              }
+              seen.add(signature);
+            }
+            setSelectedMap(map);
+          }}
           onSelectAll={() => {
             const map: Record<string, boolean> = {};
             for (const cipher of filteredCiphers) map[cipher.id] = true;
@@ -787,6 +823,8 @@ function folderName(id: string | null | undefined): string {
               onDownloadAttachment={(cipher, attachmentId) => void props.onDownloadAttachment(cipher, attachmentId)}
               downloadingAttachmentKey={props.downloadingAttachmentKey}
               attachmentDownloadPercent={props.attachmentDownloadPercent}
+              uploadingAttachmentName={props.uploadingAttachmentName}
+              attachmentUploadPercent={props.attachmentUploadPercent}
               onPatchDraftCustomField={patchDraftCustomField}
               onUpdateDraftCustomFields={updateDraftCustomFields}
               onOpenFieldModal={() => setFieldModalOpen(true)}

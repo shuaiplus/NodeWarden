@@ -11,7 +11,7 @@ interface AdminPageProps {
   onRefresh: () => void;
   onCreateInvite: (hours: number) => Promise<void>;
   onDeleteAllInvites: () => Promise<void>;
-  onToggleUserStatus: (userId: string, currentStatus: string) => Promise<void>;
+  onToggleUserStatus: (userId: string, currentStatus: 'active' | 'banned') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onRevokeInvite: (code: string) => Promise<void>;
 }

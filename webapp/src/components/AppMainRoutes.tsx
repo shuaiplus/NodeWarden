@@ -67,11 +67,15 @@ export interface AppMainRoutesProps {
   onDownloadVaultAttachment: (cipher: Cipher, attachmentId: string) => Promise<void>;
   downloadingAttachmentKey: string;
   attachmentDownloadPercent: number | null;
+  uploadingAttachmentName: string;
+  attachmentUploadPercent: number | null;
   onRefreshVault: () => Promise<void>;
   onCreateSend: (draft: SendDraft, autoCopyLink: boolean) => Promise<void>;
   onUpdateSend: (send: Send, draft: SendDraft, autoCopyLink: boolean) => Promise<void>;
   onDeleteSend: (send: Send) => Promise<void>;
   onBulkDeleteSends: (ids: string[]) => Promise<void>;
+  uploadingSendFileName: string;
+  sendUploadPercent: number | null;
   onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
@@ -139,6 +143,8 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onUpdate={props.onUpdateSend}
             onDelete={props.onDeleteSend}
             onBulkDelete={props.onBulkDeleteSends}
+            uploadingSendFileName={props.uploadingSendFileName}
+            sendUploadPercent={props.sendUploadPercent}
             onNotify={props.onNotify}
           />
         </Suspense>
@@ -171,6 +177,8 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onDownloadAttachment={props.onDownloadVaultAttachment}
             downloadingAttachmentKey={props.downloadingAttachmentKey}
             attachmentDownloadPercent={props.attachmentDownloadPercent}
+            uploadingAttachmentName={props.uploadingAttachmentName}
+            attachmentUploadPercent={props.attachmentUploadPercent}
           />
         </Suspense>
       </Route>

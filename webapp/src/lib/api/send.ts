@@ -1,6 +1,6 @@
 import { base64ToBytes, bytesToBase64, decryptBw, decryptBwFileData, decryptStr, encryptBw, encryptBwFileData, hkdf, pbkdf2 } from '../crypto';
 import type { Send, SendDraft, SessionState } from '../types';
-import { chunkArray, createApiError, parseErrorMessage, parseJson, type AuthedFetch } from './shared';
+import { chunkArray, createApiError, parseErrorMessage, parseJson, uploadDirectEncryptedPayload, type AuthedFetch } from './shared';
 
 function toIsoDateFromDays(value: string, required: boolean): string | null {
   const raw = String(value || '').trim();
@@ -70,7 +70,8 @@ export async function getSends(authedFetch: AuthedFetch): Promise<Send[]> {
 export async function createSend(
   authedFetch: AuthedFetch,
   session: SessionState,
-  draft: SendDraft
+  draft: SendDraft,
+  onProgress?: (percent: number | null) => void
 ): Promise<Send> {
   if (!session.symEncKey || !session.symMacKey) throw new Error('Vault key unavailable');
   const userEnc = base64ToBytes(session.symEncKey);
@@ -148,16 +149,16 @@ export async function createSend(
   });
   if (!fileResp.ok) throw new Error(await parseErrorMessage(fileResp, 'Create file send failed'));
 
-  const uploadInfo = await parseJson<{ url?: string; sendResponse?: Send }>(fileResp);
+  const uploadInfo = await parseJson<{ url?: string; sendResponse?: Send; fileUploadType?: number }>(fileResp);
   const uploadUrl = uploadInfo?.url;
   if (!uploadUrl) throw new Error('Create file send failed: missing upload URL');
-
-  const formData = new FormData();
-  const encryptedBlob = new Blob([encryptedFileBytes as unknown as BlobPart], { type: 'application/octet-stream' });
-  formData.set('data', encryptedBlob, fileNameCipher);
-  const uploadResp = await authedFetch(uploadUrl, {
-    method: 'POST',
-    body: formData,
+  const uploadResp = await uploadDirectEncryptedPayload({
+    accessToken: session.accessToken,
+    uploadUrl,
+    payload: encryptedFileBytes,
+    fileUploadType: uploadInfo?.fileUploadType,
+    unsupportedMessage: 'Unsupported send upload type',
+    onProgress,
   });
   if (!uploadResp.ok) throw new Error(await parseErrorMessage(uploadResp, 'Upload send file failed'));
   if (!uploadInfo?.sendResponse?.id) throw new Error('Create file send failed');

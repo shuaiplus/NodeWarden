@@ -1,4 +1,5 @@
 import {
+  Copy,
   CreditCard,
   Folder as FolderIcon,
   FolderPlus,
@@ -49,6 +50,9 @@ export default function VaultSidebar(props: VaultSidebarProps) {
         </button>
         <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'trash' ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'trash' })}>
           <Trash2 size={14} className="tree-icon" /> <span className="tree-label">{t('txt_trash')}</span>
+        </button>
+        <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'duplicates' ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'duplicates' })}>
+          <Copy size={14} className="tree-icon" /> <span className="tree-label">{t('txt_duplicates')}</span>
         </button>
       </div>
 

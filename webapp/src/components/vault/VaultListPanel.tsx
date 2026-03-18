@@ -43,6 +43,7 @@ interface VaultListPanelProps {
   onSelectSortMode: (value: VaultSortMode) => void;
   onSyncVault: () => void;
   onOpenBulkDelete: () => void;
+  onSelectDuplicates: () => void;
   onSelectAll: () => void;
   onToggleCreateMenu: () => void;
   onStartCreate: (type: number) => void;
@@ -104,6 +105,11 @@ export default function VaultListPanel(props: VaultListPanelProps) {
         <button type="button" className="btn btn-danger small" disabled={!props.selectedCount || props.busy} onClick={props.onOpenBulkDelete}>
           <Trash2 size={14} className="btn-icon" /> {props.sidebarFilter.kind === 'trash' ? t('txt_delete_permanently') : t('txt_delete_selected')}
         </button>
+        {props.sidebarFilter.kind === 'duplicates' && (
+          <button type="button" className="btn btn-secondary small" disabled={!props.filteredCiphers.length || props.busy} onClick={props.onSelectDuplicates}>
+            <Check size={14} className="btn-icon" /> {t('txt_select_duplicate_items')}
+          </button>
+        )}
         <button type="button" className="btn btn-secondary small" disabled={!props.filteredCiphers.length} onClick={props.onSelectAll}>
           <CheckCheck size={14} className="btn-icon" /> {t('txt_select_all')}
         </button>
@@ -133,7 +139,7 @@ export default function VaultListPanel(props: VaultListPanelProps) {
             <RefreshCw size={14} className="btn-icon" /> {t('txt_restore')}
           </button>
         )}
-        {props.selectedCount > 0 && props.sidebarFilter.kind !== 'trash' && (
+        {props.selectedCount > 0 && props.sidebarFilter.kind !== 'trash' && props.sidebarFilter.kind !== 'duplicates' && (
           <button type="button" className="btn btn-secondary small" disabled={props.busy} onClick={props.onOpenMove}>
             <FolderInput size={14} className="btn-icon" /> {t('txt_move')}
           </button>
