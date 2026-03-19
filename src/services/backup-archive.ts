@@ -11,16 +11,18 @@ type SqlRow = Record<string, string | number | null>;
 
 const BACKUP_FORMAT_VERSION = 1;
 const BACKUP_APP_VERSION = '1.3.0';
-const BACKUP_TEXT_COMPRESSION_LEVEL = 6;
+// Worker-side backup export must stay well below Cloudflare CPU limits.
+// Prefer store-only ZIP entries over heavier compression to keep exports reliable.
+const BACKUP_TEXT_COMPRESSION_LEVEL = 1;
 const BACKUP_BINARY_COMPRESSION_LEVEL = 1;
-const BACKUP_R2_BLOB_READ_CONCURRENCY = 8;
+const BACKUP_R2_BLOB_READ_CONCURRENCY = 4;
 const BACKUP_KV_BLOB_READ_CONCURRENCY = 4;
-const BACKUP_R2_BLOB_READ_CHUNK_SIZE = 64;
-const BACKUP_KV_BLOB_READ_CHUNK_SIZE = 32;
-const MAX_BACKUP_ARCHIVE_BYTES = 64 * 1024 * 1024;
-const MAX_BACKUP_ARCHIVE_ENTRY_COUNT = 10_000;
-const MAX_BACKUP_EXTRACTED_BYTES = 128 * 1024 * 1024;
-const MAX_BACKUP_DB_JSON_BYTES = 32 * 1024 * 1024;
+const BACKUP_R2_BLOB_READ_CHUNK_SIZE = 32;
+const BACKUP_KV_BLOB_READ_CHUNK_SIZE = 162;
+const MAX_BACKUP_ARCHIVE_BYTES = 32 * 1024 * 1024;
+const MAX_BACKUP_ARCHIVE_ENTRY_COUNT = 800;
+const MAX_BACKUP_EXTRACTED_BYTES = 64 * 1024 * 1024;
+const MAX_BACKUP_DB_JSON_BYTES = 8 * 1024 * 1024;
 
 export interface BackupManifest {
   formatVersion: 1;
@@ -405,7 +407,7 @@ export async function buildBackupArchive(env: Env, date: Date = new Date()): Pro
   } satisfies BackupManifest;
 
   const files: Record<string, Uint8Array> = {
-    'manifest.json': encoder.encode(JSON.stringify(manifestBase, null, 2)),
+    'manifest.json': encoder.encode(JSON.stringify(manifestBase)),
     'db.json': encoder.encode(JSON.stringify({
       config: configRows,
       users: userRows,
@@ -414,7 +416,7 @@ export async function buildBackupArchive(env: Env, date: Date = new Date()): Pro
       ciphers: cipherRows,
       attachments: attachmentRows,
       sends: sendRows,
-    }, null, 2)),
+    })),
   };
 
   const blobTasks: BackupBlobTask[] = [];
@@ -454,7 +456,7 @@ export async function buildBackupArchive(env: Env, date: Date = new Date()): Pro
       largestObjectBytes: blobFiles.largestObjectBytes,
     },
   };
-  files['manifest.json'] = encoder.encode(JSON.stringify(manifest, null, 2));
+  files['manifest.json'] = encoder.encode(JSON.stringify(manifest));
 
   return {
     bytes: zipSync(createZipEntries(files)),
