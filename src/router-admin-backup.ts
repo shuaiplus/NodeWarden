@@ -3,6 +3,7 @@ import {
   handleAdminExportBackup,
   handleDownloadAdminRemoteBackup,
   handleDeleteAdminRemoteBackup,
+  handleDownloadAdminBackupAttachment,
   handleGetAdminBackupSettings,
   handleGetAdminBackupSettingsRepairState,
   handleAdminImportBackup,
@@ -22,6 +23,10 @@ export async function handleAdminBackupRoute(
 ): Promise<Response | null> {
   if (path === '/api/admin/backup/export' && method === 'POST') {
     return handleAdminExportBackup(request, env, actorUser);
+  }
+
+  if (path === '/api/admin/backup/blob' && method === 'GET') {
+    return handleDownloadAdminBackupAttachment(request, env, actorUser);
   }
 
   if (path === '/api/admin/backup/settings') {

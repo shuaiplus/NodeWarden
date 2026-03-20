@@ -30,7 +30,7 @@ import { BackupOperationsSidebar } from './backup-center/BackupOperationsSidebar
 
 interface BackupCenterPageProps {
   currentUserId: string | null;
-  onExport: () => Promise<void>;
+  onExport: (includeAttachments?: boolean) => Promise<void>;
   onImport: (file: File, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
   onLoadSettings: () => Promise<AdminBackupSettings>;
   onSaveSettings: (settings: AdminBackupSettings) => Promise<AdminBackupSettings>;
@@ -44,11 +44,10 @@ interface BackupCenterPageProps {
 
 function buildSkippedImportMessage(result: AdminBackupImportResponse): string | null {
   const skipped = result.skipped;
-  if (!skipped || (!skipped.attachments && !skipped.sendFiles)) return null;
+  if (!skipped || !skipped.attachments) return null;
   return t('txt_backup_restore_skipped_summary', {
     reason: skipped.reason || t('txt_backup_restore_skipped_reason_default'),
     attachments: String(skipped.attachments),
-    sendFiles: String(skipped.sendFiles),
   });
 }
 
@@ -59,6 +58,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportIncludeAttachments, setExportIncludeAttachments] = useState(false);
   const [importing, setImporting] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -67,6 +67,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
   const [downloadingRemotePath, setDownloadingRemotePath] = useState('');
   const [downloadingRemotePercent, setDownloadingRemotePercent] = useState<number | null>(null);
   const [restoringRemotePath, setRestoringRemotePath] = useState('');
+  const [remoteRestoreStatusText, setRemoteRestoreStatusText] = useState('');
   const [deletingRemotePath, setDeletingRemotePath] = useState('');
   const [localError, setLocalError] = useState('');
   const [confirmLocalRestoreOpen, setConfirmLocalRestoreOpen] = useState(false);
@@ -276,7 +277,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
     setLocalError('');
     setExporting(true);
     try {
-      await props.onExport();
+      await props.onExport(exportIncludeAttachments);
       props.onNotify('success', t('txt_backup_export_success'));
     } catch (error) {
       const message = error instanceof Error ? error.message : t('txt_backup_export_failed');
@@ -417,11 +418,13 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
   async function runRemoteRestore(path: string, replaceExisting: boolean) {
     if (!savedSelectedDestination) return;
     setRestoringRemotePath(path);
+    setRemoteRestoreStatusText(replaceExisting ? t('txt_backup_remote_restore_stage_replace') : t('txt_backup_remote_restore_stage_prepare'));
     setLocalError('');
     try {
       const result = await props.onRestoreRemoteBackup(savedSelectedDestination.id, path, replaceExisting);
       setConfirmRemoteReplaceOpen(false);
       setPendingRemoteRestorePath('');
+      setRemoteRestoreStatusText('');
       props.onNotify('success', t('txt_backup_restore_success_relogin'));
       const skippedMessage = buildSkippedImportMessage(result);
       if (skippedMessage) props.onNotify('warning', skippedMessage);
@@ -429,9 +432,11 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
       if (!replaceExisting && isReplaceRequiredError(error)) {
         setPendingRemoteRestorePath(path);
         setConfirmRemoteReplaceOpen(true);
+        setRemoteRestoreStatusText('');
         return;
       }
       const message = error instanceof Error ? error.message : t('txt_backup_remote_restore_failed');
+      setRemoteRestoreStatusText('');
       setLocalError(message);
       props.onNotify('error', message);
     } finally {
@@ -459,11 +464,13 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         disableWhileBusy={disableWhileBusy}
         exporting={exporting}
         importing={importing}
+        exportIncludeAttachments={exportIncludeAttachments}
         selectedProviderId={selectedProviderId}
         recommendedWebDavProviders={recommendedWebDavProviders}
         recommendedS3Providers={recommendedS3Providers}
         onExport={() => void handleExport()}
         onImport={() => fileInputRef.current?.click()}
+        onExportIncludeAttachmentsChange={setExportIncludeAttachments}
         onSelectProvider={(providerId) => setSelectedProviderId(providerId)}
       />
 
@@ -526,6 +533,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
       />
 
       {localError ? <div className="local-error">{localError}</div> : null}
+      {!localError && remoteRestoreStatusText ? <div className="status-ok">{remoteRestoreStatusText}</div> : null}
 
       <ConfirmDialog
         open={confirmLocalRestoreOpen}
@@ -545,11 +553,14 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         open={confirmReplaceOpen}
         title={t('txt_backup_replace_confirm_title')}
         message={t('txt_backup_replace_confirm_message')}
-        confirmText={t('txt_backup_clear_and_restore')}
+        confirmText={importing ? t('txt_backup_restoring') : t('txt_backup_clear_and_restore')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={importing}
+        cancelDisabled={importing}
         danger
         onConfirm={() => void runLocalRestore(true)}
         onCancel={() => {
+          if (importing) return;
           setConfirmReplaceOpen(false);
           resetSelectedFile();
         }}
@@ -559,11 +570,14 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         open={confirmRemoteReplaceOpen}
         title={t('txt_backup_replace_confirm_title')}
         message={t('txt_backup_replace_confirm_message')}
-        confirmText={t('txt_backup_clear_and_restore')}
+        confirmText={restoringRemotePath ? t('txt_backup_restoring') : t('txt_backup_clear_and_restore')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={!!restoringRemotePath}
+        cancelDisabled={!!restoringRemotePath}
         danger
         onConfirm={() => void runRemoteRestore(pendingRemoteRestorePath, true)}
         onCancel={() => {
+          if (restoringRemotePath) return;
           setConfirmRemoteReplaceOpen(false);
           setPendingRemoteRestorePath('');
         }}

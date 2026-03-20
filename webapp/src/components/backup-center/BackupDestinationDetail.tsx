@@ -5,10 +5,13 @@ import type {
   RemoteBackupBrowserResponse,
   WebDavBackupDestination,
 } from '@/lib/api/backup';
-import { COMMON_TIME_ZONES, WEEKDAY_OPTIONS, getDestinationTypeLabel } from '@/lib/backup-center';
+import { COMMON_TIME_ZONES, getDestinationTypeLabel } from '@/lib/backup-center';
 import type { RecommendedProvider } from '@/lib/backup-recommendations';
 import { RemoteBackupBrowser } from './RemoteBackupBrowser';
 import { t } from '@/lib/i18n';
+import { BackupIncludeAttachmentsField } from './BackupIncludeAttachmentsField';
+
+const INTERVAL_HOUR_PRESETS = [1, 6, 12, 24];
 
 interface BackupDestinationDetailProps {
   selectedRecommendedProvider: RecommendedProvider | null;
@@ -205,41 +208,53 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
 
           <div className="field-grid backup-detail-schedule-grid">
             <label className="field">
-              <span>{t('txt_backup_frequency')}</span>
-              <select
-                className="input"
-                value={props.selectedDestination.schedule.frequency}
-                disabled={props.loadingSettings || props.disableWhileBusy}
-                onChange={(event) => props.onUpdateDestination((destination) => ({
-                  ...destination,
-                  schedule: {
-                    ...destination.schedule,
-                    frequency: (event.currentTarget as HTMLSelectElement).value as 'daily' | 'weekly' | 'monthly',
-                    dayOfWeek: destination.schedule.dayOfWeek ?? 1,
-                    dayOfMonth: destination.schedule.dayOfMonth ?? 1,
-                  },
-                }))}
-              >
-                <option value="daily">{t('txt_backup_frequency_daily')}</option>
-                <option value="weekly">{t('txt_backup_frequency_weekly')}</option>
-                <option value="monthly">{t('txt_backup_frequency_monthly')}</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>{t('txt_backup_time')}</span>
-              <input
-                className="input"
-                type="time"
-                value={props.selectedDestination.schedule.scheduleTime}
-                disabled={props.loadingSettings || props.disableWhileBusy}
-                onInput={(event) => props.onUpdateDestination((destination) => ({
-                  ...destination,
-                  schedule: {
-                    ...destination.schedule,
-                    scheduleTime: (event.currentTarget as HTMLInputElement).value,
-                  },
-                }))}
-              />
+              <span>{t('txt_backup_interval_hours')}</span>
+              <div className="backup-interval-row">
+                <div className="backup-inline-suffix-wrap">
+                  <input
+                    className="input backup-inline-suffix-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(props.selectedDestination.schedule.intervalHours || 24)}
+                    disabled={props.loadingSettings || props.disableWhileBusy}
+                    onInput={(event) => {
+                      const raw = (event.currentTarget as HTMLInputElement).value.replace(/[^\d]/g, '');
+                      const value = Math.min(99, Math.max(1, Number(raw || 1)));
+                      props.onUpdateDestination((destination) => ({
+                        ...destination,
+                        schedule: {
+                          ...destination.schedule,
+                          intervalHours: value,
+                        },
+                      }));
+                    }}
+                  />
+                  <span className="backup-inline-suffix">{t('txt_backup_interval_hours_suffix')}</span>
+                </div>
+                <div className="backup-interval-presets" aria-label={t('txt_backup_interval_hours_presets')}>
+                  {INTERVAL_HOUR_PRESETS.map((preset) => {
+                    const active = preset === props.selectedDestination.schedule.intervalHours;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        className={`backup-interval-preset${active ? ' active' : ''}`}
+                        disabled={props.loadingSettings || props.disableWhileBusy}
+                        onClick={() => props.onUpdateDestination((destination) => ({
+                          ...destination,
+                          schedule: {
+                            ...destination.schedule,
+                            intervalHours: preset,
+                          },
+                        }))}
+                      >
+                        {preset}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </label>
             <label className="field">
               <span>{t('txt_backup_timezone')}</span>
@@ -262,17 +277,17 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
             </label>
             <label className="field">
               <span>{t('txt_backup_retention_count')}</span>
-              <div className="backup-retention-input">
+              <div className="backup-inline-suffix-wrap">
                 <input
-                  className="input"
-                  type="number"
-                  min="1"
-                  step="1"
+                  className="input backup-inline-suffix-input"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={props.selectedDestination.schedule.retentionCount === null ? '' : String(props.selectedDestination.schedule.retentionCount)}
                   disabled={props.loadingSettings || props.disableWhileBusy}
                   placeholder="30"
                   onInput={(event) => {
-                    const nextValue = (event.currentTarget as HTMLInputElement).value.trim();
+                    const nextValue = (event.currentTarget as HTMLInputElement).value.replace(/[^\d]/g, '').trim();
                     props.onUpdateDestination((destination) => ({
                       ...destination,
                       schedule: {
@@ -282,58 +297,21 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
                     }));
                   }}
                 />
-                <span className="backup-retention-suffix">{t('txt_backup_retention_count_suffix')}</span>
+                <span className="backup-inline-suffix">{t('txt_backup_retention_count_suffix')}</span>
               </div>
             </label>
           </div>
 
-          {props.selectedDestination.schedule.frequency === 'weekly' ? (
-            <div className="field-grid backup-detail-schedule-extra-grid">
-              <label className="field">
-                <span>{t('txt_backup_day_of_week')}</span>
-                <select
-                  className="input"
-                  value={String(props.selectedDestination.schedule.dayOfWeek)}
-                  disabled={props.loadingSettings || props.disableWhileBusy}
-                  onChange={(event) => props.onUpdateDestination((destination) => ({
-                    ...destination,
-                    schedule: {
-                      ...destination.schedule,
-                      dayOfWeek: Number((event.currentTarget as HTMLSelectElement).value),
-                    },
-                  }))}
-                >
-                  {WEEKDAY_OPTIONS.map((option) => (
-                    <option key={option.value} value={String(option.value)}>{t(option.label)}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ) : null}
-
-          {props.selectedDestination.schedule.frequency === 'monthly' ? (
-            <div className="field-grid backup-detail-schedule-extra-grid">
-              <label className="field">
-                <span>{t('txt_backup_day_of_month')}</span>
-                <input
-                  className="input"
-                  type="number"
-                  min="1"
-                  max="31"
-                  step="1"
-                  value={String(props.selectedDestination.schedule.dayOfMonth || 1)}
-                  disabled={props.loadingSettings || props.disableWhileBusy}
-                  onInput={(event) => props.onUpdateDestination((destination) => ({
-                    ...destination,
-                    schedule: {
-                      ...destination.schedule,
-                      dayOfMonth: Math.min(31, Math.max(1, Number((event.currentTarget as HTMLInputElement).value) || 1)),
-                    },
-                  }))}
-                />
-              </label>
-            </div>
-          ) : null}
+          <div className="backup-schedule-attachments-row">
+            <BackupIncludeAttachmentsField
+              checked={props.selectedDestination.includeAttachments}
+              disabled={props.loadingSettings || props.disableWhileBusy}
+              onChange={(checked) => props.onUpdateDestination((destination) => ({
+                ...destination,
+                includeAttachments: checked,
+              }))}
+            />
+          </div>
 
           {props.selectedDestination.type === 'webdav' ? (
             <div className="field-grid">

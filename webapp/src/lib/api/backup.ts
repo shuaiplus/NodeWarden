@@ -16,6 +16,7 @@ import {
   type AuthedFetch,
 } from './shared';
 import { readResponseBytesWithProgress } from '../download';
+import { unzipSync, zipSync } from 'fflate';
 
 export type {
   BackupDestinationConfig,
@@ -81,13 +82,11 @@ export interface AdminBackupImportCounts {
   folders: number;
   ciphers: number;
   attachments: number;
-  sends: number;
   attachmentFiles: number;
-  sendFiles: number;
 }
 
 export interface AdminBackupImportSkippedItem {
-  kind: 'attachment' | 'send-file';
+  kind: 'attachment';
   path: string;
   sizeBytes: number;
 }
@@ -95,7 +94,6 @@ export interface AdminBackupImportSkippedItem {
 export interface AdminBackupImportSkipped {
   reason: string | null;
   attachments: number;
-  sendFiles: number;
   items: AdminBackupImportSkippedItem[];
 }
 
@@ -111,14 +109,73 @@ export interface AdminBackupExportPayload {
   bytes: Uint8Array;
 }
 
-export async function exportAdminBackup(authedFetch: AuthedFetch): Promise<AdminBackupExportPayload> {
-  const resp = await authedFetch('/api/admin/backup/export', { method: 'POST' });
+interface BackupExportManifestAttachmentBlob {
+  cipherId: string;
+  attachmentId: string;
+  blobName: string;
+}
+
+interface BackupExportManifest {
+  attachmentBlobs?: BackupExportManifestAttachmentBlob[];
+}
+
+export async function exportAdminBackup(
+  authedFetch: AuthedFetch,
+  includeAttachments: boolean = false
+): Promise<AdminBackupExportPayload> {
+  const resp = await authedFetch('/api/admin/backup/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ includeAttachments }),
+  });
   if (!resp.ok) throw new Error(await parseErrorMessage(resp, t('txt_backup_export_failed')));
 
   const mimeType = String(resp.headers.get('Content-Type') || 'application/zip').trim() || 'application/zip';
   const fileName = parseContentDispositionFileName(resp, 'nodewarden_backup.zip');
   const bytes = new Uint8Array(await resp.arrayBuffer());
   return { fileName, mimeType, bytes };
+}
+
+export async function downloadAdminBackupAttachmentBlob(
+  authedFetch: AuthedFetch,
+  blobName: string
+): Promise<Uint8Array> {
+  const params = new URLSearchParams();
+  params.set('blobName', blobName);
+  const resp = await authedFetch(`/api/admin/backup/blob?${params.toString()}`, { method: 'GET' });
+  if (!resp.ok) throw new Error(await parseErrorMessage(resp, t('txt_backup_export_failed')));
+  return new Uint8Array(await resp.arrayBuffer());
+}
+
+export async function buildCompleteAdminBackupExport(
+  authedFetch: AuthedFetch,
+  includeAttachments: boolean = false
+): Promise<AdminBackupExportPayload> {
+  const payload = await exportAdminBackup(authedFetch, includeAttachments);
+  if (!includeAttachments) return payload;
+
+  const zipped = unzipSync(payload.bytes);
+  const manifestBytes = zipped['manifest.json'];
+  if (!manifestBytes) {
+    throw new Error(t('txt_backup_export_failed'));
+  }
+
+  let manifest: BackupExportManifest;
+  try {
+    manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as BackupExportManifest;
+  } catch {
+    throw new Error(t('txt_backup_export_failed'));
+  }
+
+  for (const attachment of manifest.attachmentBlobs || []) {
+    const bytes = await downloadAdminBackupAttachmentBlob(authedFetch, attachment.blobName);
+    zipped[`attachments/${attachment.cipherId}/${attachment.attachmentId}.bin`] = bytes;
+  }
+
+  return {
+    ...payload,
+    bytes: zipSync(zipped, { level: 0 }),
+  };
 }
 
 export async function getAdminBackupSettings(authedFetch: AuthedFetch): Promise<AdminBackupSettings> {

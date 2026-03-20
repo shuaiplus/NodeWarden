@@ -206,6 +206,11 @@ body,
   text-decoration: underline;
 }
 
+.standalone-version {
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
 .muted {
   margin: 0 0 16px 0;
   text-align: center;
@@ -1434,6 +1439,104 @@ input[type='file'].input::file-selector-button:hover {
   gap: 10px;
 }
 
+.backup-option-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backup-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.backup-option-label input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.backup-help-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.backup-help-trigger {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #bfd1f3;
+  border-radius: 999px;
+  padding: 0;
+  background: #eef4ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.backup-help-trigger:hover,
+.backup-help-trigger:focus-visible {
+  border-color: #7ea4ef;
+  background: #e1ecff;
+  outline: none;
+}
+
+.backup-help-bubble {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  z-index: 30;
+  width: min(320px, calc(100vw - 40px));
+  padding: 10px 12px;
+  border: 1px solid #d5dce7;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.55;
+  transform: translate(-50%, -4px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+}
+
+.backup-help-bubble::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 10px;
+  height: 10px;
+  background: #ffffff;
+  border-left: 1px solid #d5dce7;
+  border-top: 1px solid #d5dce7;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.backup-help-wrap:hover .backup-help-bubble,
+.backup-help-wrap:focus-within .backup-help-bubble,
+.backup-help-wrap.open .backup-help-bubble {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
 .backup-manual-inline-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1645,8 +1748,49 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .backup-detail-schedule-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.backup-interval-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 10px;
+  align-items: start;
+}
+
+.backup-interval-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.backup-interval-preset {
+  height: 22px;
+  border: 1px solid #cdd7e6;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.backup-interval-preset:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.backup-interval-preset.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.backup-interval-preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .backup-retention-input {
@@ -1661,6 +1805,31 @@ input[type='file'].input::file-selector-button:hover {
   min-width: 0;
   width: 100%;
 }
+
+.backup-inline-suffix-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.backup-inline-suffix-input {
+  padding-right: 52px;
+}
+
+.backup-inline-suffix {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.backup-schedule-attachments-row {
+  margin-bottom: 4px;
+}
+
 
 .backup-retention-suffix {
   color: #475467;
@@ -2669,47 +2838,51 @@ input[type='file'].input::file-selector-button:hover {
   }
 
   .list-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     gap: 8px;
+    align-items: center;
   }
 
   .list-count {
-    order: 10;
-    width: 100%;
+    grid-column: auto;
+    width: auto;
     font-size: 12px;
+    white-space: nowrap;
   }
 
   .list-head .search-input {
+    width: 100%;
+    min-width: 0;
     height: 42px;
     border-radius: 14px;
   }
 
   .list-icon-btn {
-    width: 38px;
-    min-width: 38px;
-    padding: 0;
-    font-size: 0;
-    gap: 0;
-  }
-
-  .list-icon-btn .btn-icon {
-    margin: 0;
+    width: auto;
+    min-width: 0;
+    padding: 0 12px;
+    font-size: 13px;
+    gap: 6px;
+    white-space: nowrap;
   }
 
   .toolbar.actions {
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    overflow: visible;
     padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .toolbar.actions::-webkit-scrollbar {
-    display: none;
   }
 
   .toolbar.actions .btn.small {
+    width: auto;
+    min-width: 0;
     height: 34px;
+    padding: 0 12px;
     font-size: 13px;
+    gap: 6px;
+    border-radius: 999px;
+    white-space: nowrap;
   }
 
   .mobile-fab-wrap {
@@ -3033,6 +3206,10 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 @media (max-width: 640px) {
+  .backup-interval-row {
+    grid-template-columns: 1fr;
+  }
+
   .backup-status-grid,
   .backup-browser-row,
   .field-grid {
@@ -3050,5 +3227,25 @@ input[type='file'].input::file-selector-button:hover {
 
   .backup-name-row {
     grid-template-columns: 1fr;
+  }
+
+  .backup-option-field {
+    align-items: flex-start;
+  }
+
+  .backup-help-bubble {
+    left: 0;
+    transform: translate(0, -4px);
+  }
+
+  .backup-help-bubble::before {
+    left: 16px;
+    transform: rotate(45deg);
+  }
+
+  .backup-help-wrap:hover .backup-help-bubble,
+  .backup-help-wrap:focus-within .backup-help-bubble,
+  .backup-help-wrap.open .backup-help-bubble {
+    transform: translate(0, 0);
   }
 }

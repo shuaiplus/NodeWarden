@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { APP_VERSION } from '@shared/app-version';
 
 interface StandalonePageFrameProps {
   title: string;
@@ -24,6 +25,8 @@ export default function StandalonePageFrame(props: StandalonePageFrameProps) {
         <a href="https://github.com/shuaiplus/NodeWarden" target="_blank" rel="noreferrer">NodeWarden Repository</a>
         <span> | </span>
         <a href="https://github.com/shuaiplus" target="_blank" rel="noreferrer">Author: @shuaiplus</a>
+        <span> | </span>
+        <span className="standalone-version">v{APP_VERSION}</span>
       </div>
     </div>
   );

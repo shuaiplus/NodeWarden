@@ -52,7 +52,7 @@ import { t } from '@/lib/i18n';
 import { APP_NOTIFY_EVENT, type AppNotifyDetail } from '@/lib/app-notify';
 import type { AppPhase, Cipher, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
 
-const IMPORT_ROUTE = '/help/import-export';
+const IMPORT_ROUTE = '/backup/import-export';
 const IMPORT_ROUTE_PATHS = [IMPORT_ROUTE, '/tools/import', '/tools/import-export', '/tools/import-data', '/import', '/import-export'] as const;
 const IMPORT_ROUTE_ALIASES: ReadonlySet<string> = new Set(IMPORT_ROUTE_PATHS.filter((path) => path !== IMPORT_ROUTE));
 const SETTINGS_HOME_ROUTE = '/settings';
@@ -918,7 +918,7 @@ export default function App() {
     if (location === '/sends') return t('nav_sends');
     if (location === '/admin') return t('nav_admin_panel');
     if (location === '/security/devices') return t('nav_device_management');
-    if (location === '/help') return t('nav_backup_strategy');
+    if (location === '/backup') return t('nav_backup_strategy');
     if (isImportRoute) return t('nav_import_export');
     if (location === SETTINGS_ACCOUNT_ROUTE) return t('nav_account_settings');
     if (location === SETTINGS_HOME_ROUTE) return t('txt_settings');
@@ -936,7 +936,7 @@ export default function App() {
   }, [phase, isImportHashRoute, location, navigate]);
 
   useEffect(() => {
-    if (phase === 'app' && profile?.role !== 'admin' && location === '/help') {
+    if (phase === 'app' && profile?.role !== 'admin' && location === '/backup') {
       navigate('/vault');
     }
   }, [phase, profile?.role, location, navigate]);

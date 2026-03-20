@@ -87,7 +87,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
               <span>{t('nav_device_management')}</span>
             </Link>
             {props.profile?.role === 'admin' && (
-              <Link href="/help" className={`side-link ${props.location === '/help' ? 'active' : ''}`}>
+              <Link href="/backup" className={`side-link ${props.location === '/backup' ? 'active' : ''}`}>
                 <Cloud size={16} />
                 <span>{t('nav_backup_strategy')}</span>
               </Link>

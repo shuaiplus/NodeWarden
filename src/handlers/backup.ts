@@ -17,16 +17,19 @@ import {
   requireBackupDestination,
   saveBackupSettings,
 } from '../services/backup-config';
-import { type BackupImportExecutionResult, importBackupArchiveBytes } from '../services/backup-import';
+import { type BackupImportExecutionResult, importBackupArchiveBytes, importRemoteBackupArchiveBytes } from '../services/backup-import';
 import {
   deleteRemoteBackupFile,
   downloadRemoteBackupFile,
   ensureRemoteRestoreCandidate,
   listRemoteBackupEntries,
   pruneRemoteBackupArchives,
+  remoteBackupFileExists,
+  uploadRemoteBackupFile,
   uploadBackupArchive,
 } from '../services/backup-uploader';
 import { StorageService } from '../services/storage';
+import { getBlobObject } from '../services/blob-store';
 
 function isAdmin(user: User): boolean {
   return user.role === 'admin' && user.status === 'active';
@@ -66,6 +69,18 @@ function getBackupDestinationSummary(destination: BackupDestinationRecord | null
   };
 }
 
+function ensureBackupBlobName(value: string): string {
+  const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!normalized) {
+    throw new Error('Backup attachment blob is required');
+  }
+  const parts = normalized.split('/').filter(Boolean);
+  if (!parts.length || parts.some((part) => part === '.' || part === '..')) {
+    throw new Error('Backup attachment blob is invalid');
+  }
+  return parts.join('/');
+}
+
 async function executeConfiguredBackup(
   env: Env,
   storage: StorageService,
@@ -84,7 +99,21 @@ async function executeConfiguredBackup(
   await saveBackupSettings(storage, env, currentSettings);
 
   try {
-    const archive = await buildBackupArchive(env, now);
+    const archive = await buildBackupArchive(env, now, {
+      includeAttachments: destination.includeAttachments,
+    });
+    for (const attachment of archive.manifest.attachmentBlobs || []) {
+      const remotePath = `attachments/${attachment.blobName}`;
+      if (await remoteBackupFileExists(destination, remotePath)) continue;
+      const object = await getBlobObject(env, attachment.blobName);
+      if (!object) {
+        throw new Error(`Attachment blob missing for ${attachment.blobName}`);
+      }
+      const bytes = new Uint8Array(await new Response(object.body).arrayBuffer());
+      await uploadRemoteBackupFile(destination, remotePath, bytes, {
+        contentType: object.contentType,
+      });
+    }
     const upload = await uploadBackupArchive(destination, archive.bytes, archive.fileName);
     let prunedFileCount = 0;
     let pruneErrorMessage: string | null = null;
@@ -152,9 +181,7 @@ async function runImportAndAudit(
     users: imported.result.imported.users,
     ciphers: imported.result.imported.ciphers,
     attachments: imported.result.imported.attachmentFiles,
-    sendFiles: imported.result.imported.sendFiles,
     skippedAttachments: imported.result.skipped.attachments,
-    skippedSendFiles: imported.result.skipped.sendFiles,
     skippedReason: imported.result.skipped.reason,
     replaceExisting,
     ...metadata,
@@ -378,12 +405,35 @@ export async function handleRestoreAdminRemoteBackup(request: Request, env: Env,
     const destination = requireBackupDestination(settings, body.destinationId || null);
     const path = ensureRemoteRestoreCandidate(String(body.path || ''));
     const remoteFile = await downloadRemoteBackupFile(destination, path);
-    const imported = await runImportAndAudit(env, actorUser, remoteFile.bytes, !!body.replaceExisting, {
-      ...getBackupDestinationSummary(destination),
-      remotePath: path,
-      bytes: remoteFile.bytes.byteLength,
-      trigger: 'remote',
-    });
+    const imported = await (async () => {
+      const storage = new StorageService(env.DB);
+      const result = await importRemoteBackupArchiveBytes(
+        remoteFile.bytes,
+        env,
+        actorUser.id,
+        !!body.replaceExisting,
+        {
+          hasAttachment: async (blobName) => remoteBackupFileExists(destination, `attachments/${blobName}`),
+          loadAttachment: async (blobName) => {
+            const file = await downloadRemoteBackupFile(destination, `attachments/${blobName}`).catch(() => null);
+            return file?.bytes || null;
+          },
+        }
+      );
+      await writeAuditLog(storage, result.auditActorUserId, 'admin.backup.import', 'backup', null, {
+        users: result.result.imported.users,
+        ciphers: result.result.imported.ciphers,
+        attachments: result.result.imported.attachmentFiles,
+        skippedAttachments: result.result.skipped.attachments,
+        skippedReason: result.result.skipped.reason,
+        replaceExisting: !!body.replaceExisting,
+        ...getBackupDestinationSummary(destination),
+        remotePath: path,
+        bytes: remoteFile.bytes.byteLength,
+        trigger: 'remote',
+      });
+      return result;
+    })();
     return jsonResponse(imported.result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Remote backup restore failed';
@@ -392,13 +442,22 @@ export async function handleRestoreAdminRemoteBackup(request: Request, env: Env,
 }
 
 export async function handleAdminExportBackup(request: Request, env: Env, actorUser: User): Promise<Response> {
-  void request;
   if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
 
   const storage = new StorageService(env.DB);
+  let body: { includeAttachments?: boolean } | null = null;
+  try {
+    if ((request.headers.get('Content-Type') || '').includes('application/json')) {
+      body = await request.json<{ includeAttachments?: boolean }>();
+    }
+  } catch {
+    return errorResponse('Backup export payload is invalid', 400);
+  }
   let archive: BackupArchiveBundle;
   try {
-    archive = await buildBackupArchive(env);
+    archive = await buildBackupArchive(env, new Date(), {
+      includeAttachments: !!body?.includeAttachments,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Backup export failed';
     return errorResponse(message, message.includes('blob missing') ? 409 : 500);
@@ -408,8 +467,8 @@ export async function handleAdminExportBackup(request: Request, env: Env, actorU
     users: archive.manifest.tableCounts.users,
     ciphers: archive.manifest.tableCounts.ciphers,
     attachments: archive.manifest.tableCounts.attachments,
-    sends: archive.manifest.tableCounts.sends,
     compressedBytes: archive.bytes.byteLength,
+    includesAttachments: archive.manifest.includes.attachments,
   });
 
   return new Response(archive.bytes, {
@@ -420,6 +479,29 @@ export async function handleAdminExportBackup(request: Request, env: Env, actorU
       'Cache-Control': 'no-store',
     },
   });
+}
+
+export async function handleDownloadAdminBackupAttachment(request: Request, env: Env, actorUser: User): Promise<Response> {
+  if (!isAdmin(actorUser)) return errorResponse('Forbidden', 403);
+
+  try {
+    const url = new URL(request.url);
+    const blobName = ensureBackupBlobName(url.searchParams.get('blobName') || '');
+    const object = await getBlobObject(env, blobName);
+    if (!object) {
+      return errorResponse('Backup attachment blob not found', 404);
+    }
+    return new Response(object.body, {
+      status: 200,
+      headers: {
+        'Content-Type': object.contentType || 'application/octet-stream',
+        'Content-Length': String(object.size),
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (error) {
+    return errorResponse(error instanceof Error ? error.message : 'Backup attachment download failed', 400);
+  }
 }
 
 export async function handleAdminImportBackup(request: Request, env: Env, actorUser: User): Promise<Response> {

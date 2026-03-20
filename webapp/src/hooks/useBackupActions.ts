@@ -1,8 +1,8 @@
 import { useMemo } from 'preact/hooks';
 import {
+  buildCompleteAdminBackupExport,
   deleteRemoteBackup,
   downloadRemoteBackup,
-  exportAdminBackup,
   getAdminBackupSettings,
   importAdminBackup,
   listRemoteBackups,
@@ -24,8 +24,8 @@ export default function useBackupActions(options: UseBackupActionsOptions) {
 
   return useMemo(
     () => ({
-      async exportBackup() {
-        const payload = await exportAdminBackup(authedFetch);
+      async exportBackup(includeAttachments: boolean = false) {
+        const payload = await buildCompleteAdminBackupExport(authedFetch, includeAttachments);
         downloadBytesAsFile(payload.bytes, payload.fileName, payload.mimeType);
       },
 

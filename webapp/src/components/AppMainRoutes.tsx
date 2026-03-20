@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'preact/compat';
+import { useEffect } from 'preact/hooks';
 import { Link, Route, Switch } from 'wouter';
 import { ArrowUpDown, Cloud, LogOut, Settings as SettingsIcon, Shield, ShieldUser } from 'lucide-preact';
 import type { ImportAttachmentFile, ImportResultSummary } from '@/components/ImportPage';
@@ -19,6 +20,13 @@ const ImportPage = lazy(() => import('@/components/ImportPage'));
 
 function RouteContentFallback() {
   return <div className="loading-screen">{t('txt_loading_nodewarden')}</div>;
+}
+
+function LegacyBackupRedirect(props: { onNavigate: (path: string) => void }) {
+  useEffect(() => {
+    props.onNavigate('/backup');
+  }, [props]);
+  return null;
 }
 
 export interface AppMainRoutesProps {
@@ -92,7 +100,7 @@ export interface AppMainRoutesProps {
   onToggleUserStatus: (userId: string, status: 'active' | 'banned') => Promise<void>;
   onDeleteUser: (userId: string) => Promise<void>;
   onRevokeInvite: (code: string) => Promise<void>;
-  onExportBackup: () => Promise<void>;
+  onExportBackup: (includeAttachments?: boolean) => Promise<void>;
   onImportBackup: (file: File, replaceExisting?: boolean) => Promise<AdminBackupImportResponse>;
   onLoadBackupSettings: () => Promise<AdminBackupSettings>;
   onSaveBackupSettings: (settings: AdminBackupSettings) => Promise<AdminBackupSettings>;
@@ -232,7 +240,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 </Link>
               )}
               {props.profile.role === 'admin' && (
-                <Link href="/help" className="mobile-settings-link">
+                <Link href="/backup" className="mobile-settings-link">
                   <Cloud size={18} />
                   <span>{t('nav_backup_strategy')}</span>
                 </Link>
@@ -299,6 +307,9 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
         </Route>
       ))}
       <Route path="/help">
+        <LegacyBackupRedirect onNavigate={props.onNavigate} />
+      </Route>
+      <Route path="/backup">
         {props.profile?.role === 'admin' ? (
           <div className="stack">
             {props.mobileLayout && (

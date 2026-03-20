@@ -7,14 +7,13 @@ import {
   parseBackupSettingsEnvelope,
 } from './backup-settings-crypto';
 import {
-  BACKUP_DEFAULT_SCHEDULE_TIME,
+  BACKUP_DEFAULT_INTERVAL_HOURS,
   BACKUP_DEFAULT_TIMEZONE,
   type BackupDestinationConfig,
   type BackupDestinationRecord,
   type BackupDestinationType,
   type BackupRuntimeState,
   type BackupScheduleConfig,
-  type BackupScheduleFrequency,
   type BackupSettings,
   type E3BackupDestination,
   type WebDavBackupDestination,
@@ -73,19 +72,6 @@ function assertValidTimeZone(timezone: string): string {
   }
 }
 
-function assertValidScheduleTime(value: string): string {
-  if (!/^\d{2}:\d{2}$/.test(value)) {
-    throw new Error('Backup time must use HH:MM format');
-  }
-  const [hoursRaw, minutesRaw] = value.split(':');
-  const hours = Number(hoursRaw);
-  const minutes = Number(minutesRaw);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-    throw new Error('Backup time is invalid');
-  }
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-}
-
 function normalizeRetentionCount(value: unknown, fallback: number | null = 30): number | null {
   if (value === undefined) return fallback;
   if (value === null || String(value).trim() === '') return null;
@@ -96,33 +82,12 @@ function normalizeRetentionCount(value: unknown, fallback: number | null = 30): 
   return count;
 }
 
-function normalizeScheduleFrequency(
-  value: unknown,
-  fallback: BackupScheduleFrequency = 'daily'
-): BackupScheduleFrequency {
-  const frequency = asTrimmedString(value) || fallback;
-  if (frequency !== 'daily' && frequency !== 'weekly' && frequency !== 'monthly') {
-    throw new Error('Backup frequency is invalid');
+function normalizeIntervalHours(value: unknown, fallback: number = BACKUP_DEFAULT_INTERVAL_HOURS): number {
+  const raw = value === undefined || value === null || value === '' ? fallback : Number(value);
+  if (!Number.isInteger(raw) || raw < 1 || raw > 99) {
+    throw new Error('Backup interval hours must be between 1 and 99');
   }
-  return frequency;
-}
-
-function normalizeDayOfWeek(value: unknown, fallback: number = 1): number {
-  if (value === undefined || value === null || value === '') return fallback;
-  const day = Number(value);
-  if (!Number.isInteger(day) || day < 0 || day > 6) {
-    throw new Error('Backup day of week is invalid');
-  }
-  return day;
-}
-
-function normalizeDayOfMonth(value: unknown, fallback: number = 1): number {
-  if (value === undefined || value === null || value === '') return fallback;
-  const day = Number(value);
-  if (!Number.isInteger(day) || day < 1 || day > 31) {
-    throw new Error('Backup day of month must be between 1 and 31');
-  }
-  return day;
+  return raw;
 }
 
 function normalizeE3Destination(value: unknown, allowIncomplete = false): E3BackupDestination {
@@ -250,11 +215,11 @@ function normalizeDestinationRecord(
     : previousSchedule.retentionCount;
   const schedule: BackupScheduleConfig = {
     enabled: !!(scheduleSource.enabled ?? previousSchedule.enabled),
-    frequency: normalizeScheduleFrequency(scheduleSource.frequency ?? previousSchedule.frequency, previousSchedule.frequency),
-    scheduleTime: assertValidScheduleTime(asTrimmedString(scheduleSource.scheduleTime ?? previousSchedule.scheduleTime) || BACKUP_DEFAULT_SCHEDULE_TIME),
+    intervalHours: normalizeIntervalHours(
+      scheduleSource.intervalHours ?? previousSchedule.intervalHours,
+      previousSchedule.intervalHours || BACKUP_DEFAULT_INTERVAL_HOURS
+    ),
     timezone: assertValidTimeZone(asTrimmedString(scheduleSource.timezone ?? previousSchedule.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE),
-    dayOfWeek: normalizeDayOfWeek(scheduleSource.dayOfWeek ?? previousSchedule.dayOfWeek, previousSchedule.dayOfWeek),
-    dayOfMonth: normalizeDayOfMonth(scheduleSource.dayOfMonth ?? previousSchedule.dayOfMonth, previousSchedule.dayOfMonth),
     retentionCount: normalizeRetentionCount(retentionSource, previousSchedule.retentionCount),
   };
 
@@ -264,6 +229,9 @@ function normalizeDestinationRecord(
     id,
     name,
     type,
+    includeAttachments: typeof input.includeAttachments === 'boolean'
+      ? input.includeAttachments
+      : previous?.includeAttachments ?? false,
     destination,
     schedule,
     runtime,
@@ -271,6 +239,12 @@ function normalizeDestinationRecord(
 }
 
 function parseLegacyBackupSettings(rawValue: Record<string, unknown>, fallbackTimezone: string): BackupSettings {
+  const legacyFrequency = asTrimmedString(rawValue.frequency).toLowerCase();
+  const intervalHours = legacyFrequency === 'weekly'
+    ? 24 * 7
+    : legacyFrequency === 'monthly'
+      ? 24 * 30
+      : BACKUP_DEFAULT_INTERVAL_HOURS;
   const destinationTypeRaw = asTrimmedString(rawValue.destinationType);
   const destinationType: BackupDestinationType =
     destinationTypeRaw === 'e3' || destinationTypeRaw === 'webdav'
@@ -280,14 +254,12 @@ function parseLegacyBackupSettings(rawValue: Record<string, unknown>, fallbackTi
     id: createBackupRandomId(),
     name: defaultDestinationName(destinationType, 1),
     type: destinationType,
+    includeAttachments: false,
     destination: normalizeDestination(destinationType, rawValue.destination),
     schedule: {
       enabled: !!rawValue.enabled,
-      frequency: 'daily',
-      scheduleTime: assertValidScheduleTime(asTrimmedString(rawValue.scheduleTime) || BACKUP_DEFAULT_SCHEDULE_TIME),
+      intervalHours,
       timezone: assertValidTimeZone(asTrimmedString(rawValue.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE),
-      dayOfWeek: 1,
-      dayOfMonth: 1,
       retentionCount: 30,
     },
     runtime: normalizeRuntime(rawValue.runtime),
@@ -334,10 +306,15 @@ export function parseBackupSettings(raw: string | null, fallbackTimezone: string
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (Array.isArray(parsed.destinations)) {
-      const globalScheduleTime = assertValidScheduleTime(asTrimmedString(parsed.scheduleTime) || BACKUP_DEFAULT_SCHEDULE_TIME);
       const globalTimezone = assertValidTimeZone(asTrimmedString(parsed.timezone) || fallbackTimezone || BACKUP_DEFAULT_TIMEZONE);
       const globalEnabled = !!parsed.enabled;
       const activeDestinationIdRaw = asTrimmedString(parsed.activeDestinationId);
+      const globalFrequency = asTrimmedString(parsed.frequency).toLowerCase();
+      const globalIntervalHours = globalFrequency === 'weekly'
+        ? 24 * 7
+        : globalFrequency === 'monthly'
+          ? 24 * 30
+          : BACKUP_DEFAULT_INTERVAL_HOURS;
       const previousById = new Map<string, BackupDestinationRecord>();
       const normalizedEntries = (parsed.destinations as unknown[]).map((entry) => {
         if (!isPlainObject(entry)) return entry;
@@ -348,11 +325,8 @@ export function parseBackupSettings(raw: string | null, fallbackTimezone: string
           ...entry,
           schedule: {
             enabled: scheduleEnabled,
-            frequency: 'daily',
-            scheduleTime: globalScheduleTime,
+            intervalHours: globalIntervalHours,
             timezone: globalTimezone,
-            dayOfWeek: 1,
-            dayOfMonth: 1,
             retentionCount: 30,
           },
         };
@@ -511,29 +485,6 @@ function getDateTimeParts(date: Date, timezone: string): { year: string; month: 
   };
 }
 
-function getLocalWeekday(date: Date, timezone: string): number {
-  const value = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    weekday: 'short',
-  }).format(date);
-  const map: Record<string, number> = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-  return map[value] ?? 0;
-}
-
-function getMonthLastDay(date: Date, timezone: string): number {
-  const { year, month } = getDateTimeParts(date, timezone);
-  const utcDate = new Date(Date.UTC(Number(year), Number(month), 0));
-  return utcDate.getUTCDate();
-}
-
 export function getBackupLocalDateKey(date: Date, timezone: string): string {
   const parts = getDateTimeParts(date, timezone);
   return `${parts.year}-${parts.month}-${parts.day}`;
@@ -544,32 +495,15 @@ export function getBackupLocalTime(date: Date, timezone: string): string {
   return `${parts.hour}:${parts.minute}`;
 }
 
-function toMinutes(value: string): number {
-  const [hoursRaw, minutesRaw] = value.split(':');
-  return Number(hoursRaw) * 60 + Number(minutesRaw);
-}
-
 export function isBackupDueNow(
   destination: BackupDestinationRecord,
   now: Date,
   windowMinutes: number = BACKUP_SCHEDULER_WINDOW_MINUTES
 ): boolean {
   if (!destination.schedule.enabled) return false;
-
-  const currentMinutes = toMinutes(getBackupLocalTime(now, destination.schedule.timezone));
-  const scheduledMinutes = toMinutes(destination.schedule.scheduleTime);
-  const delta = currentMinutes - scheduledMinutes;
-  if (delta < 0 || delta >= windowMinutes) return false;
-
-  if (destination.schedule.frequency === 'weekly') {
-    return getLocalWeekday(now, destination.schedule.timezone) === destination.schedule.dayOfWeek;
-  }
-
-  if (destination.schedule.frequency === 'monthly') {
-    const currentDay = Number(getDateTimeParts(now, destination.schedule.timezone).day);
-    const scheduledDay = Math.min(destination.schedule.dayOfMonth, getMonthLastDay(now, destination.schedule.timezone));
-    return currentDay === scheduledDay;
-  }
-
-  return true;
+  const intervalMs = destination.schedule.intervalHours * 60 * 60 * 1000;
+  const toleranceMs = Math.max(1, windowMinutes) * 60 * 1000;
+  const lastAttemptAt = destination.runtime.lastAttemptAt ? new Date(destination.runtime.lastAttemptAt) : null;
+  if (!lastAttemptAt || !Number.isFinite(lastAttemptAt.getTime())) return true;
+  return now.getTime() - lastAttemptAt.getTime() >= Math.max(0, intervalMs - toleranceMs);
 }

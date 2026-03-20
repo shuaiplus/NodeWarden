@@ -11,6 +11,8 @@ interface ConfirmDialogProps {
   cancelText?: string;
   danger?: boolean;
   hideCancel?: boolean;
+  confirmDisabled?: boolean;
+  cancelDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   children?: ComponentChildren;
@@ -25,6 +27,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
         className="dialog-card"
         onSubmit={(e) => {
           e.preventDefault();
+          if (props.confirmDisabled) return;
           props.onConfirm();
         }}
       >
@@ -34,12 +37,21 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
         <button
           type="submit"
           className={`btn ${props.danger ? 'btn-danger' : 'btn-primary'} dialog-btn`}
+          disabled={props.confirmDisabled}
         >
           <Check size={14} className="btn-icon" />
           {props.confirmText || t('txt_yes')}
         </button>
         {!props.hideCancel && (
-          <button type="button" className="btn btn-secondary dialog-btn" onClick={props.onCancel}>
+          <button
+            type="button"
+            className="btn btn-secondary dialog-btn"
+            disabled={props.cancelDisabled}
+            onClick={() => {
+              if (props.cancelDisabled) return;
+              props.onCancel();
+            }}
+          >
             <X size={14} className="btn-icon" />
             {props.cancelText || t('txt_no')}
           </button>
