@@ -1,6 +1,7 @@
 import { ArrowUpDown, Cloud, Clock3, Folder as FolderIcon, KeyRound, Lock, LogOut, Send as SendIcon, Settings as SettingsIcon, Shield, ShieldUser } from 'lucide-preact';
 import { Link } from 'wouter';
 import AppMainRoutes from '@/components/AppMainRoutes';
+import ThemeSwitch from '@/components/ThemeSwitch';
 import type { AppMainRoutesProps } from '@/components/AppMainRoutes';
 import { t } from '@/lib/i18n';
 import type { Profile } from '@/lib/types';
@@ -15,8 +16,11 @@ interface AppAuthenticatedShellProps {
   settingsAccountRoute: string;
   importRoute: string;
   isImportRoute: boolean;
+  darkMode: boolean;
+  themeToggleTitle: string;
   onLock: () => void;
   onLogout: () => void;
+  onToggleTheme: () => void;
   mainRoutesProps: AppMainRoutesProps;
 }
 
@@ -35,6 +39,7 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
               <ShieldUser size={16} />
               <span>{props.profile?.email}</span>
             </div>
+            <ThemeSwitch checked={props.darkMode} title={props.themeToggleTitle} onToggle={props.onToggleTheme} />
             <button type="button" className="btn btn-secondary small" onClick={props.onLock}>
               <Lock size={14} className="btn-icon" /> {t('txt_lock')}
             </button>
@@ -49,6 +54,9 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
                 <FolderIcon size={16} className="btn-icon" />
               </button>
             )}
+            <div className="mobile-theme-btn">
+              <ThemeSwitch checked={props.darkMode} title={props.themeToggleTitle} onToggle={props.onToggleTheme} />
+            </div>
             <button type="button" className="btn btn-secondary small mobile-lock-btn" aria-label={t('txt_lock')} title={t('txt_lock')} onClick={props.onLock}>
               <Lock size={14} className="btn-icon" />
             </button>

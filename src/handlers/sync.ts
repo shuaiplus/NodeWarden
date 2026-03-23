@@ -148,6 +148,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     forcePasswordReset: false,
     avatarColor: null,
     creationDate: user.createdAt,
+    verifyDevices: user.verifyDevices,
     object: 'profile',
   };
 
@@ -180,6 +181,12 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
         },
     policies: [],
     sends: sends.map(sendToResponse),
+    UserDecryption: {
+      MasterPasswordUnlock: buildUserDecryptionOptions(user).MasterPasswordUnlock,
+      TrustedDeviceOption: null,
+      KeyConnectorOption: null,
+      Object: 'userDecryption',
+    },
     // PascalCase for desktop/browser clients
     UserDecryptionOptions: buildUserDecryptionOptions(user),
     // camelCase for Android client (SyncResponseJson uses @SerialName("userDecryption"))

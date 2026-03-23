@@ -16,6 +16,7 @@ export type VaultSortMode = 'edited' | 'created' | 'name';
 export type SidebarFilter =
   | { kind: 'all' }
   | { kind: 'favorite' }
+  | { kind: 'archive' }
   | { kind: 'trash' }
   | { kind: 'duplicates' }
   | { kind: 'type'; value: TypeFilter }
@@ -69,6 +70,34 @@ export function cipherTypeKey(type: number): TypeFilter {
   if (type === 4) return 'identity';
   if (type === 2) return 'note';
   return 'ssh';
+}
+
+function cipherDeletedValue(cipher: Cipher): boolean {
+  return !!(cipher.deletedDate || (cipher as { deletedAt?: string | null }).deletedAt);
+}
+
+function cipherArchivedValue(cipher: Cipher): boolean {
+  return !!(cipher.archivedDate || (cipher as { archivedAt?: string | null }).archivedAt);
+}
+
+export function isCipherDeleted(cipher: Cipher): boolean {
+  return cipherDeletedValue(cipher);
+}
+
+export function isCipherArchived(cipher: Cipher): boolean {
+  return cipherArchivedValue(cipher) && !cipherDeletedValue(cipher);
+}
+
+export function isCipherVisibleInNormalVault(cipher: Cipher): boolean {
+  return !cipherDeletedValue(cipher) && !cipherArchivedValue(cipher);
+}
+
+export function isCipherVisibleInArchive(cipher: Cipher): boolean {
+  return !cipherDeletedValue(cipher) && cipherArchivedValue(cipher);
+}
+
+export function isCipherVisibleInTrash(cipher: Cipher): boolean {
+  return cipherDeletedValue(cipher);
 }
 
 export function cipherTypeLabel(type: number): string {

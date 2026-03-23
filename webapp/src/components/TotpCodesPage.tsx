@@ -4,7 +4,7 @@ import { copyTextToClipboard as copyTextWithFeedback } from '@/lib/clipboard';
 import { calcTotpNow } from '@/lib/crypto';
 import { t } from '@/lib/i18n';
 import type { Cipher } from '@/lib/types';
-import { websiteIconUrl } from '@/components/vault/vault-page-helpers';
+import { isCipherVisibleInNormalVault, websiteIconUrl } from '@/components/vault/vault-page-helpers';
 
 interface TotpCodesPageProps {
   ciphers: Cipher[];
@@ -82,8 +82,7 @@ export default function TotpCodesPage(props: TotpCodesPageProps) {
     () =>
       props.ciphers
         .filter((cipher) => {
-          const isDeleted = !!(cipher.deletedDate || (cipher as { deletedAt?: string | null }).deletedAt);
-          return !isDeleted && !!cipher.login?.decTotp;
+          return isCipherVisibleInNormalVault(cipher) && !!cipher.login?.decTotp;
         })
         .sort((a, b) => {
           const nameA = (a.decName || a.name || '').trim().toLowerCase();

@@ -78,6 +78,43 @@ function buildIconServiceCsp(origin: string): string {
   return `img-src 'self' data: ${origin}`;
 }
 
+function buildConfigResponse(origin: string) {
+  return {
+    version: LIMITS.compatibility.bitwardenServerVersion,
+    gitHash: 'nodewarden',
+    server: null,
+    environment: {
+      cloudRegion: 'self-hosted',
+      vault: origin,
+      api: origin + '/api',
+      identity: origin + '/identity',
+      notifications: origin + '/notifications',
+      icons: origin,
+      sso: '',
+      fillAssistRules: null,
+    },
+    push: {
+      pushTechnology: 0,
+      vapidPublicKey: null,
+    },
+    communication: null,
+    settings: {
+      disableUserRegistration: false,
+    },
+    _icon_service_url: buildIconServiceTemplate(origin),
+    _icon_service_csp: buildIconServiceCsp(origin),
+    featureStates: {
+      'duo-redirect': true,
+      'email-verification': true,
+      'pm-19051-send-email-verification': false,
+      'pm-19148-innovation-archive': true,
+      'unauth-ui-refresh': true,
+      'web-push': false,
+    },
+    object: 'config',
+  };
+}
+
 function normalizeIconHost(rawHost: string): string | null {
   const decoded = decodeURIComponent(String(rawHost || '').trim()).toLowerCase().replace(/\.+$/, '');
   if (!decoded || decoded.includes('/') || decoded.includes('\\')) return null;
@@ -243,6 +280,11 @@ export async function handlePublicRoute(
     return handleKnownDevice(request, env);
   }
 
+  const clearDeviceTokenMatch = path.match(/^\/api\/devices\/identifier\/([^/]+)\/clear-token$/i);
+  if (clearDeviceTokenMatch && (method === 'PUT' || method === 'POST')) {
+    return new Response(null, { status: 200 });
+  }
+
   if ((path === '/identity/connect/revocation' || path === '/identity/connect/revoke') && method === 'POST') {
     const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
     if (blocked) return blocked;
@@ -250,6 +292,12 @@ export async function handlePublicRoute(
   }
 
   if (path === '/identity/accounts/prelogin' && method === 'POST') {
+    const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
+    if (blocked) return blocked;
+    return handlePrelogin(request, env);
+  }
+
+  if (path === '/identity/accounts/prelogin/password' && method === 'POST') {
     const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
     if (blocked) return blocked;
     return handlePrelogin(request, env);
@@ -275,28 +323,7 @@ export async function handlePublicRoute(
     const blocked = await enforcePublicRateLimit('public-read', LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
     const origin = new URL(request.url).origin;
-    return jsonResponse({
-      version: LIMITS.compatibility.bitwardenServerVersion,
-      gitHash: 'nodewarden',
-      server: null,
-      environment: {
-        vault: origin,
-        api: origin + '/api',
-        identity: origin + '/identity',
-        notifications: origin + '/notifications',
-        icons: origin,
-        sso: '',
-      },
-      _icon_service_url: buildIconServiceTemplate(origin),
-      _icon_service_csp: buildIconServiceCsp(origin),
-      featureStates: {
-        'duo-redirect': true,
-        'email-verification': true,
-        'pm-19051-send-email-verification': false,
-        'unauth-ui-refresh': true,
-      },
-      object: 'config',
-    });
+    return jsonResponse(buildConfigResponse(origin));
   }
 
   if (path === '/api/version' && method === 'GET') {

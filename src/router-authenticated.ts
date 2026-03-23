@@ -7,6 +7,7 @@ import {
   handleGetRevisionDate,
   handleVerifyPassword,
   handleChangePassword,
+  handleSetVerifyDevices,
   handleGetTotpStatus,
   handleSetTotpStatus,
   handleGetTotpRecoveryCode,
@@ -20,11 +21,15 @@ import {
   handleDeleteCipherCompat,
   handlePermanentDeleteCipher,
   handleRestoreCipher,
+  handleBulkArchiveCiphers,
   handlePartialUpdateCipher,
+  handleBulkUnarchiveCiphers,
   handleBulkMoveCiphers,
   handleBulkDeleteCiphers,
   handleBulkPermanentDeleteCiphers,
   handleBulkRestoreCiphers,
+  handleArchiveCipher,
+  handleUnarchiveCipher,
 } from './handlers/ciphers';
 import {
   handleGetFolders,
@@ -110,6 +115,10 @@ export async function handleAuthenticatedRoute(
     return handleVerifyPassword(request, env, userId);
   }
 
+  if (path === '/api/accounts/verify-devices' && (method === 'PUT' || method === 'POST')) {
+    return handleSetVerifyDevices(request, env, userId);
+  }
+
   if (path === '/api/sync' && method === 'GET') {
     return handleSync(request, env, userId);
   }
@@ -140,6 +149,14 @@ export async function handleAuthenticatedRoute(
     return handleBulkRestoreCiphers(request, env, userId);
   }
 
+  if (path === '/api/ciphers/archive' && (method === 'PUT' || method === 'POST')) {
+    return handleBulkArchiveCiphers(request, env, userId);
+  }
+
+  if (path === '/api/ciphers/unarchive' && (method === 'PUT' || method === 'POST')) {
+    return handleBulkUnarchiveCiphers(request, env, userId);
+  }
+
   if (path === '/api/ciphers/move' && (method === 'POST' || method === 'PUT')) {
     return handleBulkMoveCiphers(request, env, userId);
   }
@@ -158,6 +175,8 @@ export async function handleAuthenticatedRoute(
     if (subPath === '/delete' && method === 'PUT') return handleDeleteCipher(request, env, userId, cipherId);
     if (subPath === '/delete' && method === 'DELETE') return handlePermanentDeleteCipher(request, env, userId, cipherId);
     if (subPath === '/restore' && method === 'PUT') return handleRestoreCipher(request, env, userId, cipherId);
+    if (subPath === '/archive' && (method === 'PUT' || method === 'POST')) return handleArchiveCipher(request, env, userId, cipherId);
+    if (subPath === '/unarchive' && (method === 'PUT' || method === 'POST')) return handleUnarchiveCipher(request, env, userId, cipherId);
     if (subPath === '/partial' && (method === 'PUT' || method === 'POST')) return handlePartialUpdateCipher(request, env, userId, cipherId);
     if (subPath === '/share' && method === 'POST') return handleGetCipher(request, env, userId, cipherId);
     if (subPath === '/details' && method === 'GET') return handleGetCipher(request, env, userId, cipherId);

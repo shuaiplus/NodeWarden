@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { Clipboard, Download, Eye, EyeOff, ExternalLink, Paperclip, Pencil, Trash2 } from 'lucide-preact';
+import { Archive, Clipboard, Download, Eye, EyeOff, ExternalLink, Paperclip, Pencil, RotateCcw, Trash2 } from 'lucide-preact';
 import type { Cipher } from '@/lib/types';
 import { t } from '@/lib/i18n';
 import {
@@ -31,11 +31,14 @@ interface VaultDetailViewProps {
   onDownloadAttachment: (cipher: Cipher, attachmentId: string) => void;
   onStartEdit: () => void;
   onDelete: (cipher: Cipher) => void;
+  onArchive: (cipher: Cipher) => void | Promise<void>;
+  onUnarchive: (cipher: Cipher) => void | Promise<void>;
 }
 
 export default function VaultDetailView(props: VaultDetailViewProps) {
   const selectedAttachments = Array.isArray(props.selectedCipher.attachments) ? props.selectedCipher.attachments : [];
   const [showSshPrivateKey, setShowSshPrivateKey] = useState(false);
+  const isArchived = !!(props.selectedCipher.archivedDate || (props.selectedCipher as { archivedAt?: string | null }).archivedAt);
   const formatDownloadLabel = (attachmentId: string) => {
     const downloadKey = `${props.selectedCipher.id}:${attachmentId}`;
     if (props.downloadingAttachmentKey !== downloadKey) return t('txt_download');
@@ -62,6 +65,7 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
           <div className="card">
             <h3 className="detail-title">{props.selectedCipher.decName || t('txt_no_name')}</h3>
             <div className="detail-sub">{props.folderName(props.selectedCipher.folderId)}</div>
+            {isArchived && <div className="list-badge" style={{ marginTop: '8px', width: 'fit-content' }}>{t('txt_archived')}</div>}
           </div>
 
           {props.selectedCipher.login && (
@@ -351,6 +355,15 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
               <button type="button" className="btn btn-secondary" onClick={props.onStartEdit}>
                 <Pencil size={14} className="btn-icon" /> {t('txt_edit')}
               </button>
+              {isArchived ? (
+                <button type="button" className="btn btn-secondary" onClick={() => void props.onUnarchive(props.selectedCipher)}>
+                  <RotateCcw size={14} className="btn-icon" /> {t('txt_unarchive')}
+                </button>
+              ) : (
+                <button type="button" className="btn btn-secondary" onClick={() => void props.onArchive(props.selectedCipher)}>
+                  <Archive size={14} className="btn-icon" /> {t('txt_archive')}
+                </button>
+              )}
             </div>
             <button type="button" className="btn btn-danger" onClick={() => props.onDelete(props.selectedCipher)}>
               <Trash2 size={14} className="btn-icon" /> {t('txt_delete')}

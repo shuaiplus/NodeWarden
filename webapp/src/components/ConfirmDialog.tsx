@@ -1,5 +1,4 @@
 import type { ComponentChildren } from 'preact';
-import { Check, X } from 'lucide-preact';
 import { t } from '@/lib/i18n';
 
 interface ConfirmDialogProps {
@@ -39,7 +38,6 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
           className={`btn ${props.danger ? 'btn-danger' : 'btn-primary'} dialog-btn`}
           disabled={props.confirmDisabled}
         >
-          <Check size={14} className="btn-icon" />
           {props.confirmText || t('txt_yes')}
         </button>
         {!props.hideCancel && (
@@ -52,7 +50,6 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
               props.onCancel();
             }}
           >
-            <X size={14} className="btn-icon" />
             {props.cancelText || t('txt_no')}
           </button>
         )}

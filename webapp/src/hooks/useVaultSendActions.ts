@@ -22,12 +22,15 @@ import {
 } from '@/lib/app-support';
 import { buildSendShareKey, bulkDeleteSends, createSend, deleteSend, updateSend } from '@/lib/api/send';
 import {
+  archiveCipher,
   buildCipherImportPayload,
+  bulkArchiveCiphers,
   bulkDeleteCiphers,
   bulkDeleteFolders,
   bulkMoveCiphers,
   bulkPermanentDeleteCiphers,
   bulkRestoreCiphers,
+  bulkUnarchiveCiphers,
   createCipher,
   createFolder,
   deleteCipher,
@@ -40,6 +43,7 @@ import {
   type CiphersImportPayload,
   type ImportedCipherMapEntry,
   updateCipher,
+  unarchiveCipher,
   uploadCipherAttachment,
 } from '@/lib/api/vault';
 import { deriveLoginHash, getPreloginKdfConfig, verifyMasterPassword } from '@/lib/api/auth';
@@ -237,6 +241,28 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
         }
       },
 
+      async archiveVaultItem(cipher: Cipher) {
+        try {
+          await archiveCipher(authedFetch, cipher.id);
+          await Promise.all([refetchCiphers(), refetchFolders()]);
+          onNotify('success', t('txt_item_archived'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_archive_item_failed'));
+          throw error;
+        }
+      },
+
+      async unarchiveVaultItem(cipher: Cipher) {
+        try {
+          await unarchiveCipher(authedFetch, cipher.id);
+          await Promise.all([refetchCiphers(), refetchFolders()]);
+          onNotify('success', t('txt_item_unarchived'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_unarchive_item_failed'));
+          throw error;
+        }
+      },
+
       async bulkDeleteVaultItems(ids: string[]) {
         try {
           await bulkDeleteCiphers(authedFetch, ids);
@@ -244,6 +270,28 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           onNotify('success', t('txt_deleted_selected_items'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_bulk_delete_failed'));
+          throw error;
+        }
+      },
+
+      async bulkArchiveVaultItems(ids: string[]) {
+        try {
+          await bulkArchiveCiphers(authedFetch, ids);
+          await Promise.all([refetchCiphers(), refetchFolders()]);
+          onNotify('success', t('txt_archived_selected_items'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_bulk_archive_failed'));
+          throw error;
+        }
+      },
+
+      async bulkUnarchiveVaultItems(ids: string[]) {
+        try {
+          await bulkUnarchiveCiphers(authedFetch, ids);
+          await Promise.all([refetchCiphers(), refetchFolders()]);
+          onNotify('success', t('txt_unarchived_selected_items'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_bulk_unarchive_failed'));
           throw error;
         }
       },

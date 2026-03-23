@@ -1,5 +1,5 @@
 import type { RefObject } from 'preact';
-import { ArrowUpDown, Check, CheckCheck, FolderInput, Plus, RefreshCw, Trash2, X } from 'lucide-preact';
+import { Archive, ArrowUpDown, Check, CheckCheck, FolderInput, Plus, RefreshCw, RotateCcw, Trash2, X } from 'lucide-preact';
 import type { Cipher } from '@/lib/types';
 import { t } from '@/lib/i18n';
 import {
@@ -48,6 +48,8 @@ interface VaultListPanelProps {
   onToggleCreateMenu: () => void;
   onStartCreate: (type: number) => void;
   onBulkRestore: () => void;
+  onBulkArchive: () => void;
+  onBulkUnarchive: () => void;
   onOpenMove: () => void;
   onClearSelection: () => void;
   onScroll: (top: number) => void;
@@ -139,7 +141,17 @@ export default function VaultListPanel(props: VaultListPanelProps) {
             <RefreshCw size={14} className="btn-icon" /> {t('txt_restore')}
           </button>
         )}
-        {props.selectedCount > 0 && props.sidebarFilter.kind !== 'trash' && props.sidebarFilter.kind !== 'duplicates' && (
+        {props.selectedCount > 0 && props.sidebarFilter.kind === 'archive' && (
+          <button type="button" className="btn btn-secondary small" disabled={props.busy} onClick={props.onBulkUnarchive}>
+            <RotateCcw size={14} className="btn-icon" /> {t('txt_unarchive')}
+          </button>
+        )}
+        {props.selectedCount > 0 && props.sidebarFilter.kind !== 'trash' && props.sidebarFilter.kind !== 'archive' && props.sidebarFilter.kind !== 'duplicates' && (
+          <button type="button" className="btn btn-secondary small" disabled={props.busy} onClick={props.onBulkArchive}>
+            <Archive size={14} className="btn-icon" /> {t('txt_archive_selected')}
+          </button>
+        )}
+        {props.selectedCount > 0 && props.sidebarFilter.kind !== 'trash' && props.sidebarFilter.kind !== 'archive' && props.sidebarFilter.kind !== 'duplicates' && (
           <button type="button" className="btn btn-secondary small" disabled={props.busy} onClick={props.onOpenMove}>
             <FolderInput size={14} className="btn-icon" /> {t('txt_move')}
           </button>

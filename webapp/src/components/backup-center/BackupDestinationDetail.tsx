@@ -257,6 +257,23 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
               </div>
             </label>
             <label className="field">
+              <span>{t('txt_backup_start_time')}</span>
+              <input
+                className="input"
+                type="time"
+                step={300}
+                value={props.selectedDestination.schedule.startTime || '03:00'}
+                disabled={props.loadingSettings || props.disableWhileBusy}
+                onInput={(event) => props.onUpdateDestination((destination) => ({
+                  ...destination,
+                  schedule: {
+                    ...destination.schedule,
+                    startTime: (event.currentTarget as HTMLInputElement).value || '03:00',
+                  },
+                }))}
+              />
+            </label>
+            <label className="field">
               <span>{t('txt_backup_timezone')}</span>
               <select
                 className="input"

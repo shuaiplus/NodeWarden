@@ -75,6 +75,16 @@ function jwtSecretUnsafeReason(env: Env): 'missing' | 'default' | 'too_short' | 
   return null;
 }
 
+async function verifyUserSecret(
+  auth: AuthService,
+  user: User,
+  secret: string | null | undefined
+): Promise<boolean> {
+  const normalized = String(secret || '').trim();
+  if (!normalized) return false;
+  return auth.verifyPassword(normalized, user.masterPasswordHash, user.email);
+}
+
 function toProfile(user: User, env: Env): ProfileResponse {
   void env;
   return {
@@ -98,6 +108,7 @@ function toProfile(user: User, env: Env): ProfileResponse {
     forcePasswordReset: false,
     avatarColor: null,
     creationDate: user.createdAt,
+    verifyDevices: user.verifyDevices,
     role: user.role,
     status: user.status,
     object: 'profile',
@@ -194,6 +205,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     securityStamp: generateUUID(),
     role: 'user',
     status: 'active',
+    verifyDevices: true,
     totpSecret: null,
     totpRecoveryCode: null,
     createdAt: now,
@@ -361,6 +373,40 @@ export async function handleUpdateProfile(request: Request, env: Env, userId: st
   await storage.saveUser(user);
 
   return jsonResponse(toProfile(user, env));
+}
+
+// PUT/POST /api/accounts/verify-devices
+export async function handleSetVerifyDevices(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const auth = new AuthService(env);
+  const user = await storage.getUserById(userId);
+  if (!user) return errorResponse('User not found', 404);
+
+  let body: {
+    secret?: string;
+    masterPasswordHash?: string;
+    verifyDevices?: boolean;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  if (typeof body.verifyDevices !== 'boolean') {
+    return errorResponse('verifyDevices must be true or false', 400);
+  }
+
+  const verified = await verifyUserSecret(auth, user, body.secret || body.masterPasswordHash);
+  if (!verified) {
+    return errorResponse('User verification failed.', 400);
+  }
+
+  user.verifyDevices = body.verifyDevices;
+  user.updatedAt = new Date().toISOString();
+  await storage.saveUser(user);
+
+  return new Response(null, { status: 200 });
 }
 
 // POST /api/accounts/keys

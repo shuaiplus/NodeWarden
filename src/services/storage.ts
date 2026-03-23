@@ -36,10 +36,12 @@ import {
   saveFolder as saveStoredFolder,
 } from './storage-folder-repo';
 import {
+  bulkArchiveCiphers as archiveStoredCiphers,
   bulkDeleteCiphers as deleteStoredCiphers,
   bulkMoveCiphers as moveStoredCiphers,
   bulkRestoreCiphers as restoreStoredCiphers,
   bulkSoftDeleteCiphers as softDeleteStoredCiphers,
+  bulkUnarchiveCiphers as unarchiveStoredCiphers,
   getAllCiphers as listStoredCiphers,
   getCipher as findStoredCipher,
   getCiphersByIds as listStoredCiphersByIds,
@@ -80,6 +82,7 @@ import {
 import {
   deleteDevice as deleteStoredDevice,
   deleteDevicesByUserId as deleteStoredDevicesByUserId,
+  clearDeviceKeys as clearStoredDeviceKeys,
   deleteTrustedTwoFactorTokensByDevice as deleteStoredTrustedTokensByDevice,
   deleteTrustedTwoFactorTokensByUserId as deleteStoredTrustedTokensByUserId,
   getDevice as findStoredDevice,
@@ -90,6 +93,7 @@ import {
   isKnownDeviceByEmail as getKnownStoredDeviceByEmail,
   saveTrustedTwoFactorDeviceToken as saveStoredTrustedDeviceToken,
   upsertDevice as saveStoredDevice,
+  updateDeviceKeys as updateStoredDeviceKeys,
 } from './storage-device-repo';
 import {
   ensureUsedAttachmentDownloadTokenTable as ensureStoredAttachmentTokenTable,
@@ -102,7 +106,7 @@ import {
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
-const STORAGE_SCHEMA_VERSION = '2026-03-19.1';
+const STORAGE_SCHEMA_VERSION = '2026-03-23.1';
 
 // D1-backed storage.
 // Contract:
@@ -284,6 +288,14 @@ export class StorageService {
 
   async bulkRestoreCiphers(ids: string[], userId: string): Promise<string | null> {
     return restoreStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+  }
+
+  async bulkArchiveCiphers(ids: string[], userId: string): Promise<string | null> {
+    return archiveStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
+  }
+
+  async bulkUnarchiveCiphers(ids: string[], userId: string): Promise<string | null> {
+    return unarchiveStoredCiphers(this.db, this.sqlChunkSize.bind(this), this.updateRevisionDate.bind(this), ids, userId);
   }
 
   async bulkDeleteCiphers(ids: string[], userId: string): Promise<string | null> {
@@ -495,8 +507,19 @@ export class StorageService {
 
   // --- Devices ---
 
-  async upsertDevice(userId: string, deviceIdentifier: string, name: string, type: number, sessionStamp?: string): Promise<void> {
-    await saveStoredDevice(this.db, this.getDevice.bind(this), userId, deviceIdentifier, name, type, sessionStamp);
+  async upsertDevice(
+    userId: string,
+    deviceIdentifier: string,
+    name: string,
+    type: number,
+    sessionStamp?: string,
+    keys?: {
+      encryptedUserKey?: string | null;
+      encryptedPublicKey?: string | null;
+      encryptedPrivateKey?: string | null;
+    }
+  ): Promise<void> {
+    await saveStoredDevice(this.db, this.getDevice.bind(this), userId, deviceIdentifier, name, type, sessionStamp, keys);
   }
 
   async isKnownDevice(userId: string, deviceIdentifier: string): Promise<boolean> {
@@ -513,6 +536,22 @@ export class StorageService {
 
   async getDevice(userId: string, deviceIdentifier: string): Promise<Device | null> {
     return findStoredDevice(this.db, userId, deviceIdentifier);
+  }
+
+  async updateDeviceKeys(
+    userId: string,
+    deviceIdentifier: string,
+    keys: {
+      encryptedUserKey?: string | null;
+      encryptedPublicKey?: string | null;
+      encryptedPrivateKey?: string | null;
+    }
+  ): Promise<boolean> {
+    return updateStoredDeviceKeys(this.db, userId, deviceIdentifier, keys);
+  }
+
+  async clearDeviceKeys(userId: string, deviceIdentifiers: string[]): Promise<number> {
+    return clearStoredDeviceKeys(this.db, userId, deviceIdentifiers);
   }
 
   async deleteDevice(userId: string, deviceIdentifier: string): Promise<boolean> {

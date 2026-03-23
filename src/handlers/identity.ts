@@ -31,6 +31,28 @@ function resolveTotpSecret(userSecret: string | null): string | null {
   return null;
 }
 
+function buildPreloginResponse(
+  email: string,
+  kdfType: number,
+  kdfIterations: number,
+  kdfMemory: number | null,
+  kdfParallelism: number | null
+): Record<string, unknown> {
+  return {
+    kdf: kdfType,
+    kdfIterations,
+    kdfMemory,
+    kdfParallelism,
+    KdfSettings: {
+      KdfType: kdfType,
+      Iterations: kdfIterations,
+      Memory: kdfMemory,
+      Parallelism: kdfParallelism,
+    },
+    Salt: email.toLowerCase(),
+  };
+}
+
 function twoFactorRequiredResponse(message: string = 'Two factor required.', includeRecoveryCode: boolean = false): Response {
   const providers = includeRecoveryCode
     ? [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR), TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE]
@@ -426,12 +448,7 @@ export async function handlePrelogin(request: Request, env: Env): Promise<Respon
   const kdfMemory = user?.kdfMemory ?? null;
   const kdfParallelism = user?.kdfParallelism ?? null;
 
-  return jsonResponse({
-    kdf: kdfType,
-    kdfIterations: kdfIterations,
-    kdfMemory: kdfMemory,
-    kdfParallelism: kdfParallelism,
-  });
+  return jsonResponse(buildPreloginResponse(email, kdfType, kdfIterations, kdfMemory, kdfParallelism));
 }
 
 // POST /identity/connect/revocation

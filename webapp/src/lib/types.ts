@@ -143,6 +143,7 @@ export interface Cipher {
   creationDate?: string;
   revisionDate?: string;
   deletedDate?: string | null;
+  archivedDate?: string | null;
   attachments?: CipherAttachment[] | null;
   login?: CipherLogin | null;
   card?: CipherCard | null;

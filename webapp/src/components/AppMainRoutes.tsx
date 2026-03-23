@@ -64,9 +64,13 @@ export interface AppMainRoutesProps {
   onCreateVaultItem: (draft: VaultDraft, attachments?: File[]) => Promise<void>;
   onUpdateVaultItem: (cipher: Cipher, draft: VaultDraft, options?: { addFiles?: File[]; removeAttachmentIds?: string[] }) => Promise<void>;
   onDeleteVaultItem: (cipher: Cipher) => Promise<void>;
+  onArchiveVaultItem: (cipher: Cipher) => Promise<void>;
+  onUnarchiveVaultItem: (cipher: Cipher) => Promise<void>;
   onBulkDeleteVaultItems: (ids: string[]) => Promise<void>;
   onBulkPermanentDeleteVaultItems: (ids: string[]) => Promise<void>;
   onBulkRestoreVaultItems: (ids: string[]) => Promise<void>;
+  onBulkArchiveVaultItems: (ids: string[]) => Promise<void>;
+  onBulkUnarchiveVaultItems: (ids: string[]) => Promise<void>;
   onBulkMoveVaultItems: (ids: string[], folderId: string | null) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onCreateFolder: (name: string) => Promise<void>;
@@ -174,9 +178,13 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onCreate={props.onCreateVaultItem}
             onUpdate={props.onUpdateVaultItem}
             onDelete={props.onDeleteVaultItem}
+            onArchive={props.onArchiveVaultItem}
+            onUnarchive={props.onUnarchiveVaultItem}
             onBulkDelete={props.onBulkDeleteVaultItems}
             onBulkPermanentDelete={props.onBulkPermanentDeleteVaultItems}
             onBulkRestore={props.onBulkRestoreVaultItems}
+            onBulkArchive={props.onBulkArchiveVaultItems}
+            onBulkUnarchive={props.onBulkUnarchiveVaultItems}
             onBulkMove={props.onBulkMoveVaultItems}
             onVerifyMasterPassword={props.onVerifyMasterPassword}
             onNotify={props.onNotify}

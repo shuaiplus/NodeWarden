@@ -26,6 +26,31 @@ function getAliasedProp(source: any, aliases: string[]): { present: boolean; val
   return { present: false, value: undefined };
 }
 
+function normalizeCipherTimestamp(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function readCipherArchivedAt(source: any, fallback: string | null = null): string | null {
+  const archived = getAliasedProp(source, ['archivedAt', 'ArchivedAt', 'archivedDate', 'ArchivedDate']);
+  return archived.present ? normalizeCipherTimestamp(archived.value) : fallback;
+}
+
+function syncCipherComputedAliases(cipher: Cipher): Cipher {
+  cipher.archivedDate = cipher.archivedAt ?? null;
+  cipher.deletedDate = cipher.deletedAt ?? null;
+  return cipher;
+}
+
+function normalizeCipherForStorage(cipher: Cipher): Cipher {
+  cipher.login = normalizeCipherLoginForStorage(cipher.login);
+  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey);
+  cipher.archivedAt = normalizeCipherTimestamp(cipher.archivedAt ?? cipher.archivedDate) ?? null;
+  return syncCipherComputedAliases(cipher);
+}
+
 function looksLikeCipherString(value: unknown): boolean {
   return /^\d+\.[A-Za-z0-9+/=]+\|[A-Za-z0-9+/=]+(?:\|[A-Za-z0-9+/=]+)?$/.test(String(value || '').trim());
 }
@@ -149,7 +174,7 @@ export function cipherToResponse(
   options?: { omitFido2Credentials?: boolean }
 ): CipherResponse {
   // Strip internal-only fields that must not appear in the API response
-  const { userId, createdAt, updatedAt, deletedAt, ...passthrough } = cipher;
+  const { userId, createdAt, updatedAt, archivedAt, deletedAt, ...passthrough } = cipher;
   const normalizedLogin = normalizeCipherLoginForCompatibility((passthrough as any).login ?? null, options);
   const normalizedSshKey = normalizeCipherSshKeyForCompatibility((passthrough as any).sshKey ?? null);
 
@@ -163,7 +188,7 @@ export function cipherToResponse(
     creationDate: createdAt,
     revisionDate: updatedAt,
     deletedDate: deletedAt,
-    archivedDate: null,
+    archivedDate: archivedAt ?? null,
     edit: true,
     viewPassword: true,
     permissions: {
@@ -273,12 +298,12 @@ export async function handleCreateCipher(request: Request, env: Env, userId: str
     reprompt: cipherData.reprompt || 0,
     createdAt: now,
     updatedAt: now,
+    archivedAt: readCipherArchivedAt(cipherData, null),
     deletedAt: null,
   };
-  cipher.login = normalizeCipherLoginForStorage(cipher.login);
-  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey);
   const createFields = getAliasedProp(cipherData, ['fields', 'Fields']);
   cipher.fields = createFields.present ? (createFields.value ?? null) : (cipher.fields ?? null);
+  normalizeCipherForStorage(cipher);
 
   // Prevent referencing a folder owned by another user.
   if (cipher.folderId) {
@@ -331,10 +356,9 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
     reprompt: cipherData.reprompt ?? existingCipher.reprompt,
     createdAt: existingCipher.createdAt,
     updatedAt: new Date().toISOString(),
+    archivedAt: readCipherArchivedAt(cipherData, existingCipher.archivedAt ?? null),
     deletedAt: existingCipher.deletedAt,
   };
-  cipher.login = normalizeCipherLoginForStorage(cipher.login);
-  cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey);
 
   // Custom fields deletion compatibility:
   // - Accept both camelCase "fields" and PascalCase "Fields".
@@ -346,6 +370,7 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
   } else if (request.method === 'PUT' || request.method === 'POST') {
     cipher.fields = null;
   }
+  normalizeCipherForStorage(cipher);
 
   // Prevent referencing a folder owned by another user.
   if (cipher.folderId) {
@@ -376,6 +401,7 @@ export async function handleDeleteCipher(request: Request, env: Env, userId: str
   // Soft delete
   cipher.deletedAt = new Date().toISOString();
   cipher.updatedAt = cipher.deletedAt;
+  syncCipherComputedAliases(cipher);
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   await notifyVaultSyncForRequest(request, env, userId, revisionDate);
@@ -441,6 +467,7 @@ export async function handleRestoreCipher(request: Request, env: Env, userId: st
 
   cipher.deletedAt = null;
   cipher.updatedAt = new Date().toISOString();
+  syncCipherComputedAliases(cipher);
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
   await notifyVaultSyncForRequest(request, env, userId, revisionDate);
@@ -479,6 +506,7 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
     cipher.favorite = body.favorite;
   }
   cipher.updatedAt = new Date().toISOString();
+  syncCipherComputedAliases(cipher);
 
   await storage.saveCipher(cipher);
   const revisionDate = await storage.updateRevisionDate(userId);
@@ -517,6 +545,131 @@ export async function handleBulkMoveCiphers(request: Request, env: Env, userId: 
   }
 
   return new Response(null, { status: 204 });
+}
+
+async function buildCipherListResponse(
+  request: Request,
+  storage: StorageService,
+  userId: string,
+  ids: string[]
+): Promise<Response> {
+  const ciphers = await storage.getCiphersByIds(ids, userId);
+  const attachmentsByCipher = await storage.getAttachmentsByCipherIds(ciphers.map((cipher) => cipher.id));
+  const omitFido2Credentials = shouldOmitPasskeysForResponse(request);
+
+  return jsonResponse({
+    data: ciphers.map((cipher) =>
+      cipherToResponse(cipher, attachmentsByCipher.get(cipher.id) || [], {
+        omitFido2Credentials,
+      })
+    ),
+    object: 'list',
+    continuationToken: null,
+  });
+}
+
+function parseCipherIdList(body: { ids?: unknown }): string[] | null {
+  if (!Array.isArray(body.ids)) return null;
+  return Array.from(new Set(body.ids.map((id) => String(id || '').trim()).filter(Boolean)));
+}
+
+// PUT/POST /api/ciphers/:id/archive
+export async function handleArchiveCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const cipher = await storage.getCipher(id);
+
+  if (!cipher || cipher.userId !== userId) {
+    return errorResponse('Cipher not found', 404);
+  }
+  if (cipher.deletedAt) {
+    return errorResponse('Cannot archive a deleted cipher', 400);
+  }
+
+  cipher.archivedAt = new Date().toISOString();
+  cipher.updatedAt = cipher.archivedAt;
+  normalizeCipherForStorage(cipher);
+  await storage.saveCipher(cipher);
+  const revisionDate = await storage.updateRevisionDate(userId);
+  await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+
+  const attachments = await storage.getAttachmentsByCipher(cipher.id);
+  return jsonResponse(
+    cipherToResponse(cipher, attachments, {
+      omitFido2Credentials: shouldOmitPasskeysForResponse(request),
+    })
+  );
+}
+
+// PUT/POST /api/ciphers/:id/unarchive
+export async function handleUnarchiveCipher(request: Request, env: Env, userId: string, id: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+  const cipher = await storage.getCipher(id);
+
+  if (!cipher || cipher.userId !== userId) {
+    return errorResponse('Cipher not found', 404);
+  }
+
+  cipher.archivedAt = null;
+  cipher.updatedAt = new Date().toISOString();
+  normalizeCipherForStorage(cipher);
+  await storage.saveCipher(cipher);
+  const revisionDate = await storage.updateRevisionDate(userId);
+  await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+
+  const attachments = await storage.getAttachmentsByCipher(cipher.id);
+  return jsonResponse(
+    cipherToResponse(cipher, attachments, {
+      omitFido2Credentials: shouldOmitPasskeysForResponse(request),
+    })
+  );
+}
+
+// PUT/POST /api/ciphers/archive
+export async function handleBulkArchiveCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  let body: { ids?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const ids = parseCipherIdList(body);
+  if (!ids) {
+    return errorResponse('ids array is required', 400);
+  }
+
+  const revisionDate = await storage.bulkArchiveCiphers(ids, userId);
+  if (revisionDate) {
+    await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  }
+
+  return buildCipherListResponse(request, storage, userId, ids);
+}
+
+// PUT/POST /api/ciphers/unarchive
+export async function handleBulkUnarchiveCiphers(request: Request, env: Env, userId: string): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  let body: { ids?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  const ids = parseCipherIdList(body);
+  if (!ids) {
+    return errorResponse('ids array is required', 400);
+  }
+
+  const revisionDate = await storage.bulkUnarchiveCiphers(ids, userId);
+  if (revisionDate) {
+    await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  }
+
+  return buildCipherListResponse(request, storage, userId, ids);
 }
 
 // POST /api/ciphers/delete - Bulk soft delete
