@@ -68,7 +68,27 @@ English: [`README_EN.md`](./README_EN.md)
 
 
 
-## CLI 部署
+## Docker 部署 (私有化部署)
+
+如果你希望在本地私有环境（非 Cloudflare）运行，可以通过 Docker 快速部署：
+
+1. **环境准备**
+   新建一个用于存放数据的目录（例如 `nodewarden-data`），下载并创建 [`docker-compose.yml`](./docker-compose.yml) 文件。
+
+2. **配置秘钥**
+   编辑 `docker-compose.yml`，修改传入的 `JWT_SECRET` 为你自己生成的一个长随机字符串（至少 32 位）。
+
+3. **启动服务**
+   ```bash
+   docker-compose up -d
+   ```
+   启动后，访问 `http://localhost:8787` 即可开始使用。
+
+> [!NOTE] 
+> 基于 Docker 的本地部署使用本机自带的文件系统目录（`/nodewarden/attachments`）替代了 R2 对象存储，使用 SQLite（`/nodewarden/db.sqlite`）替代了 D1 数据库，所有数据均保留在本地映射的数据卷中。
+
+
+## CLI 部署 (Cloudflare)
 
 ```powershell
 git clone https://github.com/shuaiplus/NodeWarden.git
