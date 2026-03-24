@@ -47,7 +47,10 @@ function syncCipherComputedAliases(cipher: Cipher): Cipher {
 function normalizeCipherForStorage(cipher: Cipher): Cipher {
   cipher.login = normalizeCipherLoginForStorage(cipher.login);
   cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey);
-  cipher.archivedAt = normalizeCipherTimestamp(cipher.archivedAt ?? cipher.archivedDate) ?? null;
+  const hasArchivedAt = Object.prototype.hasOwnProperty.call(cipher as object, 'archivedAt');
+  cipher.archivedAt = hasArchivedAt
+    ? normalizeCipherTimestamp(cipher.archivedAt) ?? null
+    : normalizeCipherTimestamp(cipher.archivedDate) ?? null;
   return syncCipherComputedAliases(cipher);
 }
 
