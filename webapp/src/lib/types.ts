@@ -28,7 +28,13 @@ export interface Folder {
 
 export interface CipherLoginUri {
   uri?: string | null;
+  match?: number | null;
   decUri?: string;
+}
+
+export interface VaultDraftLoginUri {
+  uri: string;
+  match: number | null;
 }
 
 export interface CipherAttachment {
@@ -221,7 +227,7 @@ export interface VaultDraft {
   loginUsername: string;
   loginPassword: string;
   loginTotp: string;
-  loginUris: string[];
+  loginUris: VaultDraftLoginUri[];
   loginFido2Credentials: Array<Record<string, unknown>>;
   cardholderName: string;
   cardNumber: string;

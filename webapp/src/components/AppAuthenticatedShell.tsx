@@ -25,6 +25,8 @@ interface AppAuthenticatedShellProps {
 }
 
 export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps) {
+  const routeAnimationKey = props.isImportRoute ? props.importRoute : props.location;
+
   return (
     <div className="app-page">
       <div className="app-shell">
@@ -106,7 +108,9 @@ export default function AppAuthenticatedShell(props: AppAuthenticatedShellProps)
             </Link>
           </aside>
           <main className="content">
-            <AppMainRoutes {...props.mainRoutesProps} />
+            <div key={routeAnimationKey} className="route-stage">
+              <AppMainRoutes {...props.mainRoutesProps} />
+            </div>
           </main>
         </div>
 

@@ -367,12 +367,19 @@ async function encryptCustomFields(
   return out;
 }
 
-async function encryptUris(uris: string[], enc: Uint8Array, mac: Uint8Array): Promise<Array<{ uri: string | null; match: null }>> {
-  const out: Array<{ uri: string | null; match: null }> = [];
-  for (const uri of uris || []) {
-    const trimmed = String(uri || '').trim();
+async function encryptUris(
+  uris: VaultDraft['loginUris'],
+  enc: Uint8Array,
+  mac: Uint8Array
+): Promise<Array<{ uri: string | null; match: number | null }>> {
+  const out: Array<{ uri: string | null; match: number | null }> = [];
+  for (const entry of uris || []) {
+    const trimmed = String(entry?.uri || '').trim();
     if (!trimmed) continue;
-    out.push({ uri: await encryptTextValue(trimmed, enc, mac), match: null });
+    out.push({
+      uri: await encryptTextValue(trimmed, enc, mac),
+      match: typeof entry?.match === 'number' && Number.isFinite(entry.match) ? entry.match : null,
+    });
   }
   return out;
 }
