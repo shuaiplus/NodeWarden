@@ -9,7 +9,7 @@ import {
 } from 'lucide-preact';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { t } from '@/lib/i18n';
-import type { Cipher, CipherAttachment, CustomFieldType, VaultDraft, VaultDraftField } from '@/lib/types';
+import type { Cipher, CipherAttachment, CustomFieldType, VaultDraft, VaultDraftField, VaultDraftLoginUri } from '@/lib/types';
 
 export type TypeFilter = 'login' | 'card' | 'identity' | 'note' | 'ssh';
 export type VaultSortMode = 'edited' | 'created' | 'name';
@@ -49,6 +49,16 @@ export const FIELD_TYPE_OPTIONS: Array<{ value: CustomFieldType; label: string }
   { value: 0, label: t('txt_text') },
   { value: 1, label: t('txt_hidden') },
   { value: 2, label: t('txt_boolean') },
+];
+
+export const WEBSITE_MATCH_OPTIONS: Array<{ value: number | null; label: string }> = [
+  { value: null, label: t('txt_uri_match_default_base_domain') },
+  { value: 0, label: t('txt_uri_match_base_domain') },
+  { value: 1, label: t('txt_uri_match_host') },
+  { value: 3, label: t('txt_uri_match_exact') },
+  { value: 5, label: t('txt_uri_match_never') },
+  { value: 2, label: t('txt_uri_match_starts_with') },
+  { value: 4, label: t('txt_uri_match_regular_expression') },
 ];
 
 export const TOTP_PERIOD_SECONDS = 30;
@@ -154,6 +164,15 @@ export function websiteIconUrl(host: string): string {
   return `/icons/${encodeURIComponent(host)}/icon.png`;
 }
 
+export function createEmptyLoginUri(): VaultDraftLoginUri {
+  return { uri: '', match: null };
+}
+
+export function websiteMatchLabel(value: number | null | undefined): string {
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : null;
+  return WEBSITE_MATCH_OPTIONS.find((option) => option.value === normalized)?.label || t('txt_uri_match_default_base_domain');
+}
+
 function valueOrFallback(value: string | null | undefined): string {
   return String(value || '');
 }
@@ -245,7 +264,7 @@ export function createEmptyDraft(type: number): VaultDraft {
     loginUsername: '',
     loginPassword: '',
     loginTotp: '',
-    loginUris: [''],
+    loginUris: [createEmptyLoginUri()],
     loginFido2Credentials: [],
     cardholderName: '',
     cardNumber: '',
@@ -291,11 +310,14 @@ export function draftFromCipher(cipher: Cipher): VaultDraft {
     draft.loginUsername = cipher.login.decUsername || '';
     draft.loginPassword = cipher.login.decPassword || '';
     draft.loginTotp = cipher.login.decTotp || '';
-    draft.loginUris = (cipher.login.uris || []).map((x) => x.decUri || x.uri || '');
+    draft.loginUris = (cipher.login.uris || []).map((x) => ({
+      uri: x.decUri || x.uri || '',
+      match: x.match ?? null,
+    }));
     draft.loginFido2Credentials = Array.isArray(cipher.login.fido2Credentials)
       ? cipher.login.fido2Credentials.map((credential) => ({ ...credential }))
       : [];
-    if (!draft.loginUris.length) draft.loginUris = [''];
+    if (!draft.loginUris.length) draft.loginUris = [createEmptyLoginUri()];
   }
   if (cipher.card) {
     draft.cardholderName = cipher.card.decCardholderName || '';

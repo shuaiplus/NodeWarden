@@ -97,7 +97,7 @@ export function buildEmptyImportDraft(type: number): VaultDraft {
     loginUsername: '',
     loginPassword: '',
     loginTotp: '',
-    loginUris: [''],
+    loginUris: [{ uri: '', match: null }],
     loginFido2Credentials: [],
     cardholderName: '',
     cardNumber: '',
@@ -167,9 +167,17 @@ export function importCipherToDraft(cipher: Record<string, unknown>, folderId: s
       : [];
     const urisRaw = Array.isArray(login.uris) ? login.uris : [];
     const uris = urisRaw
-      .map((u) => asText((u as Record<string, unknown>)?.uri).trim())
-      .filter((u) => !!u);
-    draft.loginUris = uris.length ? uris : [''];
+      .map((u) => {
+        const row = (u || {}) as Record<string, unknown>;
+        const uri = asText(row.uri).trim();
+        const matchRaw = row.match;
+        return {
+          uri,
+          match: typeof matchRaw === 'number' && Number.isFinite(matchRaw) ? matchRaw : null,
+        };
+      })
+      .filter((u) => !!u.uri);
+    draft.loginUris = uris.length ? uris : [{ uri: '', match: null }];
   } else if (type === 3) {
     const card = (cipher.card || {}) as Record<string, unknown>;
     draft.cardholderName = asText(card.cardholderName);

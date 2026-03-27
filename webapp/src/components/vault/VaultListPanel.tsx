@@ -104,38 +104,11 @@ export default function VaultListPanel(props: VaultListPanelProps) {
         </button>
       </div>
       <div className="toolbar actions">
-        <button type="button" className="btn btn-danger small" disabled={!props.selectedCount || props.busy} onClick={props.onOpenBulkDelete}>
-          <Trash2 size={14} className="btn-icon" /> {props.sidebarFilter.kind === 'trash' ? t('txt_delete_permanently') : t('txt_delete_selected')}
-        </button>
         {props.sidebarFilter.kind === 'duplicates' && (
           <button type="button" className="btn btn-secondary small" disabled={!props.filteredCiphers.length || props.busy} onClick={props.onSelectDuplicates}>
             <Check size={14} className="btn-icon" /> {t('txt_select_duplicate_items')}
           </button>
         )}
-        <button type="button" className="btn btn-secondary small" disabled={!props.filteredCiphers.length} onClick={props.onSelectAll}>
-          <CheckCheck size={14} className="btn-icon" /> {t('txt_select_all')}
-        </button>
-        <div className="create-menu-wrap mobile-fab-wrap" ref={props.createMenuRef}>
-          <button
-            type="button"
-            className="btn btn-primary small mobile-fab-trigger"
-            aria-label={t('txt_add')}
-            title={t('txt_add')}
-            onClick={props.onToggleCreateMenu}
-          >
-            <Plus size={14} className="btn-icon" />
-          </button>
-          {props.createMenuOpen && (
-            <div className="create-menu">
-              {CREATE_TYPE_OPTIONS.map((option) => (
-                <button key={option.type} type="button" className="create-menu-item" onClick={() => props.onStartCreate(option.type)}>
-                  <CreateTypeIcon type={option.type} />
-                  <span>{option.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
         {props.selectedCount > 0 && props.sidebarFilter.kind === 'trash' && (
           <button type="button" className="btn btn-secondary small" disabled={props.busy} onClick={props.onBulkRestore}>
             <RefreshCw size={14} className="btn-icon" /> {t('txt_restore')}
@@ -161,17 +134,54 @@ export default function VaultListPanel(props: VaultListPanelProps) {
             <X size={14} className="btn-icon" /> {t('txt_cancel')}
           </button>
         )}
+        <button type="button" className="btn btn-danger small" disabled={!props.selectedCount || props.busy} onClick={props.onOpenBulkDelete}>
+          <Trash2 size={14} className="btn-icon" /> {props.sidebarFilter.kind === 'trash' ? t('txt_delete_permanently') : t('txt_delete_selected')}
+        </button>
+        <button type="button" className="btn btn-secondary small" disabled={!props.filteredCiphers.length} onClick={props.onSelectAll}>
+          <CheckCheck size={14} className="btn-icon" /> {t('txt_select_all')}
+        </button>
+        <div className="create-menu-wrap mobile-fab-wrap" ref={props.createMenuRef}>
+          <button
+            type="button"
+            className="btn btn-primary small mobile-fab-trigger"
+            aria-label={t('txt_add')}
+            title={t('txt_add')}
+            onClick={props.onToggleCreateMenu}
+          >
+            <Plus size={14} className="btn-icon" />
+          </button>
+          {props.createMenuOpen && (
+            <div className="create-menu">
+              {CREATE_TYPE_OPTIONS.map((option) => (
+                <button key={option.type} type="button" className="create-menu-item" onClick={() => props.onStartCreate(option.type)}>
+                  <CreateTypeIcon type={option.type} />
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="list-panel" ref={props.listPanelRef} onScroll={(event) => props.onScroll((event.currentTarget as HTMLDivElement).scrollTop)}>
         {!!props.filteredCiphers.length && (
           <div style={{ paddingTop: `${props.virtualRange.padTop}px`, paddingBottom: `${props.virtualRange.padBottom}px` }}>
-            {props.visibleCiphers.map((cipher) => (
-              <div key={cipher.id} className={`list-item ${props.selectedCipherId === cipher.id ? 'active' : ''}`}>
+            {props.visibleCiphers.map((cipher, index) => (
+              <div
+                key={cipher.id}
+                className={`list-item stagger-item ${props.selectedCipherId === cipher.id ? 'active' : ''}`}
+                style={{ animationDelay: `${Math.min(index, 10) * 26}ms` }}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (target.closest('.row-check')) return;
+                  props.onSelectCipher(cipher.id);
+                }}
+              >
                 <input
                   type="checkbox"
                   className="row-check"
                   checked={!!props.selectedMap[cipher.id]}
+                  onClick={(event) => event.stopPropagation()}
                   onInput={(e) => props.onToggleSelected(cipher.id, (e.currentTarget as HTMLInputElement).checked)}
                 />
                 <button type="button" className="row-main" onClick={() => props.onSelectCipher(cipher.id)}>

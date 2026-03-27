@@ -61,6 +61,10 @@ interface VaultPageProps {
 
 
 export default function VaultPage(props: VaultPageProps) {
+  const getInitialIsMobileLayout = () =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(MOBILE_LAYOUT_QUERY).matches
+      : false;
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchComposing, setSearchComposing] = useState(false);
@@ -97,7 +101,7 @@ export default function VaultPage(props: VaultPageProps) {
   const [repromptOpen, setRepromptOpen] = useState(false);
   const [repromptPassword, setRepromptPassword] = useState('');
   const [repromptApprovedCipherId, setRepromptApprovedCipherId] = useState<string | null>(null);
-  const [isMobileLayout, setIsMobileLayout] = useState(false);
+  const [isMobileLayout, setIsMobileLayout] = useState(getInitialIsMobileLayout);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail' | 'edit'>('list');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
@@ -503,7 +507,30 @@ function folderName(id: string | null | undefined): string {
     setDraft((prev) => {
       if (!prev) return prev;
       const next = [...prev.loginUris];
-      next[index] = value;
+      next[index] = { ...(next[index] || { uri: '', match: null }), uri: value };
+      return { ...prev, loginUris: next };
+    });
+  }
+
+  function updateDraftLoginUriMatch(index: number, value: number | null): void {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const next = [...prev.loginUris];
+      next[index] = { ...(next[index] || { uri: '', match: null }), match: value };
+      return { ...prev, loginUris: next };
+    });
+  }
+
+  function reorderDraftLoginUri(fromIndex: number, toIndex: number): void {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.loginUris.length || toIndex >= prev.loginUris.length || fromIndex === toIndex) {
+        return prev;
+      }
+      const next = [...prev.loginUris];
+      const [moved] = next.splice(fromIndex, 1);
+      if (!moved) return prev;
+      next.splice(toIndex, 0, moved);
       return { ...prev, loginUris: next };
     });
   }
@@ -760,7 +787,15 @@ function folderName(id: string | null | undefined): string {
   return (
     <>
       <div className={`vault-grid ${isMobileLayout ? `mobile-panel-${mobilePanel}` : ''}`}>
-        {isMobileLayout && mobileSidebarOpen && <div className="mobile-sidebar-mask" onClick={() => setMobileSidebarOpen(false)} />}
+        {isMobileLayout && (
+          <div
+            className={`mobile-sidebar-mask ${mobileSidebarOpen ? 'open' : ''}`}
+            onClick={() => {
+              if (!mobileSidebarOpen) return;
+              setMobileSidebarOpen(false);
+            }}
+          />
+        )}
         <VaultSidebar
           folders={props.folders}
           sidebarFilter={sidebarFilter}
@@ -869,59 +904,65 @@ function folderName(id: string | null | undefined): string {
             </div>
           )}
           {isEditing && draft && (
-            <VaultEditor
-              draft={draft}
-              isCreating={isCreating}
-              busy={busy}
-              folders={props.folders}
-              selectedCipher={selectedCipher}
-              editExistingAttachments={editExistingAttachments}
-              removedAttachmentIds={removedAttachmentIds}
-              removedAttachmentCount={removedAttachmentCount}
-              attachmentQueue={attachmentQueue}
-              attachmentInputRef={attachmentInputRef}
-              localError={localError}
-              onUpdateDraft={updateDraft}
-              onSeedSshDefaults={(force) => void seedSshDefaults(force)}
-              onUpdateSshPublicKey={updateSshPublicKey}
-              onUpdateDraftLoginUri={updateDraftLoginUri}
-              onQueueAttachmentFiles={queueAttachmentFiles}
-              onToggleExistingAttachmentRemoval={toggleExistingAttachmentRemoval}
-              onRemoveQueuedAttachment={removeQueuedAttachment}
-              onDownloadAttachment={(cipher, attachmentId) => void props.onDownloadAttachment(cipher, attachmentId)}
-              downloadingAttachmentKey={props.downloadingAttachmentKey}
-              attachmentDownloadPercent={props.attachmentDownloadPercent}
-              uploadingAttachmentName={props.uploadingAttachmentName}
-              attachmentUploadPercent={props.attachmentUploadPercent}
-              onPatchDraftCustomField={patchDraftCustomField}
-              onUpdateDraftCustomFields={updateDraftCustomFields}
-              onOpenFieldModal={() => setFieldModalOpen(true)}
-              onSave={() => void saveDraft()}
-              onCancel={cancelEdit}
-              onDeleteSelected={() => selectedCipher && setPendingDelete(selectedCipher)}
-            />
+            <div key={`editor-${draft.id || selectedCipher?.id || 'new'}-${draft.type}`} className="detail-switch-stage">
+              <VaultEditor
+                draft={draft}
+                isCreating={isCreating}
+                busy={busy}
+                folders={props.folders}
+                selectedCipher={selectedCipher}
+                editExistingAttachments={editExistingAttachments}
+                removedAttachmentIds={removedAttachmentIds}
+                removedAttachmentCount={removedAttachmentCount}
+                attachmentQueue={attachmentQueue}
+                attachmentInputRef={attachmentInputRef}
+                localError={localError}
+                onUpdateDraft={updateDraft}
+                onSeedSshDefaults={(force) => void seedSshDefaults(force)}
+                onUpdateSshPublicKey={updateSshPublicKey}
+                onUpdateDraftLoginUri={updateDraftLoginUri}
+                onUpdateDraftLoginUriMatch={updateDraftLoginUriMatch}
+                onReorderDraftLoginUri={reorderDraftLoginUri}
+                onQueueAttachmentFiles={queueAttachmentFiles}
+                onToggleExistingAttachmentRemoval={toggleExistingAttachmentRemoval}
+                onRemoveQueuedAttachment={removeQueuedAttachment}
+                onDownloadAttachment={(cipher, attachmentId) => void props.onDownloadAttachment(cipher, attachmentId)}
+                downloadingAttachmentKey={props.downloadingAttachmentKey}
+                attachmentDownloadPercent={props.attachmentDownloadPercent}
+                uploadingAttachmentName={props.uploadingAttachmentName}
+                attachmentUploadPercent={props.attachmentUploadPercent}
+                onPatchDraftCustomField={patchDraftCustomField}
+                onUpdateDraftCustomFields={updateDraftCustomFields}
+                onOpenFieldModal={() => setFieldModalOpen(true)}
+                onSave={() => void saveDraft()}
+                onCancel={cancelEdit}
+                onDeleteSelected={() => selectedCipher && setPendingDelete(selectedCipher)}
+              />
+            </div>
           )}
 
           {!isEditing && selectedCipher && (
-            <VaultDetailView
-              selectedCipher={selectedCipher}
-              repromptApprovedCipherId={repromptApprovedCipherId}
-              showPassword={showPassword}
-              totpLive={totpLive}
-              passkeyCreatedAt={passkeyCreatedAt}
-              hiddenFieldVisibleMap={hiddenFieldVisibleMap}
-              folderName={folderName}
-              onOpenReprompt={() => setRepromptOpen(true)}
-              onToggleShowPassword={() => setShowPassword((value) => !value)}
-              onToggleHiddenField={(index) => setHiddenFieldVisibleMap((prev) => ({ ...prev, [index]: !prev[index] }))}
-              onDownloadAttachment={(cipher, attachmentId) => void props.onDownloadAttachment(cipher, attachmentId)}
-              downloadingAttachmentKey={props.downloadingAttachmentKey}
-              attachmentDownloadPercent={props.attachmentDownloadPercent}
-              onStartEdit={startEdit}
-              onDelete={setPendingDelete}
-              onArchive={(cipher) => setPendingArchive(cipher)}
-              onUnarchive={(cipher) => void handleUnarchiveSelected(cipher)}
-            />
+            <div key={`detail-${selectedCipher.id}`} className="detail-switch-stage">
+              <VaultDetailView
+                selectedCipher={selectedCipher}
+                repromptApprovedCipherId={repromptApprovedCipherId}
+                showPassword={showPassword}
+                totpLive={totpLive}
+                passkeyCreatedAt={passkeyCreatedAt}
+                hiddenFieldVisibleMap={hiddenFieldVisibleMap}
+                folderName={folderName}
+                onOpenReprompt={() => setRepromptOpen(true)}
+                onToggleShowPassword={() => setShowPassword((value) => !value)}
+                onToggleHiddenField={(index) => setHiddenFieldVisibleMap((prev) => ({ ...prev, [index]: !prev[index] }))}
+                onDownloadAttachment={(cipher, attachmentId) => void props.onDownloadAttachment(cipher, attachmentId)}
+                downloadingAttachmentKey={props.downloadingAttachmentKey}
+                attachmentDownloadPercent={props.attachmentDownloadPercent}
+                onStartEdit={startEdit}
+                onDelete={setPendingDelete}
+                onArchive={(cipher) => setPendingArchive(cipher)}
+                onUnarchive={(cipher) => void handleUnarchiveSelected(cipher)}
+              />
+            </div>
           )}
 
           {!isEditing && !selectedCipher && <div className="empty card">{t('txt_select_an_item')}</div>}
