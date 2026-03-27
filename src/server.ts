@@ -101,6 +101,8 @@ initServer().catch(console.error);
 
 const app = express();
 
+app.set('trust proxy', true);
+
 app.use(cors());
 
 function isWorkerHandledPath(pathname: string): boolean {
@@ -126,7 +128,9 @@ function injectBootstrapIntoHtml(html: string): string {
 }
 
 app.use(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  const protocol = req.protocol;
+  const host = req.get('host'); 
+  const url = new URL(req.originalUrl || req.url, `${protocol}://${host}`);
   console.log('Incoming req:', req.method, url.pathname);
   if (!isWorkerHandledPath(url.pathname)) {
     // Attempt to serve asset
