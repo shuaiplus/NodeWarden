@@ -1,5 +1,11 @@
 import type { Cipher } from '../types';
 
+function normalizeOptionalId(value: unknown): string | null {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
 type SafeBind = (stmt: D1PreparedStatement, ...values: any[]) => D1PreparedStatement;
 type SqlChunkSize = (fixedBindCount: number) => number;
 type UpdateRevisionDate = (userId: string) => Promise<string>;
@@ -25,12 +31,13 @@ function parseCipherRow(row: CipherRow | null | undefined): Cipher | null {
   if (!row?.data) return null;
   try {
     const parsed = JSON.parse(row.data) as Cipher;
+    const folderId = normalizeOptionalId(row.folder_id ?? parsed.folderId ?? null);
     return {
       ...parsed,
       id: row.id,
       userId: row.user_id,
       type: Number(row.type) || Number(parsed.type) || 1,
-      folderId: row.folder_id ?? parsed.folderId ?? null,
+      folderId,
       name: row.name ?? parsed.name ?? null,
       notes: row.notes ?? parsed.notes ?? null,
       favorite: row.favorite != null ? !!row.favorite : !!parsed.favorite,
@@ -60,7 +67,11 @@ export async function getCipher(db: D1Database, id: string): Promise<Cipher | nu
 }
 
 export async function saveCipher(db: D1Database, safeBind: SafeBind, cipher: Cipher): Promise<void> {
-  const data = JSON.stringify(cipher);
+  const folderId = normalizeOptionalId(cipher.folderId);
+  const data = JSON.stringify({
+    ...cipher,
+    folderId,
+  });
   const stmt = db.prepare(
     'INSERT INTO ciphers(id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
     'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
@@ -72,7 +83,7 @@ export async function saveCipher(db: D1Database, safeBind: SafeBind, cipher: Cip
     cipher.id,
     cipher.userId,
     Number(cipher.type) || 1,
-    cipher.folderId,
+    folderId,
     cipher.name,
     cipher.notes,
     cipher.favorite ? 1 : 0,
@@ -249,8 +260,9 @@ export async function bulkMoveCiphers(
 ): Promise<string | null> {
   if (ids.length === 0) return null;
   const now = new Date().toISOString();
+  const normalizedFolderId = normalizeOptionalId(folderId);
   const uniqueIds = sanitizeIds(ids);
-  const patch = JSON.stringify({ folderId, updatedAt: now });
+  const patch = JSON.stringify({ folderId: normalizedFolderId, updatedAt: now });
   const chunkSize = sqlChunkSize(4);
 
   for (let i = 0; i < uniqueIds.length; i += chunkSize) {
@@ -262,7 +274,7 @@ export async function bulkMoveCiphers(
          SET folder_id = ?, updated_at = ?, data = json_patch(data, ?)
          WHERE user_id = ? AND id IN (${placeholders})`
       )
-      .bind(folderId, now, patch, userId, ...chunk)
+      .bind(normalizedFolderId, now, patch, userId, ...chunk)
       .run();
   }
 

@@ -1,14 +1,21 @@
 import { User, UserDecryptionOptions } from '../types';
 
+function normalizeOptionalPublicKey(value: unknown): string {
+  if (value == null) return '';
+  return String(value);
+}
+
 export function buildAccountKeys(user: Pick<User, 'privateKey' | 'publicKey'>): Record<string, unknown> | null {
-  if (!user.privateKey || !user.publicKey) {
+  if (!user.privateKey) {
     return null;
   }
+
+  const publicKey = normalizeOptionalPublicKey(user.publicKey);
 
   return {
     publicKeyEncryptionKeyPair: {
       wrappedPrivateKey: user.privateKey,
-      publicKey: user.publicKey,
+      publicKey,
       Object: 'publicKeyEncryptionKeyPair',
     },
     Object: 'privateKeys',

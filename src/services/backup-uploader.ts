@@ -250,18 +250,49 @@ async function ensureWebDavDirectory(baseUrl: string, directoryPath: string, aut
   }
 }
 
+async function ensureWebDavDirectoryCached(
+  baseUrl: string,
+  directoryPath: string,
+  authHeader: string,
+  ensuredDirectories: Set<string>
+): Promise<void> {
+  const segments = trimSlashes(directoryPath).split('/').filter(Boolean);
+  let current = '';
+  for (const segment of segments) {
+    current = buildJoinedPath(current, segment);
+    if (ensuredDirectories.has(current)) continue;
+    const url = buildWebDavUrl(baseUrl, current);
+    const response = await fetch(url, {
+      method: 'MKCOL',
+      headers: {
+        Authorization: authHeader,
+      },
+    });
+    if ([200, 201, 204, 301, 302, 405].includes(response.status)) {
+      ensuredDirectories.add(current);
+      continue;
+    }
+    throw new Error(`WebDAV directory creation failed: ${response.status}`);
+  }
+}
+
 async function putToWebDav(
   config: WebDavBackupDestination,
   relativePath: string,
   bytes: Uint8Array,
-  options: RemoteBackupFilePutOptions = {}
+  options: RemoteBackupFilePutOptions = {},
+  ensuredDirectories?: Set<string>
 ): Promise<void> {
   const authHeader = toBasicAuthHeader(config.username, config.password);
   const remoteFilePath = buildJoinedPath(config.remotePath, relativePath);
   const remoteDir = parentPath(remoteFilePath);
 
   if (remoteDir) {
-    await ensureWebDavDirectory(config.baseUrl, remoteDir, authHeader);
+    if (ensuredDirectories) {
+      await ensureWebDavDirectoryCached(config.baseUrl, remoteDir, authHeader, ensuredDirectories);
+    } else {
+      await ensureWebDavDirectory(config.baseUrl, remoteDir, authHeader);
+    }
   }
 
   const response = await fetch(buildWebDavUrl(config.baseUrl, remoteFilePath), {
@@ -608,6 +639,16 @@ interface ConfiguredDestinationAdapter {
   exists: (config: WebDavBackupDestination | E3BackupDestination, relativePath: string) => Promise<boolean>;
 }
 
+export interface RemoteBackupTransferSession {
+  provider: BackupDestinationType;
+  uploadArchive(archive: Uint8Array, fileName: string): Promise<BackupUploadResult>;
+  putFile(relativePath: string, bytes: Uint8Array, options?: RemoteBackupFilePutOptions): Promise<void>;
+  list(relativePath: string): Promise<RemoteBackupListResult>;
+  download(relativePath: string): Promise<RemoteBackupFile>;
+  deleteFile(relativePath: string): Promise<void>;
+  exists(relativePath: string): Promise<boolean>;
+}
+
 function resolveConfiguredDestinationAdapter(
   destination: BackupDestinationRecord
 ): ConfiguredDestinationAdapter {
@@ -641,35 +682,62 @@ function resolveConfiguredDestinationAdapter(
   throw new Error('Unsupported backup destination type');
 }
 
+export function createRemoteBackupTransferSession(destination: BackupDestinationRecord): RemoteBackupTransferSession {
+  const adapter = resolveConfiguredDestinationAdapter(destination);
+  const ensuredDirectories = adapter.provider === 'webdav' ? new Set<string>() : null;
+
+  const putFile = async (relativePath: string, bytes: Uint8Array, options: RemoteBackupFilePutOptions = {}): Promise<void> => {
+    const normalized = normalizeRelativePath(relativePath);
+    if (adapter.provider === 'webdav' && ensuredDirectories) {
+      await putToWebDav(adapter.config as WebDavBackupDestination, normalized, bytes, options, ensuredDirectories);
+      return;
+    }
+    await adapter.putFile(adapter.config, normalized, bytes, options);
+  };
+
+  return {
+    provider: adapter.provider,
+    uploadArchive: async (archive: Uint8Array, fileName: string) => {
+      await putFile(fileName, archive, { contentType: 'application/zip' });
+      return {
+        provider: adapter.provider,
+        remotePath: adapter.provider === 'webdav'
+          ? buildJoinedPath((adapter.config as WebDavBackupDestination).remotePath, fileName)
+          : normalizeE3ObjectKey(adapter.config as E3BackupDestination, fileName),
+      };
+    },
+    putFile,
+    list: async (relativePath: string) => adapter.list(adapter.config, relativePath),
+    download: async (relativePath: string) => adapter.download(adapter.config, relativePath),
+    deleteFile: async (relativePath: string) => adapter.deleteFile(adapter.config, normalizeRelativePath(relativePath)),
+    exists: async (relativePath: string) => adapter.exists(adapter.config, normalizeRelativePath(relativePath)),
+  };
+}
+
 export async function uploadBackupArchive(
   destination: BackupDestinationRecord,
   archive: Uint8Array,
   fileName: string
 ): Promise<BackupUploadResult> {
-  const adapter = resolveConfiguredDestinationAdapter(destination);
-  return adapter.upload(adapter.config, archive, fileName);
+  return createRemoteBackupTransferSession(destination).uploadArchive(archive, fileName);
 }
 
 export async function listRemoteBackupEntries(destination: BackupDestinationRecord, relativePath: string): Promise<RemoteBackupListResult> {
-  const adapter = resolveConfiguredDestinationAdapter(destination);
-  return adapter.list(adapter.config, relativePath);
+  return createRemoteBackupTransferSession(destination).list(relativePath);
 }
 
 export async function downloadRemoteBackupFile(destination: BackupDestinationRecord, relativePath: string): Promise<RemoteBackupFile> {
-  const adapter = resolveConfiguredDestinationAdapter(destination);
-  return adapter.download(adapter.config, relativePath);
+  return createRemoteBackupTransferSession(destination).download(relativePath);
 }
 
 export async function deleteRemoteBackupFile(destination: BackupDestinationRecord, relativePath: string): Promise<void> {
   const normalized = ensureRemoteRestoreCandidate(relativePath);
-  const adapter = resolveConfiguredDestinationAdapter(destination);
-  await adapter.deleteFile(adapter.config, normalized);
+  await createRemoteBackupTransferSession(destination).deleteFile(normalized);
 }
 
 export async function remoteBackupFileExists(destination: BackupDestinationRecord, relativePath: string): Promise<boolean> {
   const normalized = normalizeRelativePath(relativePath);
-  const adapter = resolveConfiguredDestinationAdapter(destination);
-  return adapter.exists(adapter.config, normalized);
+  return createRemoteBackupTransferSession(destination).exists(normalized);
 }
 
 export async function uploadRemoteBackupFile(
@@ -679,8 +747,7 @@ export async function uploadRemoteBackupFile(
   options: RemoteBackupFilePutOptions = {}
 ): Promise<void> {
   const normalized = normalizeRelativePath(relativePath);
-  const adapter = resolveConfiguredDestinationAdapter(destination);
-  await adapter.putFile(adapter.config, normalized, bytes, options);
+  await createRemoteBackupTransferSession(destination).putFile(normalized, bytes, options);
 }
 
 function compareBackupItemsByRecency(a: RemoteBackupItem, b: RemoteBackupItem, preferredFileName?: string): number {
