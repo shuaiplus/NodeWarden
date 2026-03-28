@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
     inputs:
       storage_type:
@@ -19,6 +20,9 @@ on:
         options:
           - R2
           - KV
+permissions:
+  contents: write
+  actions: write
 
 # =============================================
 # 全局环境变量：
