@@ -50,6 +50,7 @@ import useVaultSendActions from '@/hooks/useVaultSendActions';
 import { useToastManager } from '@/hooks/useToastManager';
 import { t } from '@/lib/i18n';
 import { APP_NOTIFY_EVENT, type AppNotifyDetail } from '@/lib/app-notify';
+import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-restore-progress';
 import type { AppPhase, Cipher, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
 
 const IMPORT_ROUTE = '/backup/import-export';
@@ -62,6 +63,7 @@ const SIGNALR_RECORD_SEPARATOR = String.fromCharCode(0x1e);
 const SIGNALR_UPDATE_TYPE_SYNC_VAULT = 5;
 const SIGNALR_UPDATE_TYPE_LOG_OUT = 11;
 const SIGNALR_UPDATE_TYPE_DEVICE_STATUS = 12;
+const SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS = 13;
 
 type ThemePreference = 'system' | 'light' | 'dark';
 const MAGNETIC_SELECTOR = '.topbar .btn, .topbar .user-chip, .side-link, .mobile-tab';
@@ -908,6 +910,21 @@ export default function App() {
             void refreshAuthorizedDevicesRef.current();
             continue;
           }
+          if (updateType === SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS) {
+            const payload = frame.arguments?.[0]?.Payload;
+            if (
+              payload
+              && typeof payload === 'object'
+              && (
+                payload.operation === 'backup-restore'
+                || payload.operation === 'backup-export'
+                || payload.operation === 'backup-remote-run'
+              )
+            ) {
+              dispatchBackupProgress(payload as BackupProgressDetail);
+            }
+            continue;
+          }
           if (updateType !== SIGNALR_UPDATE_TYPE_SYNC_VAULT) continue;
           const contextId = String(frame.arguments?.[0]?.ContextId || '').trim();
           if (contextId && contextId === getCurrentDeviceIdentifier()) continue;
@@ -1113,13 +1130,16 @@ export default function App() {
     onRevokeInvite: adminActions.revokeInvite,
     onExportBackup: backupActions.exportBackup,
     onImportBackup: backupActions.importBackup,
+    onImportBackupAllowingChecksumMismatch: backupActions.importBackupAllowingChecksumMismatch,
     onLoadBackupSettings: backupActions.loadSettings,
     onSaveBackupSettings: backupActions.saveSettings,
     onRunRemoteBackup: backupActions.runRemoteBackup,
     onListRemoteBackups: backupActions.listRemoteBackups,
     onDownloadRemoteBackup: backupActions.downloadRemoteBackup,
+    onInspectRemoteBackup: backupActions.inspectRemoteBackup,
     onDeleteRemoteBackup: backupActions.deleteRemoteBackup,
     onRestoreRemoteBackup: backupActions.restoreRemoteBackup,
+    onRestoreRemoteBackupAllowingChecksumMismatch: backupActions.restoreRemoteBackupAllowingChecksumMismatch,
   };
 
   if (jwtWarning) {

@@ -828,6 +828,7 @@ function folderName(id: string | null | undefined): string {
           sortMenuRef={sortMenuRef}
           listPanelRef={listPanelRef}
           onSearchInput={setSearchInput}
+          onClearSearch={() => setSearchInput('')}
           onSearchCompositionStart={() => setSearchComposing(true)}
           onSearchCompositionEnd={(value) => {
             setSearchComposing(false);

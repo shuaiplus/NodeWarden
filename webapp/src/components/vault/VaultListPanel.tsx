@@ -37,6 +37,7 @@ interface VaultListPanelProps {
   sortMenuRef: RefObject<HTMLDivElement>;
   listPanelRef: RefObject<HTMLDivElement>;
   onSearchInput: (value: string) => void;
+  onClearSearch: () => void;
   onSearchCompositionStart: () => void;
   onSearchCompositionEnd: (value: string) => void;
   onToggleSortMenu: () => void;
@@ -62,14 +63,32 @@ export default function VaultListPanel(props: VaultListPanelProps) {
   return (
     <section className="list-col">
       <div className="list-head">
-        <input
-          className="search-input"
-          placeholder={t('txt_search_your_secure_vault')}
-          value={props.searchInput}
-          onInput={(e) => props.onSearchInput((e.currentTarget as HTMLInputElement).value)}
-          onCompositionStart={props.onSearchCompositionStart}
-          onCompositionEnd={(e) => props.onSearchCompositionEnd((e.currentTarget as HTMLInputElement).value)}
-        />
+        <div className="search-input-wrap">
+          <input
+            className="search-input"
+            placeholder={t('txt_search_your_secure_vault')}
+            value={props.searchInput}
+            onInput={(e) => props.onSearchInput((e.currentTarget as HTMLInputElement).value)}
+            onCompositionStart={props.onSearchCompositionStart}
+            onCompositionEnd={(e) => props.onSearchCompositionEnd((e.currentTarget as HTMLInputElement).value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape' || !props.searchInput) return;
+              e.preventDefault();
+              props.onClearSearch();
+            }}
+          />
+          {!!props.searchInput && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              aria-label={t('txt_clear_search')}
+              title={t('txt_clear_search_esc')}
+              onClick={props.onClearSearch}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
         <div className="sort-menu-wrap" ref={props.sortMenuRef}>
           <button
             type="button"

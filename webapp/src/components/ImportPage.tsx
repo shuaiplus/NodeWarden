@@ -1,9 +1,10 @@
 ﻿import { useState } from 'preact/hooks';
 import { argon2idAsync } from '@noble/hashes/argon2.js';
+import { createPortal } from 'preact/compat';
 import { strFromU8, unzipSync } from 'fflate';
 import { BlobReader, Uint8ArrayWriter, ZipReader, configure as configureZipJs } from '@zip.js/zip.js';
 import { Download, FileUp } from 'lucide-preact';
-import ConfirmDialog from '@/components/ConfirmDialog';
+import ConfirmDialog, { useDialogLifecycle } from '@/components/ConfirmDialog';
 import type { CiphersImportPayload } from '@/lib/api/vault';
 import {
   type EncryptedJsonMode,
@@ -311,6 +312,8 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
   const [exportAuthDialogOpen, setExportAuthDialogOpen] = useState(false);
   const [exportAuthPassword, setExportAuthPassword] = useState('');
   const [importSummary, setImportSummary] = useState<ImportResultSummary | null>(null);
+
+  useDialogLifecycle(!!importSummary, importSummary ? () => setImportSummary(null) : null);
   const commonSourceSet = new Set<ImportSourceId>(COMMON_IMPORT_SOURCE_IDS);
   const commonSources = IMPORT_SOURCES.filter((item) => commonSourceSet.has(item.id as ImportSourceId));
   const otherSources = IMPORT_SOURCES.filter((item) => !commonSourceSet.has(item.id as ImportSourceId));
@@ -803,9 +806,15 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
         </label>
       </ConfirmDialog>
 
-      {importSummary && (
-        <div className="dialog-mask">
-          <section className="dialog-card import-summary-dialog">
+      {importSummary && typeof document !== 'undefined' ? createPortal((
+        <div
+          className="dialog-mask"
+          onClick={(event) => {
+            if (event.target !== event.currentTarget) return;
+            setImportSummary(null);
+          }}
+        >
+          <section className="dialog-card import-summary-dialog" role="dialog" aria-modal="true" aria-label={t('txt_import_success')}>
             <button
               type="button"
               className="import-summary-close"
@@ -866,7 +875,7 @@ export default function ImportPage({ onImport, onImportEncryptedRaw, accountKeys
             </button>
           </section>
         </div>
-      )}
+      ), document.body) : null}
     </div>
   );
 }

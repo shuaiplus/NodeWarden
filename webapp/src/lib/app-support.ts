@@ -17,6 +17,7 @@ export interface WebVaultSignalRInvocation {
       UserId?: string;
       Date?: string;
       RevisionDate?: string;
+      [key: string]: unknown;
     };
   }>;
 }

@@ -5,6 +5,7 @@ const SIGNALR_HANDSHAKE_ACK = new Uint8Array([0x7b, 0x7d, SIGNALR_RECORD_SEPARAT
 const SIGNALR_UPDATE_TYPE_SYNC_VAULT = 5;
 const SIGNALR_UPDATE_TYPE_LOG_OUT = 11;
 const SIGNALR_UPDATE_TYPE_DEVICE_STATUS = 12;
+const SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS = 13;
 const SIGNALR_PING_INTERVAL_MS = 15_000;
 
 type HubProtocol = 'json' | 'messagepack';
@@ -127,25 +128,21 @@ function frameSignalRBinary(payload: Uint8Array): Uint8Array {
 }
 
 function buildSignalRJsonInvocation(
-  userId: string,
   updateType: number,
-  revisionDate: string,
+  payload: Record<string, unknown>,
   contextId: string | null
 ): string {
   return JSON.stringify({
     type: 1,
     target: 'ReceiveMessage',
     arguments: [
-      {
-        ContextId: contextId,
-        Type: updateType,
-        Payload: {
-          UserId: userId,
-          Date: revisionDate,
+        {
+          ContextId: contextId,
+          Type: updateType,
+          Payload: payload,
         },
-      },
-    ],
-  }) + String.fromCharCode(SIGNALR_RECORD_SEPARATOR);
+      ],
+    }) + String.fromCharCode(SIGNALR_RECORD_SEPARATOR);
 }
 
 function buildSignalRJsonPing(): string {
@@ -153,14 +150,13 @@ function buildSignalRJsonPing(): string {
 }
 
 function buildSignalRMessagePackInvocation(
-  userId: string,
   updateType: number,
-  revisionDate: string,
+  messagePayload: Record<string, unknown>,
   contextId: string | null
 ): Uint8Array {
   // SignalR MessagePack hub protocol uses an array-based invocation shape:
   // [type, headers, invocationId, target, arguments]
-  const payload = encodeMsgPack([
+  const encodedPayload = encodeMsgPack([
     1,
     {},
     null,
@@ -169,14 +165,11 @@ function buildSignalRMessagePackInvocation(
       {
         ContextId: contextId,
         Type: updateType,
-        Payload: {
-          UserId: userId,
-          Date: new Date(revisionDate),
-        },
+        Payload: messagePayload,
       },
     ],
   ]);
-  return frameSignalRBinary(payload);
+  return frameSignalRBinary(encodedPayload);
 }
 
 function buildSignalRMessagePackPing(): Uint8Array {
@@ -209,13 +202,20 @@ export class NotificationsHub {
         contextId?: string | null;
         updateType?: number;
         targetDeviceIdentifier?: string | null;
+        payload?: Record<string, unknown> | null;
       } | null;
       const revisionDate = String(body?.revisionDate || '').trim() || new Date().toISOString();
       this.userId = String(request.headers.get('X-NodeWarden-UserId') || body?.userId || this.userId).trim();
       const contextId = String(body?.contextId || '').trim() || null;
       const updateType = Number(body?.updateType || SIGNALR_UPDATE_TYPE_SYNC_VAULT) || SIGNALR_UPDATE_TYPE_SYNC_VAULT;
       const targetDeviceIdentifier = String(body?.targetDeviceIdentifier || '').trim() || null;
-      this.broadcastMessage(updateType, revisionDate, contextId, targetDeviceIdentifier);
+      const payload = body?.payload && typeof body.payload === 'object'
+        ? body.payload
+        : {
+          UserId: this.userId,
+          Date: revisionDate,
+        };
+      this.broadcastMessage(updateType, payload, contextId, targetDeviceIdentifier);
       return new Response(null, { status: 204 });
     }
 
@@ -360,7 +360,7 @@ export class NotificationsHub {
 
   private broadcastMessage(
     updateType: number,
-    revisionDate: string,
+    payload: Record<string, unknown>,
     contextId: string | null,
     targetDeviceIdentifier: string | null
   ): void {
@@ -371,9 +371,9 @@ export class NotificationsHub {
       if (targetDeviceIdentifier && connection.deviceIdentifier !== targetDeviceIdentifier) continue;
       try {
         if (connection.protocol === 'json') {
-          socket.send(buildSignalRJsonInvocation(this.userId, updateType, revisionDate, contextId));
+          socket.send(buildSignalRJsonInvocation(updateType, payload, contextId));
         } else {
-          socket.send(buildSignalRMessagePackInvocation(this.userId, updateType, revisionDate, contextId));
+          socket.send(buildSignalRMessagePackInvocation(updateType, payload, contextId));
         }
       } catch {
         this.connections.delete(socket);
@@ -389,7 +389,15 @@ export class NotificationsHub {
   }
 
   private broadcastDeviceStatus(): void {
-    this.broadcastMessage(SIGNALR_UPDATE_TYPE_DEVICE_STATUS, new Date().toISOString(), null, null);
+    this.broadcastMessage(
+      SIGNALR_UPDATE_TYPE_DEVICE_STATUS,
+      {
+        UserId: this.userId,
+        Date: new Date().toISOString(),
+      },
+      null,
+      null
+    );
   }
 }
 
@@ -445,9 +453,79 @@ async function notifyUserUpdate(
         contextId: contextId || null,
         updateType,
         targetDeviceIdentifier: targetDeviceIdentifier || null,
+        payload: {
+          UserId: userId,
+          Date: revisionDate,
+        },
       }),
     });
   } catch (error) {
     console.error('Failed to broadcast realtime notification:', error);
   }
+}
+
+export async function notifyUserBackupProgress(
+  env: Env,
+  userId: string,
+  progress: {
+    operation: 'backup-restore' | 'backup-export' | 'backup-remote-run';
+    source?: 'local' | 'remote';
+    step: string;
+    fileName: string;
+    stageTitle?: string;
+    stageDetail?: string;
+    replaceExisting?: boolean;
+    done?: boolean;
+    ok?: boolean;
+    error?: string | null;
+    timestamp?: string;
+  },
+  targetDeviceIdentifier?: string | null
+): Promise<void> {
+  const revisionDate = progress.timestamp || new Date().toISOString();
+  try {
+    const id = env.NOTIFICATIONS_HUB.idFromName(userId);
+    const stub = env.NOTIFICATIONS_HUB.get(id);
+    await stub.fetch('https://notifications/internal/notify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-NodeWarden-UserId': userId,
+      },
+      body: JSON.stringify({
+        revisionDate,
+        contextId: null,
+        updateType: SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS,
+        targetDeviceIdentifier: targetDeviceIdentifier || null,
+        payload: {
+          UserId: userId,
+          Date: revisionDate,
+          ...progress,
+        },
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to broadcast backup progress:', error);
+  }
+}
+
+export async function notifyUserBackupRestoreProgress(
+  env: Env,
+  userId: string,
+  progress: {
+    operation: 'backup-restore';
+    source: 'local' | 'remote';
+    step: string;
+    fileName: string;
+    stageTitle?: string;
+    stageDetail?: string;
+    replaceExisting?: boolean;
+    done?: boolean;
+    ok?: boolean;
+    error?: string | null;
+    timestamp?: string;
+  },
+  targetDeviceIdentifier?: string | null
+): Promise<void> {
+  return notifyUserBackupProgress(env, userId, progress, targetDeviceIdentifier);
 }
