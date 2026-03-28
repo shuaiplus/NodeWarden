@@ -884,6 +884,15 @@ export default function App() {
         return;
       }
 
+      let pingTimer: number | null = null;
+
+      const clearPingTimer = () => {
+        if (pingTimer !== null) {
+          window.clearInterval(pingTimer);
+          pingTimer = null;
+        }
+      };
+
       socket.addEventListener('open', () => {
         reconnectAttempts = 0;
         void refreshAuthorizedDevicesRef.current();
@@ -891,7 +900,16 @@ export default function App() {
           socket?.send(`{"protocol":"json","version":1}${SIGNALR_RECORD_SEPARATOR}`);
         } catch {
           socket?.close();
+          return;
         }
+        clearPingTimer();
+        pingTimer = window.setInterval(() => {
+          try {
+            socket?.send(`{"type":6}${SIGNALR_RECORD_SEPARATOR}`);
+          } catch {
+            // send failure will trigger close event
+          }
+        }, 15_000);
       });
 
       socket.addEventListener('message', (event) => {
@@ -934,6 +952,7 @@ export default function App() {
 
       socket.addEventListener('close', () => {
         socket = null;
+        clearPingTimer();
         void refreshAuthorizedDevicesRef.current();
         scheduleReconnect();
       });
@@ -952,9 +971,11 @@ export default function App() {
     return () => {
       disposed = true;
       clearReconnectTimer();
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket) {
+        const s = socket;
+        socket = null;
         try {
-          socket.close();
+          s.close();
         } catch {
           // ignore close races
         }

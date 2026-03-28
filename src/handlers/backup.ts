@@ -113,7 +113,19 @@ async function loadRemoteAttachmentIndex(session: RemoteBackupTransferSession): 
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('404') || message.includes('Please select a backup file')) {
+    const normalized = message.toLowerCase();
+    // Some WebDAV providers return non-standard codes such as 530 when the
+    // attachment index does not exist yet. Treat these "missing file" style
+    // responses as an empty index so first-time incremental backups can proceed.
+    if (
+      normalized.includes('404')
+      || normalized.includes('403')
+      || normalized.includes('530')
+      || normalized.includes('not found')
+      || normalized.includes('file not found')
+      || normalized.includes('does not exist')
+      || normalized.includes('please select a backup file')
+    ) {
       return new Map<string, number>();
     }
     throw error;
