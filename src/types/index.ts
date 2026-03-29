@@ -9,6 +9,8 @@ export interface Env {
   ATTACHMENTS?: R2Bucket;
   // Optional fallback for attachment/send file storage (no credit card required).
   ATTACHMENTS_KV?: KVNamespace;
+  // Optional fallback for local file storage
+  LOCAL_ATTACHMENTS_DIR?: string;
   JWT_SECRET: string;
   TOTP_SECRET?: string;
 }

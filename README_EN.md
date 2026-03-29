@@ -66,7 +66,26 @@
 > - Manual: open your fork on GitHub, click `Sync fork`, then `Update branch`
 > - Automatic: go to your fork -> `Actions` -> `Sync upstream` -> `Enable workflow`; it will sync upstream automatically every day at 3 AM
 
-## CLI Deploy
+## Docker Deploy (Self-Hosted)
+
+If you wish to run NodeWarden in your private environment (outside Cloudflare), you can easily deploy it using Docker:
+
+1. **Setup**
+   Create a new directory for your data (e.g. `nodewarden-data`), and create a [`docker-compose.yml`](./docker-compose.yml) file.
+
+2. **Configure Secrets**
+   Edit `docker-compose.yml` to change the `JWT_SECRET` environment variable to your own securely generated random string (at least 32 characters in length).
+
+3. **Start the Service**
+   ```bash
+   docker-compose up -d
+   ```
+   After starting, open `http://localhost:8787` in your browser.
+
+> [!NOTE] 
+> The local Docker deployment uses the local filesystem (`/nodewarden/attachments`) instead of R2 object storage, and SQLite (`/nodewarden/db.sqlite`) instead of a D1 Database. All your data stays secured locally via the configured Docker volume mount.
+
+## CLI Deploy (Cloudflare)
 
 ```powershell
 git clone https://github.com/shuaiplus/NodeWarden.git
