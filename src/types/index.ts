@@ -35,6 +35,7 @@ export interface User {
   id: string;
   email: string;
   name: string | null;
+  masterPasswordHint: string | null;
   masterPasswordHash: string;
   key: string;
   privateKey: string | null;
@@ -46,6 +47,7 @@ export interface User {
   securityStamp: string;
   role: UserRole;
   status: UserStatus;
+  verifyDevices?: boolean;
   totpSecret: string | null;
   totpRecoveryCode: string | null;
   createdAt: string;
@@ -168,6 +170,7 @@ export interface Cipher {
   key: string | null;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string | null;
   deletedAt: string | null;
   /** Allow unknown fields from Bitwarden clients to be stored and passed through transparently. */
   [key: string]: any;
@@ -188,8 +191,45 @@ export interface Device {
   name: string;
   type: number;
   sessionStamp: string;
+  encryptedUserKey: string | null;
+  encryptedPublicKey: string | null;
+  encryptedPrivateKey: string | null;
+  devicePendingAuthRequest?: DevicePendingAuthRequest | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DevicePendingAuthRequest {
+  id: string;
+  creationDate: string;
+}
+
+export interface DeviceResponse {
+  id: string;
+  userId?: string | null;
+  name: string;
+  identifier: string;
+  type: number;
+  creationDate: string;
+  revisionDate: string;
+  isTrusted: boolean;
+  encryptedUserKey: string | null;
+  encryptedPublicKey: string | null;
+  devicePendingAuthRequest: DevicePendingAuthRequest | null;
+  object: string;
+  [key: string]: any;
+}
+
+export interface ProtectedDeviceResponse {
+  id: string;
+  name: string;
+  identifier: string;
+  type: number;
+  creationDate: string;
+  encryptedUserKey: string | null;
+  encryptedPublicKey: string | null;
+  object: string;
+  [key: string]: any;
 }
 
 export interface RefreshTokenRecord {
@@ -350,6 +390,7 @@ export interface ProfileResponse {
   forcePasswordReset: boolean;
   avatarColor: string | null;
   creationDate: string;
+  verifyDevices?: boolean;
   role?: UserRole;
   status?: UserStatus;
   object: string;
@@ -408,6 +449,13 @@ export interface SyncResponse {
   domains: any;
   policies: any[];
   sends: SendResponse[];
+  UserDecryption?: {
+    MasterPasswordUnlock: MasterPasswordUnlock | null;
+    TrustedDeviceOption?: null;
+    KeyConnectorOption?: null;
+    WebAuthnPrfOption?: null;
+    Object?: string;
+  } | null;
   // PascalCase for desktop/browser clients
   UserDecryptionOptions: UserDecryptionOptions | null;
   // camelCase for Android client (SyncResponseJson uses @SerialName("userDecryption"))

@@ -1,8 +1,26 @@
 import type { RefObject } from 'preact';
-import { CheckCheck, Download, Paperclip, Plus, RefreshCw, Star, StarOff, Trash2, Upload, X } from 'lucide-preact';
+import { CheckCheck, Download, GripVertical, Paperclip, Plus, RefreshCw, Star, StarOff, Trash2, Upload, X } from 'lucide-preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Cipher, Folder, VaultDraft, VaultDraftField } from '@/lib/types';
 import { t } from '@/lib/i18n';
-import { CREATE_TYPE_OPTIONS, cipherTypeLabel, formatAttachmentSize, toBooleanFieldValue } from '@/components/vault/vault-page-helpers';
+import { CREATE_TYPE_OPTIONS, cipherTypeLabel, createEmptyLoginUri, formatAttachmentSize, toBooleanFieldValue, WEBSITE_MATCH_OPTIONS } from '@/components/vault/vault-page-helpers';
 
 interface VaultEditorProps {
   draft: VaultDraft;
@@ -24,6 +42,8 @@ interface VaultEditorProps {
   onSeedSshDefaults: (force?: boolean) => void;
   onUpdateSshPublicKey: (value: string) => void;
   onUpdateDraftLoginUri: (index: number, value: string) => void;
+  onUpdateDraftLoginUriMatch: (index: number, value: number | null) => void;
+  onReorderDraftLoginUri: (fromIndex: number, toIndex: number) => void;
   onQueueAttachmentFiles: (list: FileList | null) => void;
   onToggleExistingAttachmentRemoval: (attachmentId: string) => void;
   onRemoveQueuedAttachment: (index: number) => void;
@@ -36,7 +56,108 @@ interface VaultEditorProps {
   onDeleteSelected: () => void;
 }
 
+interface SortableWebsiteRowProps {
+  id: string;
+  uriEntry: VaultDraft['loginUris'][number];
+  index: number;
+  canRemove: boolean;
+  isDragging: boolean;
+  onUpdateUri: (index: number, value: string) => void;
+  onUpdateMatch: (index: number, value: number | null) => void;
+  onRemove: (index: number) => void;
+}
+
+function SortableWebsiteRow(props: SortableWebsiteRowProps) {
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`website-row${isDragging || props.isDragging ? ' is-dragging' : ''}`}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        className="btn btn-secondary small website-drag-btn"
+        title={t('txt_drag_to_reorder')}
+        aria-label={t('txt_drag_to_reorder')}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={14} className="btn-icon" />
+      </button>
+      <input
+        className="input"
+        value={props.uriEntry.uri}
+        onInput={(e) => props.onUpdateUri(props.index, (e.currentTarget as HTMLInputElement).value)}
+      />
+      <select
+        className="input website-match-select"
+        value={props.uriEntry.match == null ? '' : String(props.uriEntry.match)}
+        onInput={(e) => {
+          const raw = (e.currentTarget as HTMLSelectElement).value;
+          props.onUpdateMatch(props.index, raw === '' ? null : Number(raw));
+        }}
+      >
+        {WEBSITE_MATCH_OPTIONS.map((option) => (
+          <option key={`website-match-${String(option.value)}`} value={option.value == null ? '' : String(option.value)}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {props.canRemove && (
+        <button type="button" className="btn btn-secondary small" onClick={() => props.onRemove(props.index)}>
+          <X size={14} className="btn-icon" />
+          {t('txt_remove')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function VaultEditor(props: VaultEditorProps) {
+  const uriIdSeedRef = useRef(0);
+  const [uriItemIds, setUriItemIds] = useState<string[]>([]);
+  const [activeUriId, setActiveUriId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 120,
+        tolerance: 8,
+      },
+    }),
+  );
+
+  const createUriId = () => `login-uri-${uriIdSeedRef.current++}`;
+
+  useEffect(() => {
+    setUriItemIds((prev) => {
+      if (prev.length === props.draft.loginUris.length) return prev;
+      if (prev.length < props.draft.loginUris.length) {
+        return [...prev, ...Array.from({ length: props.draft.loginUris.length - prev.length }, () => createUriId())];
+      }
+      return prev.slice(0, props.draft.loginUris.length);
+    });
+  }, [props.draft.loginUris.length]);
+
+  useEffect(() => {
+    setUriItemIds(props.draft.loginUris.map(() => createUriId()));
+    setActiveUriId(null);
+  }, [props.draft.id, props.isCreating]);
+
   const formatDownloadLabel = (attachmentId: string) => {
     const downloadKey = `${props.selectedCipher?.id || ''}:${attachmentId}`;
     if (props.downloadingAttachmentKey !== downloadKey) return t('txt_download');
@@ -51,6 +172,32 @@ export default function VaultEditor(props: VaultEditorProps) {
           name: props.uploadingAttachmentName || t('txt_attachment'),
           percent: props.attachmentUploadPercent,
         });
+
+  const addLoginUri = () => {
+    setUriItemIds((prev) => [...prev, createUriId()]);
+    props.onUpdateDraft({ loginUris: [...props.draft.loginUris, createEmptyLoginUri()] });
+  };
+
+  const removeLoginUri = (index: number) => {
+    setUriItemIds((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    props.onUpdateDraft({ loginUris: props.draft.loginUris.filter((_, itemIndex) => itemIndex !== index) });
+  };
+
+  const handleWebsiteDragStart = (event: DragStartEvent) => {
+    setActiveUriId(String(event.active.id));
+  };
+
+  const handleWebsiteDragEnd = (event: DragEndEvent) => {
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+    setActiveUriId(null);
+    if (!overId || activeId === overId) return;
+    const fromIndex = uriItemIds.indexOf(activeId);
+    const toIndex = uriItemIds.indexOf(overId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+    setUriItemIds((prev) => arrayMove(prev, fromIndex, toIndex));
+    props.onReorderDraftLoginUri(fromIndex, toIndex);
+  };
 
   return (
     <>
@@ -119,21 +266,27 @@ export default function VaultEditor(props: VaultEditorProps) {
           </label>
           <div className="section-head">
             <h4>{t('txt_websites')}</h4>
-            <button type="button" className="btn btn-secondary small" onClick={() => props.onUpdateDraft({ loginUris: [...props.draft.loginUris, ''] })}>
+            <button type="button" className="btn btn-secondary small" onClick={addLoginUri}>
               <Plus size={14} className="btn-icon" /> {t('txt_add_website')}
             </button>
           </div>
-          {props.draft.loginUris.map((uri, index) => (
-            <div key={`uri-${index}`} className="website-row">
-              <input className="input" value={uri} onInput={(e) => props.onUpdateDraftLoginUri(index, (e.currentTarget as HTMLInputElement).value)} />
-              {props.draft.loginUris.length > 1 && (
-                <button type="button" className="btn btn-secondary small" onClick={() => props.onUpdateDraft({ loginUris: props.draft.loginUris.filter((_, i) => i !== index) })}>
-                  <X size={14} className="btn-icon" />
-                  {t('txt_remove')}
-                </button>
-              )}
-            </div>
-          ))}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleWebsiteDragStart} onDragEnd={handleWebsiteDragEnd}>
+            <SortableContext items={uriItemIds} strategy={verticalListSortingStrategy}>
+              {props.draft.loginUris.map((uriEntry, index) => (
+                <SortableWebsiteRow
+                  key={uriItemIds[index] ?? `uri-${index}`}
+                  id={uriItemIds[index] ?? `uri-fallback-${index}`}
+                  uriEntry={uriEntry}
+                  index={index}
+                  canRemove={props.draft.loginUris.length > 1}
+                  isDragging={activeUriId === uriItemIds[index]}
+                  onUpdateUri={props.onUpdateDraftLoginUri}
+                  onUpdateMatch={props.onUpdateDraftLoginUriMatch}
+                  onRemove={removeLoginUri}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </div>
       )}
 
@@ -322,23 +475,31 @@ export default function VaultEditor(props: VaultEditorProps) {
           .map((field, originalIndex) => ({ field, originalIndex }))
           .filter((entry) => entry.field.type !== 3)
           .map(({ field, originalIndex }) => (
-            <div key={`field-${originalIndex}`} className="uri-row">
-              <input className="input" value={field.label} onInput={(e) => props.onPatchDraftCustomField(originalIndex, { label: (e.currentTarget as HTMLInputElement).value })} />
-              {field.type === 2 ? (
-                <label className="check-line cf-check">
-                  <input
-                    type="checkbox"
-                    checked={toBooleanFieldValue(field.value)}
-                    onInput={(e) => props.onPatchDraftCustomField(originalIndex, { value: (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false' })}
-                  />
-                </label>
-              ) : (
-                <input className="input" value={field.value} onInput={(e) => props.onPatchDraftCustomField(originalIndex, { value: (e.currentTarget as HTMLInputElement).value })} />
-              )}
-              <button type="button" className="btn btn-secondary small" onClick={() => props.onUpdateDraftCustomFields(props.draft.customFields.filter((_, i) => i !== originalIndex))}>
-                <X size={14} className="btn-icon" />
-                {t('txt_remove')}
-              </button>
+            <div key={`field-${originalIndex}`} className="custom-field-card">
+              <label className="field custom-field-label">
+                <span>{t('txt_field_label')}</span>
+                <input className="input" value={field.label} onInput={(e) => props.onPatchDraftCustomField(originalIndex, { label: (e.currentTarget as HTMLInputElement).value })} />
+              </label>
+              <div className="custom-field-body">
+                <div className="custom-field-value">
+                  {field.type === 2 ? (
+                    <label className="check-line cf-check custom-field-check">
+                      <input
+                        type="checkbox"
+                        checked={toBooleanFieldValue(field.value)}
+                        onInput={(e) => props.onPatchDraftCustomField(originalIndex, { value: (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false' })}
+                      />
+                      <span>{toBooleanFieldValue(field.value) ? t('txt_checked') : t('txt_unchecked')}</span>
+                    </label>
+                  ) : (
+                    <input className="input" value={field.value} onInput={(e) => props.onPatchDraftCustomField(originalIndex, { value: (e.currentTarget as HTMLInputElement).value })} />
+                  )}
+                </div>
+                <button type="button" className="btn btn-secondary small custom-field-remove" onClick={() => props.onUpdateDraftCustomFields(props.draft.customFields.filter((_, i) => i !== originalIndex))}>
+                  <X size={14} className="btn-icon" />
+                  {t('txt_remove')}
+                </button>
+              </div>
             </div>
           ))}
       </div>

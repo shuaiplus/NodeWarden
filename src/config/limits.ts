@@ -44,6 +44,12 @@
     // Sensitive public/auth request budget per IP per minute.
     // 敏感公开/认证接口每 IP 每分钟请求配额。
     sensitivePublicRequestsPerMinute: 30,
+    // Password hint lookup budget per IP per minute.
+    // 密码提示查询接口每 IP 每分钟请求配额。
+    passwordHintRequestsPerMinute: 1,
+    // Password hint lookup budget per IP per hour.
+    // 密码提示查询接口每 IP 每小时请求配额。
+    passwordHintRequestsPerHour: 3,
     // Register endpoint budget per IP per minute.
     // 注册接口每 IP 每分钟请求配额。
     registerRequestsPerMinute: 5,

@@ -11,6 +11,7 @@ import {
   createAuthedFetch,
   getAuthorizedDevices,
   getCurrentDeviceIdentifier,
+  getPasswordHint,
   getTotpStatus,
   saveSession,
 } from '@/lib/api/auth';
@@ -49,17 +50,76 @@ import useVaultSendActions from '@/hooks/useVaultSendActions';
 import { useToastManager } from '@/hooks/useToastManager';
 import { t } from '@/lib/i18n';
 import { APP_NOTIFY_EVENT, type AppNotifyDetail } from '@/lib/app-notify';
+import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-restore-progress';
 import type { AppPhase, Cipher, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
 
-const IMPORT_ROUTE = '/help/import-export';
+const IMPORT_ROUTE = '/backup/import-export';
 const IMPORT_ROUTE_PATHS = [IMPORT_ROUTE, '/tools/import', '/tools/import-export', '/tools/import-data', '/import', '/import-export'] as const;
 const IMPORT_ROUTE_ALIASES: ReadonlySet<string> = new Set(IMPORT_ROUTE_PATHS.filter((path) => path !== IMPORT_ROUTE));
 const SETTINGS_HOME_ROUTE = '/settings';
 const SETTINGS_ACCOUNT_ROUTE = '/settings/account';
+const THEME_STORAGE_KEY = 'nodewarden.theme.preference.v1';
 const SIGNALR_RECORD_SEPARATOR = String.fromCharCode(0x1e);
 const SIGNALR_UPDATE_TYPE_SYNC_VAULT = 5;
 const SIGNALR_UPDATE_TYPE_LOG_OUT = 11;
 const SIGNALR_UPDATE_TYPE_DEVICE_STATUS = 12;
+const SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS = 13;
+
+type ThemePreference = 'system' | 'light' | 'dark';
+const MAGNETIC_SELECTOR = '.topbar .btn, .topbar .user-chip, .side-link, .mobile-tab';
+
+function installMagneticUiFeedback() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) return () => {};
+
+  const resetNode = (node: HTMLElement) => {
+    node.style.setProperty('--mag-x', '0px');
+    node.style.setProperty('--mag-y', '0px');
+    node.style.removeProperty('--mx');
+    node.style.removeProperty('--my');
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    const node = event.target instanceof Element ? event.target.closest<HTMLElement>(MAGNETIC_SELECTOR) : null;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    const dx = (localX - rect.width / 2) / Math.max(rect.width / 2, 1);
+    const dy = (localY - rect.height / 2) / Math.max(rect.height / 2, 1);
+    node.style.setProperty('--mx', `${localX}px`);
+    node.style.setProperty('--my', `${localY}px`);
+    node.style.setProperty('--mag-x', `${dx * 6}px`);
+    node.style.setProperty('--mag-y', `${dy * 4}px`);
+  };
+
+  const onPointerLeave = (event: Event) => {
+    const node = event.target instanceof Element ? event.target.closest<HTMLElement>(MAGNETIC_SELECTOR) : null;
+    if (!node) return;
+    resetNode(node);
+  };
+
+  document.addEventListener('pointermove', onPointerMove, { passive: true });
+  document.addEventListener('pointerleave', onPointerLeave, true);
+
+  return () => {
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerleave', onPointerLeave, true);
+  };
+}
+
+function readThemePreference(): ThemePreference {
+  if (typeof window === 'undefined') return 'system';
+  const stored = String(window.localStorage.getItem(THEME_STORAGE_KEY) || '').trim();
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+  return 'system';
+}
+
+function resolveSystemTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 export default function App() {
   const initialBootstrap = useMemo(() => readInitialAppBootstrapState(), []);
@@ -78,7 +138,17 @@ export default function App() {
     email: '',
     password: '',
     password2: '',
+    passwordHint: '',
     inviteCode: initialInviteCode,
+  });
+  const [loginHintState, setLoginHintState] = useState<{
+    email: string;
+    loading: boolean;
+    hint: string | null;
+  }>({
+    email: '',
+    loading: false,
+    hint: null,
   });
   const [inviteCodeFromUrl, setInviteCodeFromUrl] = useState(initialInviteCode);
   const [unlockPassword, setUnlockPassword] = useState('');
@@ -89,6 +159,8 @@ export default function App() {
   const [disableTotpOpen, setDisableTotpOpen] = useState(false);
   const [disableTotpPassword, setDisableTotpPassword] = useState('');
   const [recoverValues, setRecoverValues] = useState({ email: '', password: '', recoveryCode: '' });
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => readThemePreference());
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => resolveSystemTheme());
 
   const [confirm, setConfirm] = useState<AppConfirmState | null>(null);
   const [mobileLayout, setMobileLayout] = useState(false);
@@ -132,6 +204,15 @@ export default function App() {
   }, [inviteCodeFromUrl]);
 
   useEffect(() => {
+    const normalizedEmail = loginValues.email.trim().toLowerCase();
+    setLoginHintState((prev) => (
+      prev.email && prev.email !== normalizedEmail
+        ? { email: '', loading: false, hint: null }
+        : prev
+    ));
+  }, [loginValues.email]);
+
+  useEffect(() => {
     if (!inviteCodeFromUrl) return;
     if (phase === 'locked' || phase === 'app') return;
     setPhase('register');
@@ -154,6 +235,41 @@ export default function App() {
     media.addListener(sync);
     return () => media.removeListener(sync);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const sync = () => setSystemTheme(media.matches ? 'dark' : 'light');
+    sync();
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', sync);
+      return () => media.removeEventListener('change', sync);
+    }
+    media.addListener(sync);
+    return () => media.removeListener(sync);
+  }, []);
+
+  const resolvedTheme = themePreference === 'system' ? systemTheme : themePreference;
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
+  }, [themePreference]);
+
+  useEffect(() => installMagneticUiFeedback(), []);
+
+  function handleToggleTheme() {
+    setThemePreference((prev) => {
+      const current = prev === 'system' ? systemTheme : prev;
+      return current === 'dark' ? 'light' : 'dark';
+    });
+  }
 
   function setSession(next: SessionState | null) {
     sessionRef.current = next;
@@ -200,7 +316,7 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const boot = await bootstrapAppSession();
+      const boot = await bootstrapAppSession(initialBootstrap);
       if (!mounted) return;
       setDefaultKdfIterations(boot.defaultKdfIterations);
       setJwtWarning(boot.jwtWarning);
@@ -212,7 +328,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [initialBootstrap]);
 
   async function finalizeLogin(login: CompletedLogin) {
     setSession(login.session);
@@ -322,6 +438,7 @@ export default function App() {
         email: registerValues.email,
         name: registerValues.name,
         password: registerValues.password,
+        masterPasswordHint: registerValues.passwordHint,
         inviteCode: registerValues.inviteCode,
         fallbackIterations: defaultKdfIterations,
       });
@@ -336,6 +453,56 @@ export default function App() {
     } finally {
       setPendingAuthAction(null);
     }
+  }
+
+  function openPasswordHintDialog(hint: string | null) {
+    setConfirm({
+      title: t('txt_password_hint'),
+      message: hint || t('txt_password_hint_not_set'),
+      showIcon: false,
+      confirmText: t('txt_close'),
+      hideCancel: true,
+      onConfirm: () => setConfirm(null),
+    });
+  }
+
+  async function handleTogglePasswordHint() {
+    if (pendingAuthAction) return;
+    const email = loginValues.email.trim().toLowerCase();
+    if (!email) return;
+
+    if (loginHintState.email === email && !loginHintState.loading) {
+      openPasswordHintDialog(loginHintState.hint);
+      return;
+    }
+
+    setLoginHintState({
+      email,
+      loading: true,
+      hint: null,
+    });
+
+    try {
+      const result = await getPasswordHint(email);
+      openPasswordHintDialog(result.masterPasswordHint);
+      setLoginHintState({
+        email,
+        loading: false,
+        hint: result.masterPasswordHint,
+      });
+    } catch (error) {
+      setLoginHintState({
+        email: '',
+        loading: false,
+        hint: null,
+      });
+      pushToast('error', error instanceof Error ? error.message : t('txt_password_hint_load_failed'));
+    }
+  }
+
+  function handleShowLockedPasswordHint() {
+    if (pendingAuthAction) return;
+    openPasswordHintDialog(profile?.masterPasswordHint ?? null);
   }
 
   async function handleUnlock() {
@@ -717,6 +884,15 @@ export default function App() {
         return;
       }
 
+      let pingTimer: number | null = null;
+
+      const clearPingTimer = () => {
+        if (pingTimer !== null) {
+          window.clearInterval(pingTimer);
+          pingTimer = null;
+        }
+      };
+
       socket.addEventListener('open', () => {
         reconnectAttempts = 0;
         void refreshAuthorizedDevicesRef.current();
@@ -724,7 +900,16 @@ export default function App() {
           socket?.send(`{"protocol":"json","version":1}${SIGNALR_RECORD_SEPARATOR}`);
         } catch {
           socket?.close();
+          return;
         }
+        clearPingTimer();
+        pingTimer = window.setInterval(() => {
+          try {
+            socket?.send(`{"type":6}${SIGNALR_RECORD_SEPARATOR}`);
+          } catch {
+            // send failure will trigger close event
+          }
+        }, 15_000);
       });
 
       socket.addEventListener('message', (event) => {
@@ -743,6 +928,21 @@ export default function App() {
             void refreshAuthorizedDevicesRef.current();
             continue;
           }
+          if (updateType === SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS) {
+            const payload = frame.arguments?.[0]?.Payload;
+            if (
+              payload
+              && typeof payload === 'object'
+              && (
+                payload.operation === 'backup-restore'
+                || payload.operation === 'backup-export'
+                || payload.operation === 'backup-remote-run'
+              )
+            ) {
+              dispatchBackupProgress(payload as BackupProgressDetail);
+            }
+            continue;
+          }
           if (updateType !== SIGNALR_UPDATE_TYPE_SYNC_VAULT) continue;
           const contextId = String(frame.arguments?.[0]?.ContextId || '').trim();
           if (contextId && contextId === getCurrentDeviceIdentifier()) continue;
@@ -752,6 +952,7 @@ export default function App() {
 
       socket.addEventListener('close', () => {
         socket = null;
+        clearPingTimer();
         void refreshAuthorizedDevicesRef.current();
         scheduleReconnect();
       });
@@ -770,9 +971,11 @@ export default function App() {
     return () => {
       disposed = true;
       clearReconnectTimer();
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket) {
+        const s = socket;
+        socket = null;
         try {
-          socket.close();
+          s.close();
         } catch {
           // ignore close races
         }
@@ -804,6 +1007,7 @@ export default function App() {
     },
     onLogoutNow: logoutNow,
     onNotify: pushToast,
+    onProfileUpdated: setProfile,
     onSetConfirm: setConfirm,
     refetchTotpStatus: totpStatusQuery.refetch,
     refetchAuthorizedDevices: authorizedDevicesQuery.refetch,
@@ -846,7 +1050,7 @@ export default function App() {
     if (location === '/sends') return t('nav_sends');
     if (location === '/admin') return t('nav_admin_panel');
     if (location === '/security/devices') return t('nav_device_management');
-    if (location === '/help') return t('nav_backup_strategy');
+    if (location === '/backup') return t('nav_backup_strategy');
     if (isImportRoute) return t('nav_import_export');
     if (location === SETTINGS_ACCOUNT_ROUTE) return t('nav_account_settings');
     if (location === SETTINGS_HOME_ROUTE) return t('txt_settings');
@@ -864,7 +1068,7 @@ export default function App() {
   }, [phase, isImportHashRoute, location, navigate]);
 
   useEffect(() => {
-    if (phase === 'app' && profile?.role !== 'admin' && location === '/help') {
+    if (phase === 'app' && profile?.role !== 'admin' && location === '/backup') {
       navigate('/vault');
     }
   }, [phase, profile?.role, location, navigate]);
@@ -902,9 +1106,13 @@ export default function App() {
     onCreateVaultItem: vaultSendActions.createVaultItem,
     onUpdateVaultItem: vaultSendActions.updateVaultItem,
     onDeleteVaultItem: vaultSendActions.deleteVaultItem,
+    onArchiveVaultItem: vaultSendActions.archiveVaultItem,
+    onUnarchiveVaultItem: vaultSendActions.unarchiveVaultItem,
     onBulkDeleteVaultItems: vaultSendActions.bulkDeleteVaultItems,
     onBulkPermanentDeleteVaultItems: vaultSendActions.bulkPermanentDeleteVaultItems,
     onBulkRestoreVaultItems: vaultSendActions.bulkRestoreVaultItems,
+    onBulkArchiveVaultItems: vaultSendActions.bulkArchiveVaultItems,
+    onBulkUnarchiveVaultItems: vaultSendActions.bulkUnarchiveVaultItems,
     onBulkMoveVaultItems: vaultSendActions.bulkMoveVaultItems,
     onVerifyMasterPassword: vaultSendActions.verifyMasterPassword,
     onCreateFolder: vaultSendActions.createFolder,
@@ -923,6 +1131,7 @@ export default function App() {
     uploadingSendFileName: vaultSendActions.uploadingSendFileName,
     sendUploadPercent: vaultSendActions.sendUploadPercent,
     onChangePassword: accountSecurityActions.changePassword,
+    onSavePasswordHint: accountSecurityActions.savePasswordHint,
     onEnableTotp: async (secret: string, token: string) => {
       await accountSecurityActions.enableTotp(secret, token);
       await totpStatusQuery.refetch();
@@ -942,13 +1151,16 @@ export default function App() {
     onRevokeInvite: adminActions.revokeInvite,
     onExportBackup: backupActions.exportBackup,
     onImportBackup: backupActions.importBackup,
+    onImportBackupAllowingChecksumMismatch: backupActions.importBackupAllowingChecksumMismatch,
     onLoadBackupSettings: backupActions.loadSettings,
     onSaveBackupSettings: backupActions.saveSettings,
     onRunRemoteBackup: backupActions.runRemoteBackup,
     onListRemoteBackups: backupActions.listRemoteBackups,
     onDownloadRemoteBackup: backupActions.downloadRemoteBackup,
+    onInspectRemoteBackup: backupActions.inspectRemoteBackup,
     onDeleteRemoteBackup: backupActions.deleteRemoteBackup,
     onRestoreRemoteBackup: backupActions.restoreRemoteBackup,
+    onRestoreRemoteBackupAllowingChecksumMismatch: backupActions.restoreRemoteBackupAllowingChecksumMismatch,
   };
 
   if (jwtWarning) {
@@ -992,6 +1204,7 @@ export default function App() {
           registerValues={registerValues}
           unlockPassword={unlockPassword}
           emailForLock={profile?.email || session?.email || ''}
+          loginHintLoading={loginHintState.loading}
           onChangeLogin={setLoginValues}
           onChangeRegister={setRegisterValues}
           onChangeUnlock={setUnlockPassword}
@@ -1010,12 +1223,14 @@ export default function App() {
             navigate('/register');
           }}
           onLogout={logoutNow}
+          onTogglePasswordHint={() => void handleTogglePasswordHint()}
+          onShowLockedPasswordHint={handleShowLockedPasswordHint}
         />
         <AppGlobalOverlays
           toasts={toasts}
           onCloseToast={removeToast}
-          confirm={null}
-          onCancelConfirm={() => {}}
+          confirm={confirm}
+          onCancelConfirm={() => setConfirm(null)}
           pendingTotpOpen={!!pendingTotp}
           totpCode={totpCode}
           rememberDevice={rememberDevice}
@@ -1055,8 +1270,11 @@ export default function App() {
         settingsAccountRoute={SETTINGS_ACCOUNT_ROUTE}
         importRoute={IMPORT_ROUTE}
         isImportRoute={isImportRoute}
+        darkMode={resolvedTheme === 'dark'}
+        themeToggleTitle={resolvedTheme === 'dark' ? t('txt_switch_to_light_mode') : t('txt_switch_to_dark_mode')}
         onLock={handleLock}
         onLogout={handleLogout}
+        onToggleTheme={handleToggleTheme}
         mainRoutesProps={mainRoutesProps}
       />
 

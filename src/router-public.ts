@@ -11,6 +11,7 @@ import { handleKnownDevice } from './handlers/devices';
 import { handleToken, handlePrelogin, handleRevocation } from './handlers/identity';
 import {
   handleRegister,
+  handleGetPasswordHint,
   handleRecoverTwoFactor,
 } from './handlers/accounts';
 import { handlePublicDownloadAttachment } from './handlers/attachments';
@@ -75,6 +76,43 @@ function buildIconServiceTemplate(origin: string): string {
 
 function buildIconServiceCsp(origin: string): string {
   return `img-src 'self' data: ${origin}`;
+}
+
+function buildConfigResponse(origin: string) {
+  return {
+    version: LIMITS.compatibility.bitwardenServerVersion,
+    gitHash: 'nodewarden',
+    server: null,
+    environment: {
+      cloudRegion: 'self-hosted',
+      vault: origin,
+      api: origin + '/api',
+      identity: origin + '/identity',
+      notifications: origin + '/notifications',
+      icons: origin,
+      sso: '',
+      fillAssistRules: null,
+    },
+    push: {
+      pushTechnology: 0,
+      vapidPublicKey: null,
+    },
+    communication: null,
+    settings: {
+      disableUserRegistration: false,
+    },
+    _icon_service_url: buildIconServiceTemplate(origin),
+    _icon_service_csp: buildIconServiceCsp(origin),
+    featureStates: {
+      'duo-redirect': true,
+      'email-verification': true,
+      'pm-19051-send-email-verification': false,
+      'pm-19148-innovation-archive': true,
+      'unauth-ui-refresh': true,
+      'web-push': false,
+    },
+    object: 'config',
+  };
 }
 
 function normalizeIconHost(rawHost: string): string | null {
@@ -174,6 +212,12 @@ export async function handlePublicRoute(
     });
   }
 
+  if ((path === '/api/web-bootstrap' || path === '/web-bootstrap') && method === 'GET') {
+    const blocked = await enforcePublicRateLimit('public-read', LIMITS.rateLimit.publicReadRequestsPerMinute);
+    if (blocked) return blocked;
+    return jsonResponse(buildWebBootstrapResponse(env));
+  }
+
   const iconMatch = path.match(/^\/icons\/([^/]+)\/icon\.png$/i);
   if (iconMatch && method === 'GET') {
     return handleWebsiteIcon(iconMatch[1]);
@@ -236,6 +280,11 @@ export async function handlePublicRoute(
     return handleKnownDevice(request, env);
   }
 
+  const clearDeviceTokenMatch = path.match(/^\/api\/devices\/identifier\/([^/]+)\/clear-token$/i);
+  if (clearDeviceTokenMatch && (method === 'PUT' || method === 'POST')) {
+    return new Response(null, { status: 200 });
+  }
+
   if ((path === '/identity/connect/revocation' || path === '/identity/connect/revoke') && method === 'POST') {
     const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
     if (blocked) return blocked;
@@ -248,36 +297,33 @@ export async function handlePublicRoute(
     return handlePrelogin(request, env);
   }
 
+  if (path === '/identity/accounts/prelogin/password' && method === 'POST') {
+    const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
+    if (blocked) return blocked;
+    return handlePrelogin(request, env);
+  }
+
   if ((path === '/identity/accounts/recover-2fa' || path === '/api/accounts/recover-2fa') && method === 'POST') {
     return handleRecoverTwoFactor(request, env);
+  }
+
+  if (path === '/api/accounts/password-hint' && method === 'POST') {
+    const blocked = await enforcePublicRateLimit('public-sensitive', LIMITS.rateLimit.sensitivePublicRequestsPerMinute);
+    if (blocked) return blocked;
+    if (!isSameOriginWriteRequest(request)) {
+      return new Response(JSON.stringify({ error: 'Forbidden origin' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return handleGetPasswordHint(request, env);
   }
 
   if ((path === '/config' || path === '/api/config') && method === 'GET') {
     const blocked = await enforcePublicRateLimit('public-read', LIMITS.rateLimit.publicReadRequestsPerMinute);
     if (blocked) return blocked;
     const origin = new URL(request.url).origin;
-    return jsonResponse({
-      version: LIMITS.compatibility.bitwardenServerVersion,
-      gitHash: 'nodewarden',
-      server: null,
-      environment: {
-        vault: origin,
-        api: origin + '/api',
-        identity: origin + '/identity',
-        notifications: origin + '/notifications',
-        icons: origin,
-        sso: '',
-      },
-      _icon_service_url: buildIconServiceTemplate(origin),
-      _icon_service_csp: buildIconServiceCsp(origin),
-      featureStates: {
-        'duo-redirect': true,
-        'email-verification': true,
-        'pm-19051-send-email-verification': false,
-        'unauth-ui-refresh': true,
-      },
-      object: 'config',
-    });
+    return jsonResponse(buildConfigResponse(origin));
   }
 
   if (path === '/api/version' && method === 'GET') {

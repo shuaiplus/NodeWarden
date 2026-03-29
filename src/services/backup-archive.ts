@@ -1,25 +1,22 @@
 import { zipSync, unzipSync } from 'fflate';
 import type { Env } from '../types';
+import { APP_VERSION } from '../../shared/app-version';
 import {
   getAttachmentObjectKey,
-  getBlobObject,
   getBlobStorageKind,
-  getSendFileObjectKey,
 } from './blob-store';
 
 type SqlRow = Record<string, string | number | null>;
 
 const BACKUP_FORMAT_VERSION = 1;
-const BACKUP_APP_VERSION = '1.3.0';
-const BACKUP_TEXT_COMPRESSION_LEVEL = 6;
-const BACKUP_BINARY_COMPRESSION_LEVEL = 1;
-const BACKUP_R2_BLOB_READ_CONCURRENCY = 8;
-const BACKUP_KV_BLOB_READ_CONCURRENCY = 4;
-const BACKUP_R2_BLOB_READ_CHUNK_SIZE = 64;
-const BACKUP_KV_BLOB_READ_CHUNK_SIZE = 32;
+const BACKUP_FILE_HASH_PREFIX_LENGTH = 5;
+// Worker-side backup export must stay well below Cloudflare CPU limits.
+// Prefer store-only ZIP entries over heavier compression to keep exports reliable.
+const BACKUP_TEXT_COMPRESSION_LEVEL = 0;
+const BACKUP_JSON_INDENT = 2;
 const MAX_BACKUP_ARCHIVE_BYTES = 64 * 1024 * 1024;
 const MAX_BACKUP_ARCHIVE_ENTRY_COUNT = 10_000;
-const MAX_BACKUP_EXTRACTED_BYTES = 128 * 1024 * 1024;
+const MAX_BACKUP_EXTRACTED_BYTES = 64 * 1024 * 1024;
 const MAX_BACKUP_DB_JSON_BYTES = 32 * 1024 * 1024;
 
 export interface BackupManifest {
@@ -30,14 +27,20 @@ export interface BackupManifest {
   tableCounts: Record<string, number>;
   includes: {
     attachments: boolean;
-    sendFiles: boolean;
   };
   blobSummary: {
     attachmentFiles: number;
-    sendFiles: number;
     totalBytes: number;
     largestObjectBytes: number;
   };
+  attachmentBlobs?: BackupManifestAttachmentBlob[];
+}
+
+export interface BackupManifestAttachmentBlob {
+  cipherId: string;
+  attachmentId: string;
+  blobName: string;
+  sizeBytes: number;
 }
 
 export interface BackupPayload {
@@ -49,7 +52,6 @@ export interface BackupPayload {
     folders: SqlRow[];
     ciphers: SqlRow[];
     attachments: SqlRow[];
-    sends: SqlRow[];
   };
 }
 
@@ -59,124 +61,39 @@ export interface BackupArchiveBundle {
   manifest: BackupManifest;
 }
 
-interface BackupBlobTask {
-  archivePath: string;
-  objectKey: string;
-  kind: 'attachment' | 'send-file';
-  missingMessage: string;
+export interface BackupFileIntegrityCheckResult {
+  hasChecksumPrefix: boolean;
+  expectedPrefix: string | null;
+  actualPrefix: string;
+  matches: boolean;
 }
 
-interface BackupBlobTaskResult {
-  archivePath: string;
-  bytes: Uint8Array;
-  kind: BackupBlobTask['kind'];
+export interface BuildBackupArchiveOptions {
+  includeAttachments?: boolean;
+  progress?: BackupArchiveBuildProgressReporter;
 }
 
-export function parseSendFileId(data: string | null): string | null {
-  if (!data) return null;
-  try {
-    const parsed = JSON.parse(data) as Record<string, unknown>;
-    return typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id.trim() : null;
-  } catch {
-    return null;
-  }
+export interface BackupArchiveBuildProgressEvent {
+  step: string;
+  fileName?: string;
+  stageTitle: string;
+  stageDetail: string;
+  includeAttachments: boolean;
 }
+
+export type BackupArchiveBuildProgressReporter = (event: BackupArchiveBuildProgressEvent) => Promise<void>;
 
 async function queryRows(db: D1Database, sql: string, ...values: unknown[]): Promise<SqlRow[]> {
   const result = await db.prepare(sql).bind(...values).all<SqlRow>();
   return (result.results || []).map((row) => ({ ...row }));
 }
 
-async function streamToBytes(stream: ReadableStream | null): Promise<Uint8Array> {
-  if (!stream) return new Uint8Array();
-  const buffer = await new Response(stream).arrayBuffer();
-  return new Uint8Array(buffer);
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function getBackupBlobReadConcurrency(env: Env): number {
-  return getBlobStorageKind(env) === 'kv' ? BACKUP_KV_BLOB_READ_CONCURRENCY : BACKUP_R2_BLOB_READ_CONCURRENCY;
-}
-
-function getBackupBlobReadChunkSize(env: Env): number {
-  return getBlobStorageKind(env) === 'kv' ? BACKUP_KV_BLOB_READ_CHUNK_SIZE : BACKUP_R2_BLOB_READ_CHUNK_SIZE;
-}
-
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  concurrency: number,
-  worker: (item: T, index: number) => Promise<R>
-): Promise<R[]> {
-  if (!items.length) return [];
-
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-
-  const runWorker = async (): Promise<void> => {
-    while (true) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      if (currentIndex >= items.length) return;
-      results[currentIndex] = await worker(items[currentIndex], currentIndex);
-    }
-  };
-
-  const workerCount = Math.max(1, Math.min(concurrency, items.length));
-  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
-  return results;
-}
-
-async function loadBackupBlobFiles(env: Env, tasks: BackupBlobTask[]): Promise<{
-  files: Record<string, Uint8Array>;
-  attachmentFiles: number;
-  sendFiles: number;
-  totalBytes: number;
-  largestObjectBytes: number;
-}> {
-  const files: Record<string, Uint8Array> = {};
-  let attachmentFiles = 0;
-  let sendFiles = 0;
-  let totalBytes = 0;
-  let largestObjectBytes = 0;
-
-  const concurrency = getBackupBlobReadConcurrency(env);
-  const chunkSize = getBackupBlobReadChunkSize(env);
-
-  for (let offset = 0; offset < tasks.length; offset += chunkSize) {
-    const chunk = tasks.slice(offset, offset + chunkSize);
-    const loaded = await mapWithConcurrency(chunk, concurrency, async (task) => {
-      const object = await getBlobObject(env, task.objectKey);
-      if (!object) {
-        throw new Error(task.missingMessage);
-      }
-      return {
-        archivePath: task.archivePath,
-        bytes: await streamToBytes(object.body),
-        kind: task.kind,
-      } satisfies BackupBlobTaskResult;
-    });
-
-    for (const item of loaded) {
-      files[item.archivePath] = item.bytes;
-      totalBytes += item.bytes.byteLength;
-      largestObjectBytes = Math.max(largestObjectBytes, item.bytes.byteLength);
-      if (item.kind === 'attachment') {
-        attachmentFiles += 1;
-      } else {
-        sendFiles += 1;
-      }
-    }
-  }
-
-  return {
-    files,
-    attachmentFiles,
-    sendFiles,
-    totalBytes,
-    largestObjectBytes,
-  };
-}
-
-function buildBackupFileName(date: Date = new Date()): string {
+function buildBackupFileName(date: Date = new Date(), checksumPrefix: string | null = null): string {
   const parts = [
     date.getUTCFullYear().toString().padStart(4, '0'),
     (date.getUTCMonth() + 1).toString().padStart(2, '0'),
@@ -185,7 +102,34 @@ function buildBackupFileName(date: Date = new Date()): string {
     date.getUTCMinutes().toString().padStart(2, '0'),
     date.getUTCSeconds().toString().padStart(2, '0'),
   ];
-  return `nodewarden_backup_${parts[0]}${parts[1]}${parts[2]}_${parts[3]}${parts[4]}${parts[5]}.zip`;
+  const suffix = checksumPrefix ? `_${checksumPrefix}` : '';
+  return `nodewarden_backup_${parts[0]}${parts[1]}${parts[2]}_${parts[3]}${parts[4]}${parts[5]}${suffix}.zip`;
+}
+
+export function extractBackupFileChecksumPrefix(fileName: string): string | null {
+  const normalized = String(fileName || '').trim();
+  const match = normalized.match(/_([0-9a-f]{5})\.zip$/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+export async function inspectBackupArchiveFileNameChecksum(
+  bytes: Uint8Array,
+  fileName: string
+): Promise<BackupFileIntegrityCheckResult> {
+  const expectedPrefix = extractBackupFileChecksumPrefix(fileName);
+  const actualHash = await sha256Hex(bytes);
+  const actualPrefix = actualHash.slice(0, BACKUP_FILE_HASH_PREFIX_LENGTH);
+  return {
+    hasChecksumPrefix: !!expectedPrefix,
+    expectedPrefix,
+    actualPrefix,
+    matches: !expectedPrefix || actualPrefix === expectedPrefix,
+  };
+}
+
+export async function verifyBackupArchiveFileNameChecksum(bytes: Uint8Array, fileName: string): Promise<boolean> {
+  const result = await inspectBackupArchiveFileNameChecksum(bytes, fileName);
+  return result.matches;
 }
 
 function validateArchiveSize(bytes: Uint8Array): void {
@@ -202,12 +146,6 @@ function getRequiredZipEntries(db: BackupPayload['db']): string[] {
     if (!cipherId || !attachmentId) continue;
     entries.push(`attachments/${cipherId}/${attachmentId}.bin`);
   }
-  for (const row of db.sends) {
-    const sendId = String(row.id || '').trim();
-    const fileId = parseSendFileId(typeof row.data === 'string' ? row.data : null);
-    if (!sendId || !fileId) continue;
-    entries.push(`send-files/${sendId}/${fileId}.bin`);
-  }
   return entries;
 }
 
@@ -221,13 +159,19 @@ function ensureRowArray(value: unknown, table: string): SqlRow[] {
 function createZipEntries(files: Record<string, Uint8Array>): Record<string, Uint8Array | [Uint8Array, { level: 0 | 1 | 6 }]> {
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 | 1 | 6 }]> = {};
   for (const [path, bytes] of Object.entries(files)) {
-    const isBinaryBlob = path.endsWith('.bin');
-    entries[path] = [bytes, { level: isBinaryBlob ? BACKUP_BINARY_COMPRESSION_LEVEL : BACKUP_TEXT_COMPRESSION_LEVEL }];
+    entries[path] = [bytes, { level: BACKUP_TEXT_COMPRESSION_LEVEL }];
   }
   return entries;
 }
 
-export function parseBackupArchive(bytes: Uint8Array): { payload: BackupPayload; files: Record<string, Uint8Array> } {
+export interface ParseBackupArchiveOptions {
+  allowExternalAttachmentBlobs?: boolean;
+}
+
+export function parseBackupArchive(
+  bytes: Uint8Array,
+  options: ParseBackupArchiveOptions = {}
+): { payload: BackupPayload; files: Record<string, Uint8Array> } {
   validateArchiveSize(bytes);
   let zipped: Record<string, Uint8Array>;
   try {
@@ -276,7 +220,12 @@ export function parseBackupArchive(bytes: Uint8Array): { payload: BackupPayload;
     throw new Error('Backup archive database payload is invalid');
   }
 
-  const requiredEntries = getRequiredZipEntries(db);
+  const externalAttachmentKeys = new Set<string>(
+    options.allowExternalAttachmentBlobs
+      ? (manifest.attachmentBlobs || []).map((item) => `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`)
+      : []
+  );
+  const requiredEntries = getRequiredZipEntries(db).filter((entry) => !externalAttachmentKeys.has(entry));
   for (const entry of requiredEntries) {
     if (!zipped[entry]) {
       throw new Error(`Backup archive is missing required file: ${entry}`);
@@ -289,14 +238,26 @@ export function parseBackupArchive(bytes: Uint8Array): { payload: BackupPayload;
   };
 }
 
-export function validateBackupPayloadContents(payload: BackupPayload, files: Record<string, Uint8Array>): void {
+export interface ValidateBackupPayloadOptions {
+  allowExternalAttachmentBlobs?: boolean;
+}
+
+export function validateBackupPayloadContents(
+  payload: BackupPayload,
+  files: Record<string, Uint8Array>,
+  options: ValidateBackupPayloadOptions = {}
+): void {
   const configRows = ensureRowArray(payload.db.config, 'config');
   const userRows = ensureRowArray(payload.db.users, 'users');
   const revisionRows = ensureRowArray(payload.db.user_revisions, 'user_revisions');
   const folderRows = ensureRowArray(payload.db.folders, 'folders');
   const cipherRows = ensureRowArray(payload.db.ciphers, 'ciphers');
   const attachmentRows = ensureRowArray(payload.db.attachments, 'attachments');
-  const sendRows = ensureRowArray(payload.db.sends, 'sends');
+  const externalAttachmentKeys = new Set<string>(
+    options.allowExternalAttachmentBlobs
+      ? (payload.manifest.attachmentBlobs || []).map((item) => `attachments/${String(item.cipherId || '').trim()}/${String(item.attachmentId || '').trim()}.bin`)
+      : []
+  );
 
   const userIds = new Set<string>();
   for (const row of userRows) {
@@ -347,41 +308,53 @@ export function validateBackupPayloadContents(payload: BackupPayload, files: Rec
     if (!id || !cipherId || !cipherIds.has(cipherId)) {
       throw new Error('Backup archive contains an invalid attachment row');
     }
-    if (!files[`attachments/${cipherId}/${id}.bin`]) {
+    const attachmentPath = `attachments/${cipherId}/${id}.bin`;
+    if (!files[attachmentPath] && !externalAttachmentKeys.has(attachmentPath)) {
       throw new Error(`Backup archive is missing required file: attachments/${cipherId}/${id}.bin`);
-    }
-  }
-
-  const sendIds = new Set<string>();
-  for (const row of sendRows) {
-    const id = String(row.id || '').trim();
-    const userId = String(row.user_id || '').trim();
-    if (!id || !userIds.has(userId)) throw new Error('Backup archive contains an invalid send row');
-    if (sendIds.has(id)) throw new Error(`Backup archive contains duplicate send id: ${id}`);
-    sendIds.add(id);
-    const fileId = parseSendFileId(typeof row.data === 'string' ? row.data : null);
-    if (fileId && !files[`send-files/${id}/${fileId}.bin`]) {
-      throw new Error(`Backup archive is missing required file: send-files/${id}/${fileId}.bin`);
     }
   }
 }
 
-export async function buildBackupArchive(env: Env, date: Date = new Date()): Promise<BackupArchiveBundle> {
+export async function buildBackupArchive(
+  env: Env,
+  date: Date = new Date(),
+  options: BuildBackupArchiveOptions = {}
+): Promise<BackupArchiveBundle> {
+  const includeAttachments = options.includeAttachments !== false;
+  await options.progress?.({
+    step: 'collect_data',
+    fileName: '',
+    stageTitle: 'txt_backup_archive_progress_collect_title',
+    stageDetail: includeAttachments
+      ? 'txt_backup_archive_progress_collect_with_attachments_detail'
+      : 'txt_backup_archive_progress_collect_detail',
+    includeAttachments,
+  });
   const encoder = new TextEncoder();
-  const [configRows, userRows, revisionRows, folderRows, cipherRows, attachmentRows, sendRows] = await Promise.all([
+  const [configRows, userRows, revisionRows, folderRows, cipherRows, attachmentRows] = await Promise.all([
     queryRows(env.DB, 'SELECT key, value FROM config ORDER BY key ASC'),
-    queryRows(env.DB, 'SELECT id, email, name, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'),
+    queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT user_id, revision_date FROM user_revisions ORDER BY user_id ASC'),
     queryRows(env.DB, 'SELECT id, user_id, name, created_at, updated_at FROM folders ORDER BY created_at ASC'),
-    queryRows(env.DB, 'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, deleted_at FROM ciphers ORDER BY created_at ASC'),
+    queryRows(env.DB, 'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT id, cipher_id, file_name, size, size_name, key FROM attachments ORDER BY cipher_id ASC, id ASC'),
-    queryRows(env.DB, 'SELECT id, user_id, type, name, notes, data, key, password_hash, password_salt, password_iterations, auth_type, emails, max_access_count, access_count, disabled, hide_email, created_at, updated_at, expiration_date, deletion_date FROM sends ORDER BY created_at ASC'),
   ]);
+  const exportedAttachmentRows = includeAttachments ? attachmentRows : [];
+  const attachmentBlobs: BackupManifestAttachmentBlob[] = exportedAttachmentRows.map((row) => {
+    const cipherId = String(row.cipher_id || '').trim();
+    const attachmentId = String(row.id || '').trim();
+    return {
+      cipherId,
+      attachmentId,
+      blobName: getAttachmentObjectKey(cipherId, attachmentId),
+      sizeBytes: Number(row.size || 0) || 0,
+    };
+  });
 
   const manifestBase = {
     formatVersion: BACKUP_FORMAT_VERSION,
     exportedAt: date.toISOString(),
-    appVersion: BACKUP_APP_VERSION,
+    appVersion: APP_VERSION,
     storageKind: getBlobStorageKind(env),
     tableCounts: {
       config: configRows.length,
@@ -389,76 +362,54 @@ export async function buildBackupArchive(env: Env, date: Date = new Date()): Pro
       user_revisions: revisionRows.length,
       folders: folderRows.length,
       ciphers: cipherRows.length,
-      attachments: attachmentRows.length,
-      sends: sendRows.length,
+      attachments: exportedAttachmentRows.length,
     },
     includes: {
-      attachments: true,
-      sendFiles: true,
+      attachments: includeAttachments,
     },
     blobSummary: {
-      attachmentFiles: 0,
-      sendFiles: 0,
-      totalBytes: 0,
-      largestObjectBytes: 0,
+      attachmentFiles: attachmentBlobs.length,
+      totalBytes: attachmentBlobs.reduce((sum, item) => sum + item.sizeBytes, 0),
+      largestObjectBytes: attachmentBlobs.reduce((max, item) => Math.max(max, item.sizeBytes), 0),
     },
+    attachmentBlobs: includeAttachments ? attachmentBlobs : [],
   } satisfies BackupManifest;
 
   const files: Record<string, Uint8Array> = {
-    'manifest.json': encoder.encode(JSON.stringify(manifestBase, null, 2)),
+    'manifest.json': encoder.encode(JSON.stringify(manifestBase, null, BACKUP_JSON_INDENT)),
     'db.json': encoder.encode(JSON.stringify({
       config: configRows,
       users: userRows,
       user_revisions: revisionRows,
       folders: folderRows,
       ciphers: cipherRows,
-      attachments: attachmentRows,
-      sends: sendRows,
-    }, null, 2)),
+      attachments: exportedAttachmentRows,
+    }, null, BACKUP_JSON_INDENT)),
   };
 
-  const blobTasks: BackupBlobTask[] = [];
-  for (const row of attachmentRows) {
-    const cipherId = String(row.cipher_id || '').trim();
-    const attachmentId = String(row.id || '').trim();
-    if (!cipherId || !attachmentId) continue;
-    blobTasks.push({
-      archivePath: `attachments/${cipherId}/${attachmentId}.bin`,
-      objectKey: getAttachmentObjectKey(cipherId, attachmentId),
-      kind: 'attachment',
-      missingMessage: `Attachment blob missing for ${cipherId}/${attachmentId}`,
-    });
-  }
-
-  for (const row of sendRows) {
-    const sendId = String(row.id || '').trim();
-    const fileId = parseSendFileId(typeof row.data === 'string' ? row.data : null);
-    if (!sendId || !fileId) continue;
-    blobTasks.push({
-      archivePath: `send-files/${sendId}/${fileId}.bin`,
-      objectKey: getSendFileObjectKey(sendId, fileId),
-      kind: 'send-file',
-      missingMessage: `Send file blob missing for ${sendId}/${fileId}`,
-    });
-  }
-
-  const blobFiles = await loadBackupBlobFiles(env, blobTasks);
-  Object.assign(files, blobFiles.files);
-
-  const manifest: BackupManifest = {
-    ...manifestBase,
-    blobSummary: {
-      attachmentFiles: blobFiles.attachmentFiles,
-      sendFiles: blobFiles.sendFiles,
-      totalBytes: blobFiles.totalBytes,
-      largestObjectBytes: blobFiles.largestObjectBytes,
-    },
-  };
-  files['manifest.json'] = encoder.encode(JSON.stringify(manifest, null, 2));
+  await options.progress?.({
+    step: 'package_archive',
+    fileName: '',
+    stageTitle: 'txt_backup_archive_progress_package_title',
+    stageDetail: includeAttachments
+      ? 'txt_backup_archive_progress_package_with_attachments_detail'
+      : 'txt_backup_archive_progress_package_detail',
+    includeAttachments,
+  });
+  const bytes = zipSync(createZipEntries(files));
+  const fileHashPrefix = (await sha256Hex(bytes)).slice(0, BACKUP_FILE_HASH_PREFIX_LENGTH);
+  const fileName = buildBackupFileName(date, fileHashPrefix);
+  await options.progress?.({
+    step: 'archive_ready',
+    fileName,
+    stageTitle: 'txt_backup_archive_progress_ready_title',
+    stageDetail: 'txt_backup_archive_progress_ready_detail',
+    includeAttachments,
+  });
 
   return {
-    bytes: zipSync(createZipEntries(files)),
-    fileName: buildBackupFileName(date),
-    manifest,
+    bytes,
+    fileName,
+    manifest: manifestBase,
   };
 }

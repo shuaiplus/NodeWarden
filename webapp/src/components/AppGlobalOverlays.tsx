@@ -8,6 +8,9 @@ export interface AppConfirmState {
   message: string;
   danger?: boolean;
   showIcon?: boolean;
+  confirmText?: string;
+  cancelText?: string;
+  hideCancel?: boolean;
   onConfirm: () => void;
 }
 
@@ -40,6 +43,9 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
         message={props.confirm?.message || ''}
         danger={props.confirm?.danger}
         showIcon={props.confirm?.showIcon}
+        confirmText={props.confirm?.confirmText}
+        cancelText={props.confirm?.cancelText}
+        hideCancel={props.confirm?.hideCancel}
         onConfirm={() => props.confirm?.onConfirm()}
         onCancel={props.onCancelConfirm}
       />

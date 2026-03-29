@@ -9,6 +9,7 @@ interface SettingsPageProps {
   profile: Profile;
   totpEnabled: boolean;
   onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
+  onSavePasswordHint: (masterPasswordHint: string) => Promise<void>;
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
   onGetRecoveryCode: (masterPassword: string) => Promise<string>;
@@ -40,6 +41,7 @@ export default function SettingsPage(props: SettingsPageProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPassword2, setNewPassword2] = useState('');
+  const [passwordHint, setPasswordHint] = useState(props.profile.masterPasswordHint || '');
   const [secret, setSecret] = useState(() => localStorage.getItem(totpSecretStorageKey) || randomBase32Secret(32));
   const [token, setToken] = useState('');
   const [totpLocked, setTotpLocked] = useState(props.totpEnabled);
@@ -53,6 +55,10 @@ export default function SettingsPage(props: SettingsPageProps) {
     }
     setTotpLocked(true);
   }, [props.totpEnabled]);
+
+  useEffect(() => {
+    setPasswordHint(props.profile.masterPasswordHint || '');
+  }, [props.profile.masterPasswordHint]);
 
   const qrDataUrl = useMemo(() => {
     const qr = qrcode(0, 'M');
@@ -81,6 +87,28 @@ export default function SettingsPage(props: SettingsPageProps) {
 
   return (
     <div className="stack">
+      <section className="card">
+        <h3>{t('txt_profile')}</h3>
+        <label className="field">
+          <span>{t('txt_password_hint_optional')}</span>
+          <input
+            className="input"
+            maxLength={120}
+            value={passwordHint}
+            placeholder={t('txt_password_hint_placeholder')}
+            onInput={(e) => setPasswordHint((e.currentTarget as HTMLInputElement).value)}
+          />
+          <div className="field-help">{t('txt_password_hint_register_help')}</div>
+        </label>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => void props.onSavePasswordHint(passwordHint)}
+        >
+          {t('txt_save_profile')}
+        </button>
+      </section>
+
       <section className="card">
         <h3>{t('txt_change_master_password')}</h3>
         <label className="field">

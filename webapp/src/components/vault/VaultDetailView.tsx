@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { Clipboard, Download, Eye, EyeOff, ExternalLink, Paperclip, Pencil, Trash2 } from 'lucide-preact';
+import { Archive, Clipboard, Download, Eye, EyeOff, ExternalLink, Paperclip, Pencil, RotateCcw, Trash2 } from 'lucide-preact';
 import type { Cipher } from '@/lib/types';
 import { t } from '@/lib/i18n';
 import {
@@ -31,11 +31,14 @@ interface VaultDetailViewProps {
   onDownloadAttachment: (cipher: Cipher, attachmentId: string) => void;
   onStartEdit: () => void;
   onDelete: (cipher: Cipher) => void;
+  onArchive: (cipher: Cipher) => void | Promise<void>;
+  onUnarchive: (cipher: Cipher) => void | Promise<void>;
 }
 
 export default function VaultDetailView(props: VaultDetailViewProps) {
   const selectedAttachments = Array.isArray(props.selectedCipher.attachments) ? props.selectedCipher.attachments : [];
   const [showSshPrivateKey, setShowSshPrivateKey] = useState(false);
+  const isArchived = !!(props.selectedCipher.archivedDate || (props.selectedCipher as { archivedAt?: string | null }).archivedAt);
   const formatDownloadLabel = (attachmentId: string) => {
     const downloadKey = `${props.selectedCipher.id}:${attachmentId}`;
     if (props.downloadingAttachmentKey !== downloadKey) return t('txt_download');
@@ -62,6 +65,7 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
           <div className="card">
             <h3 className="detail-title">{props.selectedCipher.decName || t('txt_no_name')}</h3>
             <div className="detail-sub">{props.folderName(props.selectedCipher.folderId)}</div>
+            {isArchived && <div className="list-badge" style={{ marginTop: '8px', width: 'fit-content' }}>{t('txt_archived')}</div>}
           </div>
 
           {props.selectedCipher.login && (
@@ -265,29 +269,36 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
                   if (fieldType === 2) {
                     const checked = toBooleanFieldValue(rawValue);
                     return (
-                      <div key={`view-field-${index}`} className="kv-row custom-field-row">
-                        <span className="kv-label" title={fieldName}>{fieldName}</span>
-                        <div className="kv-main boolean-main">
-                          <label className="check-line cf-check view">
-                            <input type="checkbox" checked={checked} disabled />
-                          </label>
-                          <span className="boolean-text value-ellipsis" title={checked ? t('txt_checked') : t('txt_unchecked')}>
-                            {checked ? t('txt_checked') : t('txt_unchecked')}
-                          </span>
+                      <div key={`view-field-${index}`} className="custom-field-card">
+                        <div className="custom-field-label">{fieldName}</div>
+                        <div className="custom-field-body">
+                          <div className="custom-field-value">
+                            <label className="check-line cf-check view custom-field-check">
+                              <input type="checkbox" checked={checked} disabled />
+                              <span className="boolean-text value-ellipsis" title={checked ? t('txt_checked') : t('txt_unchecked')}>
+                                {checked ? t('txt_checked') : t('txt_unchecked')}
+                              </span>
+                            </label>
+                          </div>
+                          <div className="kv-actions">
+                            <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(rawValue)}>
+                              <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
+                            </button>
+                          </div>
                         </div>
-                        <div className="kv-actions" />
                       </div>
                     );
                   }
                   return (
-                    <div key={`view-field-${index}`} className="kv-row custom-field-row">
-                      <span className="kv-label" title={fieldName}>{fieldName}</span>
-                      <div className="kv-main">
-                        <strong className="value-ellipsis" title={fieldType === 1 && !isHiddenVisible ? '' : rawValue}>
-                          {fieldType === 1 && !isHiddenVisible ? maskSecret(rawValue) : rawValue}
-                        </strong>
-                      </div>
-                      <div className="kv-actions">
+                    <div key={`view-field-${index}`} className="custom-field-card">
+                      <div className="custom-field-label" title={fieldName}>{fieldName}</div>
+                      <div className="custom-field-body">
+                        <div className="custom-field-value">
+                          <strong className="value-ellipsis" title={fieldType === 1 && !isHiddenVisible ? '' : rawValue}>
+                            {fieldType === 1 && !isHiddenVisible ? maskSecret(rawValue) : rawValue}
+                          </strong>
+                        </div>
+                        <div className="kv-actions">
                         {fieldType === 1 && (
                           <button type="button" className="btn btn-secondary small" onClick={() => props.onToggleHiddenField(index)}>
                             {isHiddenVisible ? <EyeOff size={14} className="btn-icon" /> : <Eye size={14} className="btn-icon" />}
@@ -297,6 +308,7 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
                         <button type="button" className="btn btn-secondary small" onClick={() => copyToClipboard(rawValue)}>
                           <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                         </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -351,6 +363,15 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
               <button type="button" className="btn btn-secondary" onClick={props.onStartEdit}>
                 <Pencil size={14} className="btn-icon" /> {t('txt_edit')}
               </button>
+              {isArchived ? (
+                <button type="button" className="btn btn-secondary" onClick={() => void props.onUnarchive(props.selectedCipher)}>
+                  <RotateCcw size={14} className="btn-icon" /> {t('txt_unarchive')}
+                </button>
+              ) : (
+                <button type="button" className="btn btn-secondary" onClick={() => void props.onArchive(props.selectedCipher)}>
+                  <Archive size={14} className="btn-icon" /> {t('txt_archive')}
+                </button>
+              )}
             </div>
             <button type="button" className="btn btn-danger" onClick={() => props.onDelete(props.selectedCipher)}>
               <Trash2 size={14} className="btn-icon" /> {t('txt_delete')}

@@ -3,8 +3,10 @@ import {
   handleAdminExportBackup,
   handleDownloadAdminRemoteBackup,
   handleDeleteAdminRemoteBackup,
+  handleDownloadAdminBackupAttachment,
   handleGetAdminBackupSettings,
   handleGetAdminBackupSettingsRepairState,
+  handleInspectAdminRemoteBackup,
   handleAdminImportBackup,
   handleListAdminRemoteBackups,
   handleRepairAdminBackupSettings,
@@ -22,6 +24,10 @@ export async function handleAdminBackupRoute(
 ): Promise<Response | null> {
   if (path === '/api/admin/backup/export' && method === 'POST') {
     return handleAdminExportBackup(request, env, actorUser);
+  }
+
+  if (path === '/api/admin/backup/blob' && method === 'GET') {
+    return handleDownloadAdminBackupAttachment(request, env, actorUser);
   }
 
   if (path === '/api/admin/backup/settings') {
@@ -46,6 +52,10 @@ export async function handleAdminBackupRoute(
 
   if (path === '/api/admin/backup/remote/download' && method === 'GET') {
     return handleDownloadAdminRemoteBackup(request, env, actorUser);
+  }
+
+  if (path === '/api/admin/backup/remote/integrity' && method === 'GET') {
+    return handleInspectAdminRemoteBackup(request, env, actorUser);
   }
 
   if (path === '/api/admin/backup/remote/file' && method === 'DELETE') {

@@ -62,6 +62,10 @@ function draftFromSend(send: Send): SendDraft {
 }
 
 export default function SendsPage(props: SendsPageProps) {
+  const getInitialIsMobileLayout = () =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(MOBILE_LAYOUT_QUERY).matches
+      : false;
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<SendTypeFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -71,7 +75,7 @@ export default function SendsPage(props: SendsPageProps) {
   const [draft, setDraft] = useState<SendDraft | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [selectedMap, setSelectedMap] = useState<Record<string, boolean>>({});
-  const [isMobileLayout, setIsMobileLayout] = useState(false);
+  const [isMobileLayout, setIsMobileLayout] = useState(getInitialIsMobileLayout);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail' | 'edit'>('list');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [autoCopyLink, setAutoCopyLink] = useState<boolean>(() => {
@@ -226,7 +230,15 @@ export default function SendsPage(props: SendsPageProps) {
 
   return (
     <div className={`vault-grid ${isMobileLayout ? `mobile-panel-${mobilePanel}` : ''}`}>
-      {isMobileLayout && mobileSidebarOpen && <div className="mobile-sidebar-mask" onClick={() => setMobileSidebarOpen(false)} />}
+      {isMobileLayout && (
+        <div
+          className={`mobile-sidebar-mask ${mobileSidebarOpen ? 'open' : ''}`}
+          onClick={() => {
+            if (!mobileSidebarOpen) return;
+            setMobileSidebarOpen(false);
+          }}
+        />
+      )}
       <aside className={`sidebar ${isMobileLayout ? 'mobile-sidebar-sheet' : ''} ${isMobileLayout && mobileSidebarOpen ? 'open' : ''}`}>
         {isMobileLayout && (
           <div className="mobile-sidebar-head">
@@ -310,12 +322,27 @@ export default function SendsPage(props: SendsPageProps) {
           </button>
         </div>
         <div className="list-panel">
-          {filteredSends.map((send) => (
-            <div key={send.id} className={`list-item ${selectedId === send.id ? 'active' : ''}`}>
+          {filteredSends.map((send, index) => (
+            <div
+              key={send.id}
+              className={`list-item stagger-item ${selectedId === send.id ? 'active' : ''}`}
+              style={{ animationDelay: `${Math.min(index, 10) * 26}ms` }}
+              onClick={(event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest('.row-check')) return;
+                setSelectedId(send.id);
+                setIsEditing(false);
+                setIsCreating(false);
+                setDraft(null);
+                if (isMobileLayout) setMobilePanel('detail');
+                setMobileSidebarOpen(false);
+              }}
+            >
               <input
                 type="checkbox"
                 className="row-check"
                 checked={!!selectedMap[send.id]}
+                onClick={(event) => event.stopPropagation()}
                 onInput={(e) =>
                   setSelectedMap((prev) => ({
                     ...prev,
@@ -377,10 +404,11 @@ export default function SendsPage(props: SendsPageProps) {
           </div>
         )}
         {isEditing && draft && (
-          <div className="card">
-            <h3 className="detail-title">{isCreating ? t('txt_new_send') : t('txt_edit_send')}</h3>
-            {!!props.uploadingSendFileName && <div className="detail-sub">{sendUploadLabel}</div>}
-            <div className="field-grid">
+          <div key={`send-editor-${draft.id || selectedSend?.id || 'new'}-${draft.type}`} className="detail-switch-stage">
+            <div className="card stagger-item" style={{ animationDelay: '0ms' }}>
+              <h3 className="detail-title">{isCreating ? t('txt_new_send') : t('txt_edit_send')}</h3>
+              {!!props.uploadingSendFileName && <div className="detail-sub">{sendUploadLabel}</div>}
+              <div className="field-grid">
               <label className="field field-span-2">
                 <span>{t('txt_name')}</span>
                 <input className="input" value={draft.name} onInput={(e) => setDraft({ ...draft, name: (e.currentTarget as HTMLInputElement).value })} />
@@ -451,8 +479,8 @@ export default function SendsPage(props: SendsPageProps) {
                   <label><input type="checkbox" checked={autoCopyLink} onInput={(e) => setAutoCopyLink((e.currentTarget as HTMLInputElement).checked)} /> {t('txt_auto_copy_link_after_save')}</label>
                 </div>
               </label>
-            </div>
-            <div className="detail-actions">
+              </div>
+              <div className="detail-actions">
               <button type="button" className="btn btn-primary small" disabled={busy} onClick={() => void saveDraft()}>
                 <Save size={14} className="btn-icon" /> {t('txt_save')}
               </button>
@@ -470,18 +498,19 @@ export default function SendsPage(props: SendsPageProps) {
               >
                 <X size={14} className="btn-icon" /> {t('txt_cancel')}
               </button>
+              </div>
             </div>
           </div>
         )}
 
         {!isEditing && selectedSend && (
-          <>
-            <div className="card">
+          <div key={`send-detail-${selectedSend.id}`} className="detail-switch-stage">
+            <div className="card stagger-item" style={{ animationDelay: '36ms' }}>
               <h3 className="detail-title">{selectedSend.decName || t('txt_no_name')}</h3>
               <div className="detail-sub">{Number(selectedSend.type) === 1 ? t('txt_file_send') : t('txt_text_send')}</div>
             </div>
 
-            <div className="card">
+            <div className="card stagger-item" style={{ animationDelay: '72ms' }}>
               <h4>{t('txt_send_details')}</h4>
               <div className="kv-line"><span>{t('txt_access_count')}</span><strong>{selectedSend.accessCount || 0}</strong></div>
               <div className="kv-line"><span>{t('txt_deletion_date')}</span><strong>{selectedSend.deletionDate || t('txt_dash')}</strong></div>
@@ -504,7 +533,7 @@ export default function SendsPage(props: SendsPageProps) {
             </div>
 
             {!!(selectedSend.decNotes || '').trim() && (
-              <div className="card">
+              <div className="card stagger-item" style={{ animationDelay: '108ms' }}>
                 <h4>{t('txt_notes')}</h4>
                 <div className="notes">{selectedSend.decNotes || ''}</div>
               </div>
@@ -523,7 +552,7 @@ export default function SendsPage(props: SendsPageProps) {
                 <Trash2 size={14} className="btn-icon" /> {t('txt_delete')}
               </button>
             </div>
-          </>
+          </div>
         )}
       </section>
     </div>

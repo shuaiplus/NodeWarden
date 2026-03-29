@@ -1,11 +1,11 @@
 export const BACKUP_DEFAULT_TIMEZONE = 'UTC';
-export const BACKUP_DEFAULT_SCHEDULE_TIME = '03:00';
 export const BACKUP_DEFAULT_RETENTION_COUNT = 30;
 export const BACKUP_DEFAULT_E3_REGION = 'auto';
 export const BACKUP_DEFAULT_REMOTE_PATH = 'nodewarden';
+export const BACKUP_DEFAULT_INTERVAL_HOURS = 24;
+export const BACKUP_DEFAULT_START_TIME = '03:00';
 
 export type BackupDestinationType = 'e3' | 'webdav';
-export type BackupScheduleFrequency = 'daily' | 'weekly' | 'monthly';
 
 export interface E3BackupDestination {
   endpoint: string;
@@ -40,11 +40,9 @@ export interface BackupRuntimeState {
 
 export interface BackupScheduleConfig {
   enabled: boolean;
-  frequency: BackupScheduleFrequency;
-  scheduleTime: string;
+  intervalHours: number;
+  startTime: string;
   timezone: string;
-  dayOfWeek: number;
-  dayOfMonth: number;
   retentionCount: number | null;
 }
 
@@ -52,6 +50,7 @@ export interface BackupDestinationRecord {
   id: string;
   name: string;
   type: BackupDestinationType;
+  includeAttachments: boolean;
   destination: BackupDestinationConfig;
   schedule: BackupScheduleConfig;
   runtime: BackupRuntimeState;
@@ -84,11 +83,9 @@ export function createDefaultBackupRuntimeState(): BackupRuntimeState {
 export function createDefaultBackupScheduleConfig(timezone: string = BACKUP_DEFAULT_TIMEZONE): BackupScheduleConfig {
   return {
     enabled: false,
-    frequency: 'daily',
-    scheduleTime: BACKUP_DEFAULT_SCHEDULE_TIME,
+    intervalHours: BACKUP_DEFAULT_INTERVAL_HOURS,
+    startTime: BACKUP_DEFAULT_START_TIME,
     timezone,
-    dayOfWeek: 1,
-    dayOfMonth: 1,
     retentionCount: BACKUP_DEFAULT_RETENTION_COUNT,
   };
 }
@@ -132,6 +129,7 @@ export function createBackupDestinationRecord(
     id: options.id || createBackupRandomId(),
     name: options.name || createDefaultBackupDestinationName(type, index),
     type,
+    includeAttachments: false,
     destination: createDefaultBackupDestinationConfig(type),
     schedule: createDefaultBackupScheduleConfig(options.timezone || BACKUP_DEFAULT_TIMEZONE),
     runtime: createDefaultBackupRuntimeState(),

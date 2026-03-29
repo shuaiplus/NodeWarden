@@ -1,4 +1,5 @@
 import {
+  Archive,
   Copy,
   CreditCard,
   Folder as FolderIcon,
@@ -47,6 +48,9 @@ export default function VaultSidebar(props: VaultSidebarProps) {
         </button>
         <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'favorite' ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'favorite' })}>
           <Star size={14} className="tree-icon" /> <span className="tree-label">{t('txt_favorites')}</span>
+        </button>
+        <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'archive' ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'archive' })}>
+          <Archive size={14} className="tree-icon" /> <span className="tree-label">{t('txt_archive')}</span>
         </button>
         <button type="button" className={`tree-btn ${props.sidebarFilter.kind === 'trash' ? 'active' : ''}`} onClick={() => props.onChangeFilter({ kind: 'trash' })}>
           <Trash2 size={14} className="tree-icon" /> <span className="tree-label">{t('txt_trash')}</span>

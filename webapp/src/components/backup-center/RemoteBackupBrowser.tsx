@@ -102,22 +102,22 @@ export function RemoteBackupBrowser(props: RemoteBackupBrowserProps) {
                           <FolderOpen size={14} className="btn-icon" />
                           {t('txt_backup_remote_open')}
                         </button>
-                      ) : (
+                      ) : isZipCandidate(item) ? (
                         <>
-                          <button type="button" className="btn btn-secondary small" disabled={props.disableWhileBusy || props.downloadingRemotePath === item.path || !isZipCandidate(item)} onClick={() => props.onDownload(item.path)}>
+                          <button type="button" className="btn btn-secondary small" disabled={props.disableWhileBusy || props.downloadingRemotePath === item.path} onClick={() => props.onDownload(item.path)}>
                             <Download size={14} className="btn-icon" />
                             {getDownloadLabel(item.path)}
                           </button>
-                          <button type="button" className="btn btn-primary small" disabled={props.disableWhileBusy || props.restoringRemotePath === item.path || !isZipCandidate(item)} onClick={() => props.onRestore(item.path)}>
+                          <button type="button" className="btn btn-primary small" disabled={props.disableWhileBusy || props.restoringRemotePath === item.path} onClick={() => props.onRestore(item.path)}>
                             <RotateCcw size={14} className="btn-icon" />
                             {props.restoringRemotePath === item.path ? t('txt_backup_restoring') : t('txt_backup_remote_restore')}
                           </button>
-                          <button type="button" className="btn btn-danger small" disabled={props.disableWhileBusy || props.deletingRemotePath === item.path || !isZipCandidate(item)} onClick={() => props.onPromptDelete(item.path)}>
+                          <button type="button" className="btn btn-danger small" disabled={props.disableWhileBusy || props.deletingRemotePath === item.path} onClick={() => props.onPromptDelete(item.path)}>
                             <Trash2 size={14} className="btn-icon" />
                             {props.deletingRemotePath === item.path ? t('txt_backup_remote_deleting') : t('txt_delete')}
                           </button>
                         </>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ))}

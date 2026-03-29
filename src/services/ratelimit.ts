@@ -184,6 +184,14 @@ export class RateLimitService {
   ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
     return this.consumeFixedWindowBudget(identifier, maxRequests, CONFIG.API_WINDOW_SECONDS);
   }
+
+  async consumeBudgetWithWindow(
+    identifier: string,
+    maxRequests: number,
+    windowSeconds: number
+  ): Promise<{ allowed: boolean; remaining: number; retryAfterSeconds?: number }> {
+    return this.consumeFixedWindowBudget(identifier, maxRequests, windowSeconds);
+  }
 }
 
 function parseIpv4Octets(input: string): number[] | null {

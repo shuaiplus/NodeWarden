@@ -18,7 +18,7 @@ enabled = false
 binding = "ASSETS"
 directory = "./dist"
 not_found_handling = "single-page-application"
-run_worker_first = true
+run_worker_first = false
 
 [build]
 command = "npm run build"

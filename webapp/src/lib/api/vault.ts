@@ -367,12 +367,19 @@ async function encryptCustomFields(
   return out;
 }
 
-async function encryptUris(uris: string[], enc: Uint8Array, mac: Uint8Array): Promise<Array<{ uri: string | null; match: null }>> {
-  const out: Array<{ uri: string | null; match: null }> = [];
-  for (const uri of uris || []) {
-    const trimmed = String(uri || '').trim();
+async function encryptUris(
+  uris: VaultDraft['loginUris'],
+  enc: Uint8Array,
+  mac: Uint8Array
+): Promise<Array<{ uri: string | null; match: number | null }>> {
+  const out: Array<{ uri: string | null; match: number | null }> = [];
+  for (const entry of uris || []) {
+    const trimmed = String(entry?.uri || '').trim();
     if (!trimmed) continue;
-    out.push({ uri: await encryptTextValue(trimmed, enc, mac), match: null });
+    out.push({
+      uri: await encryptTextValue(trimmed, enc, mac),
+      match: typeof entry?.match === 'number' && Number.isFinite(entry.match) ? entry.match : null,
+    });
   }
   return out;
 }
@@ -582,6 +589,20 @@ export async function deleteCipher(authedFetch: AuthedFetch, cipherId: string): 
   if (!resp.ok) throw new Error('Delete item failed');
 }
 
+export async function archiveCipher(authedFetch: AuthedFetch, cipherId: string): Promise<void> {
+  const id = String(cipherId || '').trim();
+  if (!id) throw new Error('Cipher id is required');
+  const resp = await authedFetch(`/api/ciphers/${encodeURIComponent(id)}/archive`, { method: 'PUT' });
+  if (!resp.ok) throw new Error('Archive item failed');
+}
+
+export async function unarchiveCipher(authedFetch: AuthedFetch, cipherId: string): Promise<void> {
+  const id = String(cipherId || '').trim();
+  if (!id) throw new Error('Cipher id is required');
+  const resp = await authedFetch(`/api/ciphers/${encodeURIComponent(id)}/unarchive`, { method: 'PUT' });
+  if (!resp.ok) throw new Error('Unarchive item failed');
+}
+
 export async function bulkDeleteCiphers(authedFetch: AuthedFetch, ids: string[]): Promise<void> {
   const uniqueIds = Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)));
   for (const chunk of chunkArray(uniqueIds, BULK_API_CHUNK_SIZE)) {
@@ -591,6 +612,18 @@ export async function bulkDeleteCiphers(authedFetch: AuthedFetch, ids: string[])
       body: JSON.stringify({ ids: chunk }),
     });
     if (!resp.ok) throw new Error('Bulk delete failed');
+  }
+}
+
+export async function bulkArchiveCiphers(authedFetch: AuthedFetch, ids: string[]): Promise<void> {
+  const uniqueIds = Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)));
+  for (const chunk of chunkArray(uniqueIds, BULK_API_CHUNK_SIZE)) {
+    const resp = await authedFetch('/api/ciphers/archive', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: chunk }),
+    });
+    if (!resp.ok) throw new Error('Bulk archive failed');
   }
 }
 
@@ -615,6 +648,18 @@ export async function bulkRestoreCiphers(authedFetch: AuthedFetch, ids: string[]
       body: JSON.stringify({ ids: chunk }),
     });
     if (!resp.ok) throw new Error('Bulk restore failed');
+  }
+}
+
+export async function bulkUnarchiveCiphers(authedFetch: AuthedFetch, ids: string[]): Promise<void> {
+  const uniqueIds = Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)));
+  for (const chunk of chunkArray(uniqueIds, BULK_API_CHUNK_SIZE)) {
+    const resp = await authedFetch('/api/ciphers/unarchive', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: chunk }),
+    });
+    if (!resp.ok) throw new Error('Bulk unarchive failed');
   }
 }
 

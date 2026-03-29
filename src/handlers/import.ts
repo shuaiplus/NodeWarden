@@ -232,6 +232,7 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
       key: (c as any).key ?? null,
       createdAt: now,
       updatedAt: now,
+      archivedAt: null,
       deletedAt: null,
     };
     cipher.login = normalizeCipherLoginForStorage(cipher.login);
@@ -245,10 +246,10 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
       const data = JSON.stringify(cipher);
       return env.DB
         .prepare(
-          'INSERT INTO ciphers(id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, deleted_at) ' +
-          'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+          'INSERT INTO ciphers(id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at) ' +
+          'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
           'ON CONFLICT(id) DO UPDATE SET ' +
-          'user_id=excluded.user_id, type=excluded.type, folder_id=excluded.folder_id, name=excluded.name, notes=excluded.notes, favorite=excluded.favorite, data=excluded.data, reprompt=excluded.reprompt, key=excluded.key, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at'
+          'user_id=excluded.user_id, type=excluded.type, folder_id=excluded.folder_id, name=excluded.name, notes=excluded.notes, favorite=excluded.favorite, data=excluded.data, reprompt=excluded.reprompt, key=excluded.key, updated_at=excluded.updated_at, archived_at=excluded.archived_at, deleted_at=excluded.deleted_at'
         )
         .bind(
           cipher.id,
@@ -263,6 +264,7 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
           bindNull(cipher.key),
           cipher.createdAt,
           cipher.updatedAt,
+          bindNull(cipher.archivedAt),
           bindNull(cipher.deletedAt)
         );
     });
