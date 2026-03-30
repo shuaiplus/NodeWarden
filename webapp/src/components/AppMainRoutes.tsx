@@ -74,6 +74,7 @@ export interface AppMainRoutesProps {
   onBulkMoveVaultItems: (ids: string[], folderId: string | null) => Promise<void>;
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onCreateFolder: (name: string) => Promise<void>;
+  onRenameFolder: (folderId: string, name: string) => Promise<void>;
   onDeleteFolder: (folderId: string) => Promise<void>;
   onBulkDeleteFolders: (folderIds: string[]) => Promise<void>;
   onDownloadVaultAttachment: (cipher: Cipher, attachmentId: string) => Promise<void>;
@@ -192,6 +193,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
             onVerifyMasterPassword={props.onVerifyMasterPassword}
             onNotify={props.onNotify}
             onCreateFolder={props.onCreateFolder}
+            onRenameFolder={props.onRenameFolder}
             onDeleteFolder={props.onDeleteFolder}
             onBulkDeleteFolders={props.onBulkDeleteFolders}
             onDownloadAttachment={props.onDownloadVaultAttachment}

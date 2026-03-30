@@ -439,8 +439,11 @@ const messages: Record<Locale, Record<string, string>> = {
     txt_first_name: "First Name",
     txt_folder: "Folder",
     txt_folder_created: "Folder created",
+    txt_folder_renamed: "Folder renamed",
     txt_folder_name: "Folder Name",
     txt_folder_name_is_required: "Folder name is required",
+    txt_rename_folder: "Rename Folder",
+    txt_rename_folder_failed: "Rename folder failed",
     txt_folders: "Folders",
     txt_hidden: "Hidden",
     txt_hide: "Hide",
@@ -1281,7 +1284,10 @@ const zhCNOverrides: Record<string, string> = {
   txt_firefox_browser: 'Firefox 浏览器',
   txt_firefox_extension: 'Firefox 扩展',
   txt_folder_created: '文件夹已创建',
+  txt_folder_renamed: '文件夹已重命名',
   txt_folder_name_is_required: '文件夹名称不能为空',
+  txt_rename_folder: '重命名文件夹',
+  txt_rename_folder_failed: '重命名文件夹失败',
   txt_ie_browser: 'IE 浏览器',
   txt_invite_code_optional: '邀请码（首位注册者无需填写，其他人必填）',
   txt_invite_created: '邀请码已创建',
@@ -1629,4 +1635,3 @@ export function setLocale(next: Locale): void {
     // ignore storage errors
   }
 }
-
