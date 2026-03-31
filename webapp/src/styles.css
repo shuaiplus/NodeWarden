@@ -1164,6 +1164,11 @@ input[type='file'].input::file-selector-button:hover {
   transform: scale(1.06);
 }
 
+.folder-edit-btn:hover {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
 .list-col {
   display: flex;
   flex-direction: column;
