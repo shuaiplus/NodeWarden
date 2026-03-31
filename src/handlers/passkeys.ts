@@ -12,6 +12,30 @@ import { isTotpEnabled, verifyTotpToken } from '../utils/totp';
 const PASSKEY_MAX = 5;
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
+const WEBAUTHN_TRANSPORTS = ['usb', 'nfc', 'ble', 'hybrid', 'internal'] as const;
+
+type WebAuthnTransport = (typeof WEBAUTHN_TRANSPORTS)[number];
+
+function normalizeTransports(input: unknown): WebAuthnTransport[] {
+  if (!Array.isArray(input)) return [];
+  const unique = new Set<WebAuthnTransport>();
+  for (const item of input) {
+    const normalized = String(item || '').trim().toLowerCase();
+    if ((WEBAUTHN_TRANSPORTS as readonly string[]).includes(normalized)) {
+      unique.add(normalized as WebAuthnTransport);
+    }
+  }
+  return Array.from(unique);
+}
+
+function parseStoredTransports(input: string | null): WebAuthnTransport[] {
+  if (!input) return [];
+  try {
+    return normalizeTransports(JSON.parse(input));
+  } catch {
+    return [];
+  }
+}
 
 function rpIdFromUrl(url: string): string {
   return new URL(url).hostname;
@@ -74,6 +98,7 @@ export async function handleBeginPasskeyRegistration(request: Request, env: Env,
       },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: {
+        authenticatorAttachment: 'cross-platform',
         residentKey: 'required',
         userVerification: 'preferred',
       },
@@ -94,6 +119,7 @@ export async function handleFinishPasskeyRegistration(request: Request, env: Env
       id?: string;
       response?: {
         clientDataJSON?: string;
+        transports?: string[];
       };
     };
   };
@@ -102,6 +128,7 @@ export async function handleFinishPasskeyRegistration(request: Request, env: Env
   const wrappedVaultKeys = String(body.wrappedVaultKeys || '').trim();
   const credentialId = String(body.credential?.id || '').trim();
   const clientData = String(body.credential?.response?.clientDataJSON || '').trim();
+  const transports = normalizeTransports(body.credential?.response?.transports);
 
   if (!challengeId || !name || !wrappedVaultKeys || !credentialId || !clientData) {
     return errorResponse('Invalid request payload', 400);
@@ -125,7 +152,7 @@ export async function handleFinishPasskeyRegistration(request: Request, env: Env
     credentialId,
     publicKey: 'client-asserted',
     counter: 0,
-    transports: null,
+    transports: transports.length ? JSON.stringify(transports) : null,
     name: name.slice(0, 100),
     wrappedVaultKeys,
     createdAt: now,
@@ -171,7 +198,10 @@ export async function handleBeginPasskeyLogin(request: Request, env: Env): Promi
       rpId: rpIdFromUrl(request.url),
       timeout: 60000,
       userVerification: 'preferred',
-      allowCredentials: passkeys.map((pk) => ({ type: 'public-key', id: pk.credentialId })),
+      allowCredentials: passkeys.map((pk) => {
+        const transports = parseStoredTransports(pk.transports);
+        return { type: 'public-key', id: pk.credentialId, transports: transports.length ? transports : [...WEBAUTHN_TRANSPORTS] };
+      }),
     },
   });
 }

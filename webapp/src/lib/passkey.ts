@@ -42,6 +42,7 @@ export async function createPasskeyCredential(publicKey: Record<string, any>): P
     response: {
       clientDataJSON: bytesToBase64Url(response.clientDataJSON),
       attestationObject: bytesToBase64Url(response.attestationObject),
+      transports: typeof response.getTransports === 'function' ? response.getTransports() : [],
     },
   };
 }
