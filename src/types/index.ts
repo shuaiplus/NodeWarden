@@ -367,6 +367,24 @@ export interface TokenResponse {
   accountKeys?: any | null;
   UserDecryptionOptions: UserDecryptionOptions;
   userDecryptionOptions?: UserDecryptionOptions;
+  VaultKeys?: {
+    symEncKey: string;
+    symMacKey: string;
+  };
+}
+
+export interface PasskeyCredential {
+  id: string;
+  userId: string;
+  credentialId: string;
+  publicKey: string;
+  counter: number;
+  transports: string | null;
+  name: string;
+  wrappedVaultKeys: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
 }
 
 export interface ProfileResponse {

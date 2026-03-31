@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { ArrowLeft, Eye, EyeOff, LogIn, LogOut, Unlock, UserPlus } from 'lucide-preact';
+import { ArrowLeft, Eye, EyeOff, Fingerprint, LogIn, LogOut, Unlock, UserPlus } from 'lucide-preact';
 import StandalonePageFrame from '@/components/StandalonePageFrame';
 import { t } from '@/lib/i18n';
 
@@ -30,6 +30,7 @@ interface AuthViewsProps {
   onChangeRegister: (next: RegisterValues) => void;
   onChangeUnlock: (password: string) => void;
   onSubmitLogin: () => void;
+  onSubmitPasskey: () => void;
   onSubmitRegister: () => void;
   onSubmitUnlock: () => void;
   onGotoLogin: () => void;
@@ -37,6 +38,7 @@ interface AuthViewsProps {
   onLogout: () => void;
   onTogglePasswordHint: () => void;
   onShowLockedPasswordHint: () => void;
+  passkeySupported: boolean;
 }
 
 function PasswordField(props: {
@@ -106,6 +108,12 @@ export default function AuthViews(props: AuthViewsProps) {
               <Unlock size={16} className="btn-icon" />
               {unlockBusy ? t('txt_unlocking') : t('txt_unlock')}
             </button>
+            {props.passkeySupported && (
+              <button type="button" className="btn btn-secondary full" onClick={props.onSubmitPasskey} disabled={unlockBusy}>
+                <Fingerprint size={16} className="btn-icon" />
+                Passkey 解锁
+              </button>
+            )}
             <div className="or">{t('txt_or')}</div>
             <button type="button" className="btn btn-secondary full" onClick={props.onLogout} disabled={unlockBusy}>
               <LogOut size={16} className="btn-icon" />
@@ -243,6 +251,12 @@ export default function AuthViews(props: AuthViewsProps) {
             <LogIn size={16} className="btn-icon" />
             {loginBusy ? t('txt_logging_in') : t('txt_log_in')}
           </button>
+          {props.passkeySupported && (
+            <button type="button" className="btn btn-secondary full" onClick={props.onSubmitPasskey} disabled={loginBusy}>
+              <Fingerprint size={16} className="btn-icon" />
+              Passkey 登录
+            </button>
+          )}
           <div className="or">{t('txt_or')}</div>
           <button type="button" className="btn btn-secondary full" onClick={props.onGotoRegister} disabled={loginBusy}>
             <UserPlus size={16} className="btn-icon" />
