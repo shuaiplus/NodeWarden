@@ -159,7 +159,7 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
   const cipherMapRows: Array<{ index: number; sourceId: string | null; id: string }> = [];
   for (let i = 0; i < ciphers.length; i++) {
     const c = ciphers[i];
-    const folderId = cipherFolderMap.get(i) || null;
+    const folderId = cipherFolderMap.get(i) || c.folderId || null;
     const sourceIdRaw = String(c?.id ?? '').trim();
     const sourceId = sourceIdRaw || null;
 
