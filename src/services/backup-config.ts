@@ -1,4 +1,4 @@
-import type { Env } from '../types';
+import type { Env, User } from '../types';
 import { StorageService } from './storage';
 import {
   type BackupSettingsPortableEnvelope,
@@ -422,20 +422,45 @@ export async function saveBackupSettings(storage: StorageService, env: Env, sett
 export async function normalizeImportedBackupSettings(storage: StorageService, env: Env, fallbackTimezone: string = 'UTC'): Promise<void> {
   const raw = await storage.getConfigValue(BACKUP_SETTINGS_CONFIG_KEY);
   if (!raw) return;
+  const users = await storage.getAllUsers();
+  const normalized = await normalizeImportedBackupSettingsValue(raw, env, users, fallbackTimezone);
+  if (normalized !== null) {
+    await storage.setConfigValue(BACKUP_SETTINGS_CONFIG_KEY, normalized);
+  }
+}
+
+export async function normalizeImportedBackupSettingsValue(
+  raw: string | null,
+  env: Env,
+  users: Pick<User, 'id' | 'publicKey' | 'role' | 'status'>[],
+  fallbackTimezone: string = 'UTC'
+): Promise<string | null> {
+  if (!raw) return null;
   const envelope = parseBackupSettingsEnvelope(raw);
   if (envelope) {
     try {
       const decrypted = await decryptBackupSettingsRuntime(raw, env);
       const settings = parseBackupSettings(decrypted, fallbackTimezone);
-      await saveBackupSettings(storage, env, settings);
-      return;
+      const hasPortableAdmins = users.some(
+        (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
+      );
+      if (!hasPortableAdmins) {
+        return serializeBackupSettings(settings);
+      }
+      return encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
     } catch {
       // Keep imported portable recovery data intact until an admin signs in and repairs it.
-      return;
+      return raw;
     }
   }
   const settings = parseBackupSettings(raw, fallbackTimezone);
-  await saveBackupSettings(storage, env, settings);
+  const hasPortableAdmins = users.some(
+    (user) => user.role === 'admin' && user.status === 'active' && typeof user.publicKey === 'string' && user.publicKey.trim().length > 0
+  );
+  if (!hasPortableAdmins) {
+    return serializeBackupSettings(settings);
+  }
+  return encryptBackupSettingsEnvelope(serializeBackupSettings(settings), env, users);
 }
 
 export async function getBackupSettingsRepairState(storage: StorageService, env: Env, fallbackTimezone: string = 'UTC'): Promise<BackupSettingsRepairState> {

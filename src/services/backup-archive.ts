@@ -9,6 +9,7 @@ import {
 type SqlRow = Record<string, string | number | null>;
 
 const BACKUP_FORMAT_VERSION = 1;
+const BACKUP_FILE_HASH_PREFIX_LENGTH = 5;
 // Worker-side backup export must stay well below Cloudflare CPU limits.
 // Prefer store-only ZIP entries over heavier compression to keep exports reliable.
 const BACKUP_TEXT_COMPRESSION_LEVEL = 0;
@@ -60,16 +61,39 @@ export interface BackupArchiveBundle {
   manifest: BackupManifest;
 }
 
+export interface BackupFileIntegrityCheckResult {
+  hasChecksumPrefix: boolean;
+  expectedPrefix: string | null;
+  actualPrefix: string;
+  matches: boolean;
+}
+
 export interface BuildBackupArchiveOptions {
   includeAttachments?: boolean;
+  progress?: BackupArchiveBuildProgressReporter;
 }
+
+export interface BackupArchiveBuildProgressEvent {
+  step: string;
+  fileName?: string;
+  stageTitle: string;
+  stageDetail: string;
+  includeAttachments: boolean;
+}
+
+export type BackupArchiveBuildProgressReporter = (event: BackupArchiveBuildProgressEvent) => Promise<void>;
 
 async function queryRows(db: D1Database, sql: string, ...values: unknown[]): Promise<SqlRow[]> {
   const result = await db.prepare(sql).bind(...values).all<SqlRow>();
   return (result.results || []).map((row) => ({ ...row }));
 }
 
-function buildBackupFileName(date: Date = new Date()): string {
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function buildBackupFileName(date: Date = new Date(), checksumPrefix: string | null = null): string {
   const parts = [
     date.getUTCFullYear().toString().padStart(4, '0'),
     (date.getUTCMonth() + 1).toString().padStart(2, '0'),
@@ -78,7 +102,34 @@ function buildBackupFileName(date: Date = new Date()): string {
     date.getUTCMinutes().toString().padStart(2, '0'),
     date.getUTCSeconds().toString().padStart(2, '0'),
   ];
-  return `nodewarden_backup_${parts[0]}${parts[1]}${parts[2]}_${parts[3]}${parts[4]}${parts[5]}.zip`;
+  const suffix = checksumPrefix ? `_${checksumPrefix}` : '';
+  return `nodewarden_backup_${parts[0]}${parts[1]}${parts[2]}_${parts[3]}${parts[4]}${parts[5]}${suffix}.zip`;
+}
+
+export function extractBackupFileChecksumPrefix(fileName: string): string | null {
+  const normalized = String(fileName || '').trim();
+  const match = normalized.match(/_([0-9a-f]{5})\.zip$/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+export async function inspectBackupArchiveFileNameChecksum(
+  bytes: Uint8Array,
+  fileName: string
+): Promise<BackupFileIntegrityCheckResult> {
+  const expectedPrefix = extractBackupFileChecksumPrefix(fileName);
+  const actualHash = await sha256Hex(bytes);
+  const actualPrefix = actualHash.slice(0, BACKUP_FILE_HASH_PREFIX_LENGTH);
+  return {
+    hasChecksumPrefix: !!expectedPrefix,
+    expectedPrefix,
+    actualPrefix,
+    matches: !expectedPrefix || actualPrefix === expectedPrefix,
+  };
+}
+
+export async function verifyBackupArchiveFileNameChecksum(bytes: Uint8Array, fileName: string): Promise<boolean> {
+  const result = await inspectBackupArchiveFileNameChecksum(bytes, fileName);
+  return result.matches;
 }
 
 function validateArchiveSize(bytes: Uint8Array): void {
@@ -269,16 +320,25 @@ export async function buildBackupArchive(
   date: Date = new Date(),
   options: BuildBackupArchiveOptions = {}
 ): Promise<BackupArchiveBundle> {
+  const includeAttachments = options.includeAttachments !== false;
+  await options.progress?.({
+    step: 'collect_data',
+    fileName: '',
+    stageTitle: 'txt_backup_archive_progress_collect_title',
+    stageDetail: includeAttachments
+      ? 'txt_backup_archive_progress_collect_with_attachments_detail'
+      : 'txt_backup_archive_progress_collect_detail',
+    includeAttachments,
+  });
   const encoder = new TextEncoder();
   const [configRows, userRows, revisionRows, folderRows, cipherRows, attachmentRows] = await Promise.all([
     queryRows(env.DB, 'SELECT key, value FROM config ORDER BY key ASC'),
-    queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'),
+    queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT user_id, revision_date FROM user_revisions ORDER BY user_id ASC'),
     queryRows(env.DB, 'SELECT id, user_id, name, created_at, updated_at FROM folders ORDER BY created_at ASC'),
-    queryRows(env.DB, 'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, deleted_at FROM ciphers ORDER BY created_at ASC'),
+    queryRows(env.DB, 'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT id, cipher_id, file_name, size, size_name, key FROM attachments ORDER BY cipher_id ASC, id ASC'),
   ]);
-  const includeAttachments = options.includeAttachments !== false;
   const exportedAttachmentRows = includeAttachments ? attachmentRows : [];
   const attachmentBlobs: BackupManifestAttachmentBlob[] = exportedAttachmentRows.map((row) => {
     const cipherId = String(row.cipher_id || '').trim();
@@ -327,9 +387,29 @@ export async function buildBackupArchive(
     }, null, BACKUP_JSON_INDENT)),
   };
 
+  await options.progress?.({
+    step: 'package_archive',
+    fileName: '',
+    stageTitle: 'txt_backup_archive_progress_package_title',
+    stageDetail: includeAttachments
+      ? 'txt_backup_archive_progress_package_with_attachments_detail'
+      : 'txt_backup_archive_progress_package_detail',
+    includeAttachments,
+  });
+  const bytes = zipSync(createZipEntries(files));
+  const fileHashPrefix = (await sha256Hex(bytes)).slice(0, BACKUP_FILE_HASH_PREFIX_LENGTH);
+  const fileName = buildBackupFileName(date, fileHashPrefix);
+  await options.progress?.({
+    step: 'archive_ready',
+    fileName,
+    stageTitle: 'txt_backup_archive_progress_ready_title',
+    stageDetail: 'txt_backup_archive_progress_ready_detail',
+    includeAttachments,
+  });
+
   return {
-    bytes: zipSync(createZipEntries(files)),
-    fileName: buildBackupFileName(date),
+    bytes,
+    fileName,
     manifest: manifestBase,
   };
 }

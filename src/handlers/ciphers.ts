@@ -7,6 +7,12 @@ import { deleteAllAttachmentsForCipher } from './attachments';
 import { parsePagination, encodeContinuationToken } from '../utils/pagination';
 import { readActingDeviceIdentifier } from '../utils/device';
 
+function normalizeOptionalId(value: unknown): string | null {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
 async function notifyVaultSyncForRequest(
   request: Request,
   env: Env,
@@ -47,6 +53,7 @@ function syncCipherComputedAliases(cipher: Cipher): Cipher {
 function normalizeCipherForStorage(cipher: Cipher): Cipher {
   cipher.login = normalizeCipherLoginForStorage(cipher.login);
   cipher.sshKey = normalizeCipherSshKeyForCompatibility(cipher.sshKey);
+  cipher.folderId = normalizeOptionalId(cipher.folderId);
   const hasArchivedAt = Object.prototype.hasOwnProperty.call(cipher as object, 'archivedAt');
   cipher.archivedAt = hasArchivedAt
     ? normalizeCipherTimestamp(cipher.archivedAt) ?? null
@@ -185,6 +192,7 @@ export function cipherToResponse(
     // Pass through ALL stored cipher fields (known + unknown)
     ...passthrough,
     // Server-computed / enforced fields (always override)
+    folderId: normalizeOptionalId(cipher.folderId),
     type: Number(cipher.type) || 1,
     organizationId: null,
     organizationUseTotp: false,
@@ -499,11 +507,12 @@ export async function handlePartialUpdateCipher(request: Request, env: Env, user
   }
 
   if (body.folderId !== undefined) {
-    if (body.folderId) {
-      const folderOk = await verifyFolderOwnership(storage, body.folderId, userId);
+    const folderId = normalizeOptionalId(body.folderId);
+    if (folderId) {
+      const folderOk = await verifyFolderOwnership(storage, folderId, userId);
       if (!folderOk) return errorResponse('Folder not found', 404);
     }
-    cipher.folderId = body.folderId;
+    cipher.folderId = folderId;
   }
   if (body.favorite !== undefined) {
     cipher.favorite = body.favorite;
@@ -537,12 +546,13 @@ export async function handleBulkMoveCiphers(request: Request, env: Env, userId: 
     return errorResponse('ids array is required', 400);
   }
 
-  if (body.folderId) {
-    const folderOk = await verifyFolderOwnership(storage, body.folderId, userId);
+  const folderId = normalizeOptionalId(body.folderId);
+  if (folderId) {
+    const folderOk = await verifyFolderOwnership(storage, folderId, userId);
     if (!folderOk) return errorResponse('Folder not found', 404);
   }
 
-  const revisionDate = await storage.bulkMoveCiphers(body.ids, body.folderId || null, userId);
+  const revisionDate = await storage.bulkMoveCiphers(body.ids, folderId, userId);
   if (revisionDate) {
     await notifyVaultSyncForRequest(request, env, userId, revisionDate);
   }

@@ -52,19 +52,26 @@ English: [`README_EN.md`](./README_EN.md)
 
 ## 网页部署
 
-
-1. Fork 本仓库。若本项目对你有帮助，欢迎点个 Star。
-2. 打开 [Workers](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create) ➜ `Continue with GitHub` ➜ 选择你 Fork 后的仓库（`NodeWarden`）➜ 下一步 ➜ （默认使用 R2 存储；若未开通，可用 KV 来代替，将**部署命令**改为 `npm run deploy:kv`）➜ 部署 ➜ 打开生成的链接
-
-   | 储存 | 是否需绑卡 | 单个附件/Send文件上限 | 免费额度 |
-   |---|---|---|---|
-   | R2 | 需要 | 100 MB（软限制可更改） | 10 GB |
-   | KV | 不需要 | 25 MiB（Cloudflare限制） | 1 GB |
+1. Fork `NodeWarden` 仓库到自己的 GitHub 账号
+2. 进入  [Cloudflare Workers 创建页面](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)
+3. 选择 `Continue with GitHub`
+4. 选择你刚刚 Fork 的仓库
+5. 保持默认配置继续部署
+6. 如果你打算用 KV 模式，把部署命令改成 `npm run deploy:kv`
+7. 等部署完成后，打开生成的 Workers 域名
+8. 根据页面提示设置`JWT_SECRET` ，不建议临时乱填。这个值直接关系到令牌签发安全，正式环境至少使用 32 个字符以上的随机字符串。
 
 > [!TIP] 
-> 同步方法（更新仓库）：
->- 手动：打开你 Fork 的 GitHub 仓库，看到顶部同步提示后，点击 `Sync fork` ➜ `Update branch`
->- 自动：进入你的 Fork 仓库 ➜ `Actions` ➜ `Sync upstream` ➜ `Enable workflow`，会在每天凌晨 3 点自动同步上游。
+> 默认R2与可选KV的区别：
+>   | 储存 | 是否需绑卡 | 单个附件/Send文件上限 | 免费额度 |
+>   |---|---|---|---|
+>   | R2 | 需要 | 100 MB（软限制可更改） | 10 GB |
+>   | KV | 不需要 | 25 MiB（Cloudflare限制） | 1 GB |
+
+
+## 更新方法：
+- 手动：打开你 Fork 的 GitHub 仓库，看到顶部同步提示后，点击 `Sync fork` ➜ `Update branch`
+- 自动：进入你的 Fork 仓库 ➜ `Actions` ➜ `Sync upstream` ➜ `Enable workflow`，会在每天凌晨 3 点自动同步上游。
 
 
 
