@@ -9,6 +9,15 @@ let dbInitialized = false;
 let dbInitError: string | null = null;
 let dbInitPromise: Promise<void> | null = null;
 
+function normalizeRequestUrl(request: Request): Request {
+  const url = new URL(request.url);
+  const normalizedPathname = url.pathname.length <= 1 ? url.pathname : url.pathname.replace(/\/+$/, '');
+  if (normalizedPathname === url.pathname) return request;
+
+  url.pathname = normalizedPathname;
+  return new Request(url.toString(), request);
+}
+
 function isWorkerHandledPath(path: string): boolean {
   return (
     path.startsWith('/api/') ||
@@ -56,9 +65,10 @@ async function ensureDatabaseInitialized(env: Env): Promise<void> {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     void ctx;
-    const assetResponse = await maybeServeAsset(request, env);
+    const normalizedRequest = normalizeRequestUrl(request);
+    const assetResponse = await maybeServeAsset(normalizedRequest, env);
     if (assetResponse) {
-      return applyCors(request, assetResponse);
+      return applyCors(normalizedRequest, assetResponse);
     }
 
     await ensureDatabaseInitialized(env);
@@ -76,11 +86,11 @@ export default {
         },
         500
       );
-      return applyCors(request, resp);
+      return applyCors(normalizedRequest, resp);
     }
 
-    const resp = await handleRequest(request, env);
-    return applyCors(request, resp);
+    const resp = await handleRequest(normalizedRequest, env);
+    return applyCors(normalizedRequest, resp);
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {

@@ -50,6 +50,7 @@ interface VaultPageProps {
   onVerifyMasterPassword: (email: string, password: string) => Promise<void>;
   onNotify: (type: 'success' | 'error' | 'warning', text: string) => void;
   onCreateFolder: (name: string) => Promise<void>;
+  onRenameFolder: (folderId: string, name: string) => Promise<void>;
   onDeleteFolder: (folderId: string) => Promise<void>;
   onBulkDeleteFolders: (folderIds: string[]) => Promise<void>;
   onDownloadAttachment: (cipher: Cipher, attachmentId: string) => Promise<void>;
@@ -91,6 +92,8 @@ export default function VaultPage(props: VaultPageProps) {
   const [moveFolderId, setMoveFolderId] = useState('__none__');
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [pendingRenameFolder, setPendingRenameFolder] = useState<Folder | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState('');
   const [pendingDeleteFolder, setPendingDeleteFolder] = useState<Folder | null>(null);
   const [deleteAllFoldersOpen, setDeleteAllFoldersOpen] = useState(false);
   const [totpLive, setTotpLive] = useState<{ code: string; remain: number } | null>(null);
@@ -699,6 +702,23 @@ function folderName(id: string | null | undefined): string {
     }
   }
 
+  async function confirmRenameFolder(): Promise<void> {
+    if (!pendingRenameFolder) return;
+    const nextName = renameFolderName.trim();
+    if (!nextName) {
+      props.onNotify('error', t('txt_folder_name_is_required'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await props.onRenameFolder(pendingRenameFolder.id, nextName);
+      setPendingRenameFolder(null);
+      setRenameFolderName('');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmBulkRestore(): Promise<void> {
     const ids = Object.entries(selectedMap)
       .filter(([, selected]) => selected)
@@ -806,6 +826,10 @@ function folderName(id: string | null | undefined): string {
           onChangeFilter={setSidebarFilter}
           onOpenDeleteAllFolders={() => setDeleteAllFoldersOpen(true)}
           onOpenCreateFolder={() => setCreateFolderOpen(true)}
+          onOpenRenameFolder={(folder) => {
+            setPendingRenameFolder(folder);
+            setRenameFolderName(folder.decName || folder.name || '');
+          }}
           onOpenDeleteFolder={setPendingDeleteFolder}
         />
 
@@ -986,6 +1010,8 @@ function folderName(id: string | null | undefined): string {
         folders={props.folders}
         createFolderOpen={createFolderOpen}
         newFolderName={newFolderName}
+        renameFolderOpen={!!pendingRenameFolder}
+        renameFolderName={renameFolderName}
         pendingDeleteFolder={pendingDeleteFolder}
         deleteAllFoldersOpen={deleteAllFoldersOpen}
         repromptOpen={repromptOpen}
@@ -1036,6 +1062,12 @@ function folderName(id: string | null | undefined): string {
           setNewFolderName('');
         }}
         onNewFolderNameChange={setNewFolderName}
+        onConfirmRenameFolder={() => void confirmRenameFolder()}
+        onCancelRenameFolder={() => {
+          setPendingRenameFolder(null);
+          setRenameFolderName('');
+        }}
+        onRenameFolderNameChange={setRenameFolderName}
         onConfirmDeleteFolder={() => void confirmDeleteFolder()}
         onCancelDeleteFolder={() => setPendingDeleteFolder(null)}
         onConfirmDeleteAllFolders={() => void confirmDeleteAllFolders()}
@@ -1050,8 +1082,4 @@ function folderName(id: string | null | undefined): string {
     </>
   );
 }
-
-
-
-
 

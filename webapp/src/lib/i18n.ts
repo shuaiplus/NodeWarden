@@ -1493,7 +1493,9 @@ messages.en.txt_delete_all_folders = 'Delete All Folders';
 messages.en.txt_delete_all_folders_message = 'Delete all folders? Items inside will move to No Folder.';
 messages.en.txt_folder_not_found = 'Folder not found';
 messages.en.txt_folder_deleted = 'Folder deleted';
+messages.en.txt_folder_updated = 'Folder updated';
 messages.en.txt_folders_deleted = 'Folders deleted';
+messages.en.txt_update_folder_failed = 'Update folder failed';
 messages.en.txt_delete_folder_failed = 'Delete folder failed';
 messages.en.txt_delete_all_folders_failed = 'Delete all folders failed';
 messages.en.txt_other = 'Other';
@@ -1575,7 +1577,9 @@ zhCNOverrides.txt_delete_all_folders = '删除全部文件夹';
 zhCNOverrides.txt_delete_all_folders_message = '确认删除全部文件夹吗？其中的项目将移至无文件夹。';
 zhCNOverrides.txt_folder_not_found = '文件夹不存在';
 zhCNOverrides.txt_folder_deleted = '文件夹已删除';
+zhCNOverrides.txt_folder_updated = '文件夹已重命名';
 zhCNOverrides.txt_folders_deleted = '文件夹已删除';
+zhCNOverrides.txt_update_folder_failed = '重命名文件夹失败';
 zhCNOverrides.txt_delete_folder_failed = '删除文件夹失败';
 zhCNOverrides.txt_delete_all_folders_failed = '删除全部文件夹失败';
 zhCNOverrides.txt_other = '其他';
@@ -1629,4 +1633,3 @@ export function setLocale(next: Locale): void {
     // ignore storage errors
   }
 }
-

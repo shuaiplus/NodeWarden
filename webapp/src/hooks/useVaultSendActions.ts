@@ -43,6 +43,7 @@ import {
   type CiphersImportPayload,
   type ImportedCipherMapEntry,
   updateCipher,
+  updateFolder,
   unarchiveCipher,
   uploadCipherAttachment,
 } from '@/lib/api/vault';
@@ -336,6 +337,28 @@ export default function useVaultSendActions(options: UseVaultSendActionsOptions)
           onNotify('success', t('txt_folder_deleted'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_delete_folder_failed'));
+          throw error;
+        }
+      },
+
+      async renameFolder(folderId: string, name: string) {
+        const id = String(folderId || '').trim();
+        const nextName = String(name || '').trim();
+        if (!id) {
+          onNotify('error', t('txt_folder_not_found'));
+          return;
+        }
+        if (!nextName) {
+          onNotify('error', t('txt_folder_name_is_required'));
+          return;
+        }
+        try {
+          if (!session) throw new Error(t('txt_vault_key_unavailable'));
+          await updateFolder(authedFetch, session, id, nextName);
+          await refetchFolders();
+          onNotify('success', t('txt_folder_updated'));
+        } catch (error) {
+          onNotify('error', error instanceof Error ? error.message : t('txt_update_folder_failed'));
           throw error;
         }
       },
