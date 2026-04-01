@@ -256,7 +256,7 @@ export async function handleFinishPasskeyLogin(request: Request, env: Env): Prom
     MasterPasswordPolicy: { Object: 'masterPasswordPolicy' },
     ApiUseKeyConnector: false,
     scope: 'api offline_access',
-    unofficialServer: true,
+    unofficialServer: false,
     UserDecryptionOptions: buildUserDecryptionOptions(user),
     userDecryptionOptions: buildUserDecryptionOptions(user),
     VaultKeys: vaultKeys,

@@ -300,7 +300,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       },
       ApiUseKeyConnector: false,
       scope: 'api offline_access',
-      unofficialServer: true,
+      unofficialServer: false,
       UserDecryptionOptions: buildUserDecryptionOptions(user),
       userDecryptionOptions: buildUserDecryptionOptions(user),
     };
@@ -355,7 +355,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       expires_in: LIMITS.auth.sendAccessTokenTtlSeconds,
       token_type: 'Bearer',
       scope: 'api.send',
-      unofficialServer: true,
+      unofficialServer: false,
     });
   } else if (grantType === 'refresh_token') {
     const refreshLimit = await rateLimit.consumeBudget(
@@ -411,7 +411,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       },
       ApiUseKeyConnector: false,
       scope: 'api offline_access',
-      unofficialServer: true,
+      unofficialServer: false,
       UserDecryptionOptions: buildUserDecryptionOptions(user),
       userDecryptionOptions: buildUserDecryptionOptions(user),
     };
