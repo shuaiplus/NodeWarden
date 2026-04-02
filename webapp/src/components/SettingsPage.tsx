@@ -73,7 +73,8 @@ export default function SettingsPage(props: SettingsPageProps) {
     const qr = qrcode(0, 'M');
     qr.addData(buildOtpUri(props.profile.email, secret));
     qr.make();
-    const svg = qr.createSvgTag({ scalable: true, margin: 0 });
+    // Keep a visible quiet zone so authenticator apps can scan reliably in both themes.
+    const svg = qr.createSvgTag({ scalable: true, margin: 4 });
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }, [props.profile.email, secret]);
 

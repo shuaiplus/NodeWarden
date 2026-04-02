@@ -2674,6 +2674,8 @@ input[type='file'].input::file-selector-button:hover {
 .totp-qr img {
   width: 180px;
   height: 180px;
+  background: #fff;
+  border-radius: 8px;
 }
 
 .section-head {
@@ -4773,7 +4775,6 @@ input[type='file'].input::file-selector-button:hover {
 :root[data-theme='dark'] .backup-browser-list,
 :root[data-theme='dark'] .backup-schedule-current,
 :root[data-theme='dark'] .backup-status-card,
-:root[data-theme='dark'] .totp-qr,
 :root[data-theme='dark'] .create-menu,
 :root[data-theme='dark'] .create-menu-item,
 :root[data-theme='dark'] .sort-menu,
@@ -4929,6 +4930,11 @@ input[type='file'].input::file-selector-button:hover {
 
 :root[data-theme='dark'] .status-ok {
   color: #9be2bd;
+}
+
+:root[data-theme='dark'] .totp-qr {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 :root[data-theme='dark'] .totp-qr svg,
