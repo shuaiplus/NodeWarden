@@ -12,10 +12,6 @@ import {
   getAuthorizedDevices,
   getCurrentDeviceIdentifier,
   getPasswordHint,
-  listAccountPasskeys,
-  registerAccountPasskey,
-  renameAccountPasskey,
-  deleteAccountPasskey,
   getTotpStatus,
   saveSession,
 } from '@/lib/api/auth';
@@ -40,7 +36,6 @@ import {
   type CompletedLogin,
   readInitialAppBootstrapState,
   performPasswordLogin,
-  performPasskeyLogin,
   performRecoverTwoFactorLogin,
   performRegistration,
   performTotpLogin,
@@ -48,7 +43,6 @@ import {
   type JwtUnsafeReason,
   type PendingTotp,
 } from '@/lib/app-auth';
-import { passkeySupported } from '@/lib/passkey';
 import useAccountSecurityActions from '@/hooks/useAccountSecurityActions';
 import useAdminActions from '@/hooks/useAdminActions';
 import useBackupActions from '@/hooks/useBackupActions';
@@ -159,7 +153,6 @@ export default function App() {
   const [inviteCodeFromUrl, setInviteCodeFromUrl] = useState(initialInviteCode);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
-  const [pendingPasskeyTotp, setPendingPasskeyTotp] = useState(false);
   const [totpCode, setTotpCode] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
 
@@ -341,7 +334,6 @@ export default function App() {
     setSession(login.session);
     setProfile(login.profile);
     setPendingTotp(null);
-    setPendingPasskeyTotp(false);
     setTotpCode('');
     setPhase('app');
     if (location === '/' || location === '/login' || location === '/register' || location === '/lock') {
@@ -387,50 +379,16 @@ export default function App() {
   }
 
   async function handleTotpVerify() {
-    if (!pendingTotp && !pendingPasskeyTotp) return;
+    if (!pendingTotp) return;
     if (!totpCode.trim()) {
       pushToast('error', t('txt_please_input_totp_code'));
       return;
     }
     try {
-      const login = pendingTotp
-        ? await performTotpLogin(pendingTotp, totpCode, rememberDevice)
-        : (await (async () => {
-            const passkeyResult = await performPasskeyLogin(loginValues.email, totpCode);
-            if (passkeyResult.kind !== 'success') throw new Error(t('txt_totp_verify_failed'));
-            return passkeyResult.login;
-          })());
+      const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice);
       await finalizeLogin(login);
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : t('txt_totp_verify_failed'));
-    }
-  }
-
-  async function handlePasskeyLogin() {
-    if (pendingAuthAction) return;
-    if (!passkeySupported()) {
-      pushToast('error', '当前浏览器不支持 Passkey');
-      return;
-    }
-    setPendingAuthAction('login');
-    try {
-      const result = await performPasskeyLogin(loginValues.email);
-      if (result.kind === 'success') {
-        await finalizeLogin(result.login);
-        return;
-      }
-      if (result.kind === 'totp') {
-        setPendingPasskeyTotp(true);
-        setPendingTotp(null);
-        setTotpCode('');
-        setRememberDevice(false);
-        return;
-      }
-      pushToast('error', result.message || t('txt_login_failed'));
-    } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : t('txt_login_failed'));
-    } finally {
-      setPendingAuthAction(null);
     }
   }
 
@@ -569,24 +527,6 @@ export default function App() {
     }
   }
 
-  async function handleCreatePasskey(name: string) {
-    if (!session?.symEncKey || !session?.symMacKey) throw new Error('请先解锁后再创建 Passkey');
-    await registerAccountPasskey(authedFetch, name, session);
-    await passkeysQuery.refetch();
-    pushToast('success', 'Passkey 已创建');
-  }
-
-  async function handleRenamePasskey(id: string, name: string) {
-    await renameAccountPasskey(authedFetch, id, name);
-    await passkeysQuery.refetch();
-  }
-
-  async function handleDeletePasskey(id: string) {
-    await deleteAccountPasskey(authedFetch, id);
-    await passkeysQuery.refetch();
-    pushToast('success', 'Passkey 已删除');
-  }
-
   function handleLock() {
     if (!session) return;
     const nextSession = { ...session };
@@ -602,7 +542,6 @@ export default function App() {
     setSession(null);
     setProfile(null);
     setPendingTotp(null);
-    setPendingPasskeyTotp(false);
     setPhase('login');
     navigate('/login');
   }
@@ -675,11 +614,6 @@ export default function App() {
   const authorizedDevicesQuery = useQuery({
     queryKey: ['authorized-devices', session?.accessToken],
     queryFn: () => getAuthorizedDevices(authedFetch),
-    enabled: phase === 'app' && !!session?.accessToken,
-  });
-  const passkeysQuery = useQuery({
-    queryKey: ['account-passkeys', session?.accessToken],
-    queryFn: () => listAccountPasskeys(authedFetch),
     enabled: phase === 'app' && !!session?.accessToken,
   });
 
@@ -757,9 +691,6 @@ export default function App() {
                 decUsername: await decryptField(cipher.login.username || '', itemEnc, itemMac),
                 decPassword: await decryptField(cipher.login.password || '', itemEnc, itemMac),
                 decTotp: await decryptField(cipher.login.totp || '', itemEnc, itemMac),
-                fido2Credentials: Array.isArray(cipher.login.fido2Credentials)
-                  ? cipher.login.fido2Credentials.map((credential) => ({ ...credential }))
-                  : null,
                 uris: await Promise.all(
                   (cipher.login.uris || []).map(async (u) => ({
                     ...u,
@@ -1205,10 +1136,6 @@ export default function App() {
     },
     onOpenDisableTotp: () => setDisableTotpOpen(true),
     onGetRecoveryCode: accountSecurityActions.getRecoveryCode,
-    passkeys: passkeysQuery.data || [],
-    onCreatePasskey: handleCreatePasskey,
-    onRenamePasskey: handleRenamePasskey,
-    onDeletePasskey: handleDeletePasskey,
     onRefreshAuthorizedDevices: accountSecurityActions.refreshAuthorizedDevices,
     onRevokeDeviceTrust: accountSecurityActions.openRevokeDeviceTrust,
     onRemoveDevice: accountSecurityActions.openRemoveDevice,
@@ -1280,7 +1207,6 @@ export default function App() {
           onChangeRegister={setRegisterValues}
           onChangeUnlock={setUnlockPassword}
           onSubmitLogin={() => void handleLogin()}
-          onSubmitPasskey={() => void handlePasskeyLogin()}
           onSubmitRegister={() => void handleRegister()}
           onSubmitUnlock={() => void handleUnlock()}
           onGotoLogin={() => {
@@ -1297,14 +1223,13 @@ export default function App() {
           onLogout={logoutNow}
           onTogglePasswordHint={() => void handleTogglePasswordHint()}
           onShowLockedPasswordHint={handleShowLockedPasswordHint}
-          passkeySupported={passkeySupported()}
         />
         <AppGlobalOverlays
           toasts={toasts}
           onCloseToast={removeToast}
           confirm={confirm}
           onCancelConfirm={() => setConfirm(null)}
-          pendingTotpOpen={!!pendingTotp || pendingPasskeyTotp}
+          pendingTotpOpen={!!pendingTotp}
           totpCode={totpCode}
           rememberDevice={rememberDevice}
           onTotpCodeChange={setTotpCode}
@@ -1312,13 +1237,11 @@ export default function App() {
           onConfirmTotp={() => void handleTotpVerify()}
           onCancelTotp={() => {
             setPendingTotp(null);
-            setPendingPasskeyTotp(false);
             setTotpCode('');
             setRememberDevice(true);
           }}
           onUseRecoveryCode={() => {
             setPendingTotp(null);
-            setPendingPasskeyTotp(false);
             setTotpCode('');
             setRememberDevice(true);
             navigate('/recover-2fa');

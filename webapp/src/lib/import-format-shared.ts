@@ -223,7 +223,7 @@ export function makeLoginCipher(): Record<string, unknown> {
     favorite: false,
     reprompt: 0,
     key: null,
-    login: { username: null, password: null, totp: null, fido2Credentials: null, uris: null },
+    login: { username: null, password: null, totp: null, uris: null },
     card: null,
     identity: null,
     secureNote: null,

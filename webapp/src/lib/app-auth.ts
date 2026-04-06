@@ -4,7 +4,6 @@ import {
   getProfile,
   loadSession,
   loginWithPassword,
-  loginWithPasskey,
   refreshAccessToken,
   recoverTwoFactor,
   registerAccount,
@@ -45,11 +44,6 @@ export interface CompletedLogin {
 export type PasswordLoginResult =
   | { kind: 'success'; login: CompletedLogin }
   | { kind: 'totp'; pendingTotp: PendingTotp }
-  | { kind: 'error'; message: string };
-
-export type PasskeyLoginResult =
-  | { kind: 'success'; login: CompletedLogin }
-  | { kind: 'totp' }
   | { kind: 'error'; message: string };
 
 export interface RecoverTwoFactorResult {
@@ -366,29 +360,3 @@ export async function performUnlock(
   return { ...refreshedSession, ...keys };
 }
 
-export async function performPasskeyLogin(email: string, totpCode?: string): Promise<PasskeyLoginResult> {
-  const token = await loginWithPasskey(email, totpCode);
-  if ('access_token' in token && token.access_token) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    const baseSession: SessionState = {
-      accessToken: token.access_token,
-      refreshToken: token.refresh_token,
-      email: normalizedEmail,
-      symEncKey: token.VaultKeys?.symEncKey,
-      symMacKey: token.VaultKeys?.symMacKey,
-    };
-    const tempFetch = createAuthedFetch(() => baseSession, () => {});
-    const profile = buildTransientProfile(token, normalizedEmail);
-    return {
-      kind: 'success',
-      login: {
-        session: baseSession,
-        profile,
-        profilePromise: getProfile(tempFetch),
-      },
-    };
-  }
-  const tokenError = token as { TwoFactorProviders?: unknown; error_description?: string; error?: string };
-  if (tokenError.TwoFactorProviders) return { kind: 'totp' };
-  return { kind: 'error', message: tokenError.error_description || tokenError.error || 'Passkey login failed' };
-}

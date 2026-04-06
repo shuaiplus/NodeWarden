@@ -194,9 +194,6 @@ export function buildCipherDuplicateSignature(cipher: Cipher): string {
             uri: valueOrFallback(uri.decUri ?? uri.uri),
             match: uri.match ?? null,
           })),
-          fido2Credentials: (cipher.login.fido2Credentials || []).map((credential) => ({
-            creationDate: valueOrFallback(credential.creationDate),
-          })),
         }
       : null,
     card: cipher.card
@@ -265,7 +262,6 @@ export function createEmptyDraft(type: number): VaultDraft {
     loginPassword: '',
     loginTotp: '',
     loginUris: [createEmptyLoginUri()],
-    loginFido2Credentials: [],
     cardholderName: '',
     cardNumber: '',
     cardBrand: '',
@@ -314,9 +310,6 @@ export function draftFromCipher(cipher: Cipher): VaultDraft {
       uri: x.decUri || x.uri || '',
       match: x.match ?? null,
     }));
-    draft.loginFido2Credentials = Array.isArray(cipher.login.fido2Credentials)
-      ? cipher.login.fido2Credentials.map((credential) => ({ ...credential }))
-      : [];
     if (!draft.loginUris.length) draft.loginUris = [createEmptyLoginUri()];
   }
   if (cipher.card) {
@@ -411,16 +404,6 @@ export function sortTimeValue(cipher: Cipher): number {
 export function creationTimeValue(cipher: Cipher): number {
   const time = new Date(String(cipher.creationDate || '')).getTime();
   return Number.isFinite(time) ? time : 0;
-}
-
-export function firstPasskeyCreationTime(cipher: Cipher | null): string | null {
-  const credentials = cipher?.login?.fido2Credentials;
-  if (!Array.isArray(credentials) || credentials.length === 0) return null;
-  for (const credential of credentials) {
-    const raw = String(credential?.creationDate || '').trim();
-    if (raw) return raw;
-  }
-  return null;
 }
 
 const failedIconHosts = new Set<string>();

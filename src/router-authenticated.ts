@@ -62,13 +62,6 @@ import {
 } from './handlers/attachments';
 import { handleAuthenticatedDeviceRoute } from './router-devices';
 import { handleAdminRoute } from './router-admin';
-import {
-  handleBeginPasskeyRegistration,
-  handleDeletePasskey,
-  handleFinishPasskeyRegistration,
-  handleListPasskeys,
-  handleRenamePasskey,
-} from './handlers/passkeys';
 
 export async function handleAuthenticatedRoute(
   request: Request,
@@ -112,24 +105,6 @@ export async function handleAuthenticatedRoute(
 
   if ((path === '/api/accounts/totp/recovery-code' || path === '/api/two-factor/get-recover') && method === 'POST') {
     return handleGetTotpRecoveryCode(request, env, userId);
-  }
-
-  if (path === '/api/accounts/passkeys' && method === 'GET') {
-    return handleListPasskeys(request, env, userId);
-  }
-
-  if (path === '/api/accounts/passkeys/begin-registration' && method === 'POST') {
-    return handleBeginPasskeyRegistration(request, env, userId);
-  }
-
-  if (path === '/api/accounts/passkeys/finish-registration' && method === 'POST') {
-    return handleFinishPasskeyRegistration(request, env, userId);
-  }
-
-  const passkeyMatch = path.match(/^\/api\/accounts\/passkeys\/([a-f0-9-]+)$/i);
-  if (passkeyMatch) {
-    if (method === 'PATCH' || method === 'PUT') return handleRenamePasskey(request, env, userId, passkeyMatch[1]);
-    if (method === 'DELETE') return handleDeletePasskey(request, env, userId, passkeyMatch[1]);
   }
 
   if (path === '/api/accounts/revision-date' && method === 'GET') {

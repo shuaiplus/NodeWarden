@@ -392,56 +392,6 @@ function toIsoDateOrNow(value: unknown): string {
   return parsed.toISOString();
 }
 
-async function encryptMaybeFidoValue(
-  value: unknown,
-  enc: Uint8Array,
-  mac: Uint8Array,
-  fallback = ''
-): Promise<string> {
-  const normalized = String(value ?? '').trim() || fallback;
-  if (looksLikeCipherString(normalized)) return normalized;
-  return encryptBw(new TextEncoder().encode(normalized), enc, mac);
-}
-
-async function encryptMaybeNullableFidoValue(
-  value: unknown,
-  enc: Uint8Array,
-  mac: Uint8Array
-): Promise<string | null> {
-  const normalized = String(value ?? '').trim();
-  if (!normalized) return null;
-  if (looksLikeCipherString(normalized)) return normalized;
-  return encryptBw(new TextEncoder().encode(normalized), enc, mac);
-}
-
-async function normalizeFido2Credentials(
-  credentials: Array<Record<string, unknown>> | null | undefined,
-  enc: Uint8Array,
-  mac: Uint8Array
-): Promise<Array<Record<string, unknown>> | null> {
-  if (!Array.isArray(credentials) || credentials.length === 0) return null;
-  const out: Array<Record<string, unknown>> = [];
-  for (const credential of credentials) {
-    if (!credential || typeof credential !== 'object') continue;
-    out.push({
-      credentialId: await encryptMaybeFidoValue(credential.credentialId, enc, mac),
-      keyType: await encryptMaybeFidoValue(credential.keyType, enc, mac, 'public-key'),
-      keyAlgorithm: await encryptMaybeFidoValue(credential.keyAlgorithm, enc, mac, 'ECDSA'),
-      keyCurve: await encryptMaybeFidoValue(credential.keyCurve, enc, mac, 'P-256'),
-      keyValue: await encryptMaybeFidoValue(credential.keyValue, enc, mac),
-      rpId: await encryptMaybeFidoValue(credential.rpId, enc, mac),
-      rpName: await encryptMaybeNullableFidoValue(credential.rpName, enc, mac),
-      userHandle: await encryptMaybeNullableFidoValue(credential.userHandle, enc, mac),
-      userName: await encryptMaybeNullableFidoValue(credential.userName, enc, mac),
-      userDisplayName: await encryptMaybeNullableFidoValue(credential.userDisplayName, enc, mac),
-      counter: await encryptMaybeFidoValue(credential.counter, enc, mac, '0'),
-      discoverable: await encryptMaybeFidoValue(credential.discoverable, enc, mac, 'false'),
-      creationDate: toIsoDateOrNow(credential.creationDate),
-    });
-  }
-  return out.length ? out : null;
-}
-
 async function getCipherKeys(
   cipher: Cipher | null,
   userEnc: Uint8Array,
@@ -490,15 +440,10 @@ async function buildCipherPayload(
   }
 
   if (type === 1) {
-    const existingFido2 =
-      cipher?.login && Array.isArray((cipher.login as any).fido2Credentials)
-        ? (cipher.login as any).fido2Credentials
-        : draft.loginFido2Credentials;
     payload.login = {
       username: await encryptTextValue(draft.loginUsername, keys.enc, keys.mac),
       password: await encryptTextValue(draft.loginPassword, keys.enc, keys.mac),
       totp: await encryptTextValue(draft.loginTotp, keys.enc, keys.mac),
-      fido2Credentials: await normalizeFido2Credentials(existingFido2, keys.enc, keys.mac),
       uris: await encryptUris(draft.loginUris || [], keys.enc, keys.mac),
     };
   } else if (type === 3) {
