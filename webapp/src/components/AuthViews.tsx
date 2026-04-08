@@ -21,6 +21,7 @@ interface AuthViewsProps {
   mode: 'login' | 'register' | 'locked';
   pendingAction: 'login' | 'register' | 'unlock' | null;
   unlockReady: boolean;
+  unlockPreparing: boolean;
   loginValues: LoginValues;
   registerValues: RegisterValues;
   unlockPassword: string;
@@ -97,14 +98,17 @@ export default function AuthViews(props: AuthViewsProps) {
                 type="button"
                 className="auth-link-btn"
                 onClick={props.onShowLockedPasswordHint}
-                disabled={unlockBusy}
+                disabled={unlockBusy || props.unlockPreparing}
               >
                 {t('txt_show_password_hint')}
               </button>
             </div>
-            <button type="submit" className="btn btn-primary full" disabled={unlockBusy || !props.unlockReady}>
+            {props.unlockPreparing ? (
+              <p className="muted standalone-muted">{t('txt_loading')}</p>
+            ) : null}
+            <button type="submit" className="btn btn-primary full" disabled={unlockBusy || props.unlockPreparing || !props.unlockReady}>
               <Unlock size={16} className="btn-icon" />
-              {unlockBusy ? t('txt_unlocking') : t('txt_unlock')}
+              {unlockBusy ? t('txt_unlocking') : props.unlockPreparing ? t('txt_loading') : t('txt_unlock')}
             </button>
             <div className="or">{t('txt_or')}</div>
             <button type="button" className="btn btn-secondary full" onClick={props.onLogout} disabled={unlockBusy}>

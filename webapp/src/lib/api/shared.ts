@@ -63,14 +63,14 @@ interface UploadWithProgressOptions {
   accessToken?: string;
   method?: string;
   headers?: HeadersInit;
-  body?: Document | XMLHttpRequestBodyInit | null;
+  body?: XMLHttpRequestBodyInit | null;
   onProgress?: (percent: number | null) => void;
 }
 
 interface DirectEncryptedUploadOptions {
   accessToken: string;
   uploadUrl: string;
-  payload: ArrayBuffer | Uint8Array;
+  payload: XMLHttpRequestBodyInit;
   fileUploadType: number | null | undefined;
   unsupportedMessage: string;
   onProgress?: (percent: number | null) => void;

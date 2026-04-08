@@ -1,3 +1,4 @@
+import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Clipboard, Globe, GripVertical } from 'lucide-preact';
 import {
@@ -96,6 +97,7 @@ function SortableTotpRow(props: SortableTotpRowProps) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.cipher.id,
   });
+  const dragButtonAttributes = attributes as JSX.HTMLAttributes<HTMLButtonElement>;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -113,7 +115,7 @@ function SortableTotpRow(props: SortableTotpRowProps) {
         className="btn btn-secondary small totp-drag-btn"
         title={t('txt_drag_to_reorder')}
         aria-label={t('txt_drag_to_reorder')}
-        {...attributes}
+        {...dragButtonAttributes}
         {...listeners}
       >
         <GripVertical size={14} className="btn-icon" />

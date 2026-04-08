@@ -2,6 +2,7 @@ import {
   createAuthedFetch,
   deriveLoginHashLocally,
   getProfile,
+  loadProfileSnapshot,
   loadSession,
   loginWithPassword,
   refreshAccessToken,
@@ -26,6 +27,7 @@ export interface BootstrapAppResult {
   session: SessionState | null;
   profile: Profile | null;
   phase: AppPhase;
+  needsBackgroundHydration?: boolean;
 }
 
 export interface InitialAppBootstrapState {
@@ -51,8 +53,9 @@ export interface RecoverTwoFactorResult {
   newRecoveryCode: string | null;
 }
 
-function decodeJwtExp(accessToken: string): number | null {
+function decodeJwtExp(accessToken: string | undefined): number | null {
   try {
+    if (!accessToken) return null;
     const parts = accessToken.split('.');
     if (parts.length < 2) return null;
     const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -66,23 +69,24 @@ function decodeJwtExp(accessToken: string): number | null {
 }
 
 async function maybeRefreshSession(session: SessionState): Promise<SessionState | null> {
-  if (!session.refreshToken) return session;
+  if (!session.refreshToken && session.authMode !== 'web-cookie') return session.accessToken ? session : null;
   const exp = decodeJwtExp(session.accessToken);
   const nowSeconds = Math.floor(Date.now() / 1000);
 
-  if (exp !== null && exp - nowSeconds > 60) {
+  if (session.accessToken && exp !== null && exp - nowSeconds > 60) {
     return session;
   }
 
-  const refreshed = await refreshAccessToken(session.refreshToken);
-  if (!refreshed?.access_token) {
-    return exp !== null && exp > nowSeconds ? session : null;
+  const refreshed = await refreshAccessToken(session);
+  if (!refreshed.ok) {
+    return session.accessToken && exp !== null && exp > nowSeconds ? session : null;
   }
 
   return {
     ...session,
-    accessToken: refreshed.access_token,
-    refreshToken: refreshed.refresh_token || session.refreshToken,
+    accessToken: refreshed.token.access_token,
+    refreshToken: refreshed.token.refresh_token || session.refreshToken,
+    authMode: refreshed.token.web_session ? 'web-cookie' : (session.authMode || 'token'),
   };
 }
 
@@ -197,31 +201,51 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     };
   }
 
+  const cachedProfile = loadProfileSnapshot(loaded.email);
+  if (cachedProfile) {
+    return {
+      defaultKdfIterations,
+      jwtWarning: null,
+      session: loaded,
+      profile: cachedProfile,
+      phase: 'locked',
+      needsBackgroundHydration: true,
+    };
+  }
+
+  return {
+    defaultKdfIterations,
+    jwtWarning: null,
+    session: loaded,
+    profile: null,
+    phase: 'locked',
+    needsBackgroundHydration: true,
+  };
+}
+
+export async function hydrateLockedSession(
+  session: SessionState,
+  fallbackProfile: Profile | null = null
+): Promise<{ session: SessionState | null; profile: Profile | null }> {
+  const refreshedSession = await maybeRefreshSession(session);
+  if (!refreshedSession?.accessToken) {
+    return { session: null, profile: null };
+  }
   try {
-    const session = await maybeRefreshSession(loaded);
-    if (!session) {
-      throw new Error('Session expired');
-    }
     const profile = await getProfile(
       createAuthedFetch(
-        () => session,
+        () => refreshedSession,
         () => {}
       )
     );
     return {
-      defaultKdfIterations,
-      jwtWarning: null,
-      session,
+      session: refreshedSession,
       profile,
-      phase: 'locked',
     };
   } catch {
     return {
-      defaultKdfIterations,
-      jwtWarning: null,
-      session: null,
-      profile: null,
-      phase: initial.phase === 'register' ? 'register' : 'login',
+      session: refreshedSession,
+      profile: fallbackProfile,
     };
   }
 }
@@ -236,6 +260,7 @@ export async function completeLogin(
     accessToken: token.access_token,
     refreshToken: token.refresh_token,
     email: normalizedEmail,
+    authMode: token.web_session ? 'web-cookie' : 'token',
   };
   const tempFetch = createAuthedFetch(
     () => baseSession,

@@ -192,6 +192,7 @@ async function executeConfiguredBackup(
     });
     const archive = await buildBackupArchive(env, now, {
       includeAttachments: destination.includeAttachments,
+      timeZone: destination.schedule.timezone,
       progress: progress
         ? async (event) => {
           if (event.step === 'archive_ready') {

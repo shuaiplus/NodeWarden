@@ -346,7 +346,8 @@ export interface TokenResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
-  refresh_token: string;
+  refresh_token?: string;
+  web_session?: boolean;
   TwoFactorToken?: string;
   Key: string;
   PrivateKey: string | null;

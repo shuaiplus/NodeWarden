@@ -10,8 +10,10 @@ import type {
 import { parseJson, type AuthedFetch, type SessionSetter } from './shared';
 
 const SESSION_KEY = 'nodewarden.web.session.v4';
+const PROFILE_SNAPSHOT_KEY = 'nodewarden.web.profile-snapshot.v1';
 const DEVICE_IDENTIFIER_KEY = 'nodewarden.web.device.identifier.v1';
 const TOTP_REMEMBER_TOKEN_KEY = 'nodewarden.web.totp.remember-token.v1';
+const WEB_SESSION_HEADER = 'X-NodeWarden-Web-Session';
 
 export interface PreloginResult {
   hash: string;
@@ -25,6 +27,24 @@ export interface PreloginKdfConfig {
   kdfMemory: number | null;
   kdfParallelism: number | null;
 }
+
+interface PersistedSessionState {
+  email: string;
+  authMode: 'token' | 'web-cookie';
+}
+
+interface RefreshFailure {
+  ok: false;
+  transient: boolean;
+  error: string;
+}
+
+interface RefreshSuccess {
+  ok: true;
+  token: TokenSuccess;
+}
+
+type RefreshResult = RefreshFailure | RefreshSuccess;
 
 function randomHex(length: number): string {
   const bytes = crypto.getRandomValues(new Uint8Array(Math.max(1, Math.ceil(length / 2))));
@@ -66,12 +86,19 @@ export function loadSession(): SessionState | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as SessionState;
-    if (!parsed.accessToken || !parsed.refreshToken) return null;
+    const parsed = JSON.parse(raw) as Partial<SessionState> & Partial<PersistedSessionState>;
+    if (parsed.authMode === 'web-cookie' && parsed.email) {
+      return {
+        email: parsed.email,
+        authMode: 'web-cookie',
+      };
+    }
+    if (!parsed.accessToken || !parsed.refreshToken || !parsed.email) return null;
     return {
       accessToken: parsed.accessToken,
       refreshToken: parsed.refreshToken,
       email: parsed.email,
+      authMode: 'token',
     };
   } catch {
     return null;
@@ -83,12 +110,33 @@ export function saveSession(session: SessionState | null): void {
     localStorage.removeItem(SESSION_KEY);
     return;
   }
-  const persisted: SessionState = {
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
+  const persisted: PersistedSessionState = {
     email: session.email,
+    authMode: session.authMode === 'token' ? 'token' : 'web-cookie',
   };
   localStorage.setItem(SESSION_KEY, JSON.stringify(persisted));
+}
+
+export function loadProfileSnapshot(email?: string | null): Profile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Profile;
+    if (!parsed?.email || !parsed?.key) return null;
+    if (email && parsed.email !== email) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveProfileSnapshot(profile: Profile | null): void {
+  if (!profile) return;
+  localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(profile));
+}
+
+export function clearProfileSnapshot(): void {
+  localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
 }
 
 export function getCurrentDeviceIdentifier(): string {
@@ -170,7 +218,10 @@ export async function loginWithPassword(
   }
   const resp = await fetch('/identity/connect/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      [WEB_SESSION_HEADER]: '1',
+    },
     body: body.toString(),
   });
   const json = (await parseJson<TokenSuccess & TokenError>(resp)) || {};
@@ -183,18 +234,60 @@ export async function loginWithPassword(
   return json;
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<TokenSuccess | null> {
+function isTransientRefreshStatus(status: number): boolean {
+  return status === 0 || status === 429 || status >= 500;
+}
+
+export async function refreshAccessToken(session: SessionState): Promise<RefreshResult> {
   const body = new URLSearchParams();
   body.set('grant_type', 'refresh_token');
-  body.set('refresh_token', refreshToken);
-  const resp = await fetch('/identity/connect/token', {
+  if (session.authMode !== 'web-cookie' && session.refreshToken) {
+    body.set('refresh_token', session.refreshToken);
+  }
+  try {
+    const resp = await fetch('/identity/connect/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(session.authMode === 'web-cookie' ? { [WEB_SESSION_HEADER]: '1' } : {}),
+      },
+      body: body.toString(),
+    });
+    if (!resp.ok) {
+      const json = await parseJson<TokenError>(resp);
+      return {
+        ok: false,
+        transient: isTransientRefreshStatus(resp.status),
+        error: json?.error_description || json?.error || 'Session refresh failed',
+      };
+    }
+    const json = await parseJson<TokenSuccess>(resp);
+    if (!json?.access_token) {
+      return { ok: false, transient: false, error: 'Session refresh failed' };
+    }
+    return { ok: true, token: json };
+  } catch (error) {
+    return {
+      ok: false,
+      transient: true,
+      error: error instanceof Error ? error.message : 'Network error',
+    };
+  }
+}
+
+export async function revokeCurrentSession(session: SessionState | null): Promise<void> {
+  const body = new URLSearchParams();
+  if (session?.authMode !== 'web-cookie' && session?.refreshToken) {
+    body.set('token', session.refreshToken);
+  }
+  await fetch('/identity/connect/revocation', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(session?.authMode === 'web-cookie' ? { [WEB_SESSION_HEADER]: '1' } : {}),
+    },
     body: body.toString(),
-  });
-  if (!resp.ok) return null;
-  const json = await parseJson<TokenSuccess>(resp);
-  return json || null;
+  }).catch(() => undefined);
 }
 
 export async function registerAccount(args: {
@@ -279,18 +372,22 @@ export function createAuthedFetch(getSession: () => SessionState | null, setSess
     headers.set('Authorization', `Bearer ${session.accessToken}`);
 
     let resp = await fetch(input, { ...init, headers });
-    if (resp.status !== 401 || !session.refreshToken) return resp;
+    if (resp.status !== 401 || (!session.refreshToken && session.authMode !== 'web-cookie')) return resp;
 
-    const refreshed = await refreshAccessToken(session.refreshToken);
-    if (!refreshed?.access_token) {
+    const refreshed = await refreshAccessToken(session);
+    if (!refreshed.ok) {
+      if (refreshed.transient) {
+        throw new Error(refreshed.error || 'Session refresh temporarily unavailable');
+      }
       setSession(null);
       throw new Error('Session expired');
     }
 
     const nextSession: SessionState = {
       ...session,
-      accessToken: refreshed.access_token,
-      refreshToken: refreshed.refresh_token || session.refreshToken,
+      accessToken: refreshed.token.access_token,
+      refreshToken: refreshed.token.refresh_token || session.refreshToken,
+      authMode: refreshed.token.web_session ? 'web-cookie' : (session.authMode || 'token'),
     };
     setSession(nextSession);
     saveSession(nextSession);

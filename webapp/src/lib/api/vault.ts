@@ -240,6 +240,7 @@ export async function uploadCipherAttachment(
   const attachmentId = String(meta.attachmentId || '').trim();
   const uploadUrl = String(meta.url || '').trim();
   if (!attachmentId || !uploadUrl) throw new Error('Create attachment failed');
+  if (!session.accessToken) throw new Error('Unauthorized');
 
   const payload = new ArrayBuffer(encryptedBytes.byteLength);
   new Uint8Array(payload).set(encryptedBytes);

@@ -1,9 +1,10 @@
 export type AppPhase = 'register' | 'login' | 'locked' | 'app';
 
 export interface SessionState {
-  accessToken: string;
-  refreshToken: string;
+  accessToken?: string;
+  refreshToken?: string;
   email: string;
+  authMode?: 'token' | 'web-cookie';
   symEncKey?: string;
   symMacKey?: string;
 }
@@ -265,7 +266,8 @@ export interface WebBootstrapResponse {
 
 export interface TokenSuccess {
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;
+  web_session?: boolean;
   expires_in?: number;
   token_type?: string;
   TwoFactorToken?: string;

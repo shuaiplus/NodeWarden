@@ -152,10 +152,13 @@ export async function createSend(
   const uploadInfo = await parseJson<{ url?: string; sendResponse?: Send; fileUploadType?: number }>(fileResp);
   const uploadUrl = uploadInfo?.url;
   if (!uploadUrl) throw new Error('Create file send failed: missing upload URL');
+  if (!session.accessToken) throw new Error('Unauthorized');
+  const payload = new ArrayBuffer(encryptedFileBytes.byteLength);
+  new Uint8Array(payload).set(encryptedFileBytes);
   const uploadResp = await uploadDirectEncryptedPayload({
     accessToken: session.accessToken,
     uploadUrl,
-    payload: encryptedFileBytes,
+    payload,
     fileUploadType: uploadInfo?.fileUploadType,
     unsupportedMessage: 'Unsupported send upload type',
     onProgress,
