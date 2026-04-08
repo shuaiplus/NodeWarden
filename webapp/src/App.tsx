@@ -10,12 +10,12 @@ import JwtWarningPage from '@/components/JwtWarningPage';
 import {
   createAuthedFetch,
   getAuthorizedDevices,
+  clearProfileSnapshot,
   getCurrentDeviceIdentifier,
   getPasswordHint,
-  listAccountPasskeys,
-  registerAccountPasskey,
-  renameAccountPasskey,
-  deleteAccountPasskey,
+  loadProfileSnapshot,
+  saveProfileSnapshot,
+  revokeCurrentSession,
   getTotpStatus,
   saveSession,
 } from '@/lib/api/auth';
@@ -40,15 +40,14 @@ import {
   type CompletedLogin,
   readInitialAppBootstrapState,
   performPasswordLogin,
-  performPasskeyLogin,
   performRecoverTwoFactorLogin,
   performRegistration,
   performTotpLogin,
+  hydrateLockedSession,
   performUnlock,
   type JwtUnsafeReason,
   type PendingTotp,
 } from '@/lib/app-auth';
-import { passkeySupported } from '@/lib/passkey';
 import useAccountSecurityActions from '@/hooks/useAccountSecurityActions';
 import useAdminActions from '@/hooks/useAdminActions';
 import useBackupActions from '@/hooks/useBackupActions';
@@ -58,6 +57,17 @@ import { t } from '@/lib/i18n';
 import { APP_NOTIFY_EVENT, type AppNotifyDetail } from '@/lib/app-notify';
 import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-restore-progress';
 import type { AppPhase, Cipher, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
+
+function isBackupProgressDetail(value: unknown): value is BackupProgressDetail {
+  if (!value || typeof value !== 'object') return false;
+  const detail = value as Record<string, unknown>;
+  const operation = detail.operation;
+  return (
+    (operation === 'backup-restore' || operation === 'backup-export' || operation === 'backup-remote-run')
+    && typeof detail.step === 'string'
+    && typeof detail.fileName === 'string'
+  );
+}
 
 const IMPORT_ROUTE = '/backup/import-export';
 const IMPORT_ROUTE_PATHS = [IMPORT_ROUTE, '/tools/import', '/tools/import-export', '/tools/import-data', '/import', '/import-export'] as const;
@@ -130,11 +140,12 @@ function resolveSystemTheme(): 'light' | 'dark' {
 export default function App() {
   const initialBootstrap = useMemo(() => readInitialAppBootstrapState(), []);
   const initialInviteCode = useMemo(() => readInviteCodeFromUrl(), []);
+  const initialProfileSnapshot = useMemo(() => loadProfileSnapshot(initialBootstrap.session?.email), [initialBootstrap]);
   const [pendingAuthAction, setPendingAuthAction] = useState<'login' | 'register' | 'unlock' | null>(null);
   const [location, navigate] = useLocation();
   const [phase, setPhase] = useState<AppPhase>(initialBootstrap.phase);
   const [session, setSessionState] = useState<SessionState | null>(initialBootstrap.session);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(initialProfileSnapshot);
   const [defaultKdfIterations, setDefaultKdfIterations] = useState(initialBootstrap.defaultKdfIterations);
   const [jwtWarning, setJwtWarning] = useState<{ reason: JwtUnsafeReason; minLength: number } | null>(initialBootstrap.jwtWarning);
 
@@ -159,7 +170,6 @@ export default function App() {
   const [inviteCodeFromUrl, setInviteCodeFromUrl] = useState(initialInviteCode);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
-  const [pendingPasskeyTotp, setPendingPasskeyTotp] = useState(false);
   const [totpCode, setTotpCode] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
 
@@ -168,6 +178,7 @@ export default function App() {
   const [recoverValues, setRecoverValues] = useState({ email: '', password: '', recoveryCode: '' });
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => readThemePreference());
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => resolveSystemTheme());
+  const [unlockPreparing, setUnlockPreparing] = useState(() => initialBootstrap.phase === 'locked' && !initialProfileSnapshot?.key);
 
   const [confirm, setConfirm] = useState<AppConfirmState | null>(null);
   const [mobileLayout, setMobileLayout] = useState(false);
@@ -269,6 +280,16 @@ export default function App() {
     window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
   }, [themePreference]);
 
+  useEffect(() => {
+    saveProfileSnapshot(profile);
+  }, [profile]);
+
+  useEffect(() => {
+    if (phase === 'locked' && profile?.key && session) {
+      setUnlockPreparing(false);
+    }
+  }, [phase, profile, session]);
+
   useEffect(() => installMagneticUiFeedback(), []);
 
   function handleToggleTheme() {
@@ -330,6 +351,7 @@ export default function App() {
       setSession(boot.session);
       setProfile(boot.profile);
       setPhase(boot.phase);
+      setUnlockPreparing(boot.phase === 'locked' && !boot.profile?.key);
     })();
 
     return () => {
@@ -337,11 +359,35 @@ export default function App() {
     };
   }, [initialBootstrap]);
 
+  useEffect(() => {
+    if (phase !== 'locked' || !session) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await hydrateLockedSession(session, profile);
+      if (cancelled) return;
+      if (!result.session) {
+        setSession(null);
+        setProfile(null);
+        setUnlockPreparing(false);
+        setPhase('login');
+        if (location !== '/login') navigate('/login');
+        return;
+      }
+      setSession(result.session);
+      if (result.profile) {
+        setProfile(result.profile);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, session?.email, location, navigate]);
+
   async function finalizeLogin(login: CompletedLogin) {
     setSession(login.session);
     setProfile(login.profile);
+    setUnlockPreparing(false);
     setPendingTotp(null);
-    setPendingPasskeyTotp(false);
     setTotpCode('');
     setPhase('app');
     if (location === '/' || location === '/login' || location === '/register' || location === '/lock') {
@@ -387,50 +433,16 @@ export default function App() {
   }
 
   async function handleTotpVerify() {
-    if (!pendingTotp && !pendingPasskeyTotp) return;
+    if (!pendingTotp) return;
     if (!totpCode.trim()) {
       pushToast('error', t('txt_please_input_totp_code'));
       return;
     }
     try {
-      const login = pendingTotp
-        ? await performTotpLogin(pendingTotp, totpCode, rememberDevice)
-        : (await (async () => {
-            const passkeyResult = await performPasskeyLogin(loginValues.email, totpCode);
-            if (passkeyResult.kind !== 'success') throw new Error(t('txt_totp_verify_failed'));
-            return passkeyResult.login;
-          })());
+      const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice);
       await finalizeLogin(login);
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : t('txt_totp_verify_failed'));
-    }
-  }
-
-  async function handlePasskeyLogin() {
-    if (pendingAuthAction) return;
-    if (!passkeySupported()) {
-      pushToast('error', '当前浏览器不支持 Passkey');
-      return;
-    }
-    setPendingAuthAction('login');
-    try {
-      const result = await performPasskeyLogin(loginValues.email);
-      if (result.kind === 'success') {
-        await finalizeLogin(result.login);
-        return;
-      }
-      if (result.kind === 'totp') {
-        setPendingPasskeyTotp(true);
-        setPendingTotp(null);
-        setTotpCode('');
-        setRememberDevice(false);
-        return;
-      }
-      pushToast('error', result.message || t('txt_login_failed'));
-    } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : t('txt_login_failed'));
-    } finally {
-      setPendingAuthAction(null);
     }
   }
 
@@ -559,6 +571,7 @@ export default function App() {
       const nextSession = await performUnlock(session, profile, unlockPassword, defaultKdfIterations);
       setSession(nextSession);
       setUnlockPassword('');
+      setUnlockPreparing(false);
       setPhase('app');
       if (location === '/' || location === '/lock') navigate('/vault');
       pushToast('success', t('txt_unlocked'));
@@ -569,40 +582,25 @@ export default function App() {
     }
   }
 
-  async function handleCreatePasskey(name: string) {
-    if (!session?.symEncKey || !session?.symMacKey) throw new Error('请先解锁后再创建 Passkey');
-    await registerAccountPasskey(authedFetch, name, session);
-    await passkeysQuery.refetch();
-    pushToast('success', 'Passkey 已创建');
-  }
-
-  async function handleRenamePasskey(id: string, name: string) {
-    await renameAccountPasskey(authedFetch, id, name);
-    await passkeysQuery.refetch();
-  }
-
-  async function handleDeletePasskey(id: string) {
-    await deleteAccountPasskey(authedFetch, id);
-    await passkeysQuery.refetch();
-    pushToast('success', 'Passkey 已删除');
-  }
-
   function handleLock() {
     if (!session) return;
     const nextSession = { ...session };
     delete nextSession.symEncKey;
     delete nextSession.symMacKey;
     setSession(nextSession);
+    setUnlockPreparing(false);
     setPhase('locked');
     navigate('/lock');
   }
 
   function logoutNow() {
+    void revokeCurrentSession(sessionRef.current);
     setConfirm(null);
     setSession(null);
+    clearProfileSnapshot();
     setProfile(null);
+    setUnlockPreparing(false);
     setPendingTotp(null);
-    setPendingPasskeyTotp(false);
     setPhase('login');
     navigate('/login');
   }
@@ -675,11 +673,6 @@ export default function App() {
   const authorizedDevicesQuery = useQuery({
     queryKey: ['authorized-devices', session?.accessToken],
     queryFn: () => getAuthorizedDevices(authedFetch),
-    enabled: phase === 'app' && !!session?.accessToken,
-  });
-  const passkeysQuery = useQuery({
-    queryKey: ['account-passkeys', session?.accessToken],
-    queryFn: () => listAccountPasskeys(authedFetch),
     enabled: phase === 'app' && !!session?.accessToken,
   });
 
@@ -757,9 +750,6 @@ export default function App() {
                 decUsername: await decryptField(cipher.login.username || '', itemEnc, itemMac),
                 decPassword: await decryptField(cipher.login.password || '', itemEnc, itemMac),
                 decTotp: await decryptField(cipher.login.totp || '', itemEnc, itemMac),
-                fido2Credentials: Array.isArray(cipher.login.fido2Credentials)
-                  ? cipher.login.fido2Credentials.map((credential) => ({ ...credential }))
-                  : null,
                 uris: await Promise.all(
                   (cipher.login.uris || []).map(async (u) => ({
                     ...u,
@@ -940,9 +930,11 @@ export default function App() {
 
     const connect = () => {
       if (disposed) return;
+      const accessToken = session.accessToken;
+      if (!accessToken) return;
       try {
         const hubUrl = new URL('/notifications/hub', window.location.origin);
-        hubUrl.searchParams.set('access_token', session.accessToken);
+        hubUrl.searchParams.set('access_token', accessToken);
         hubUrl.protocol = hubUrl.protocol === 'https:' ? 'wss:' : 'ws:';
         socket = new WebSocket(hubUrl.toString());
       } catch {
@@ -996,17 +988,7 @@ export default function App() {
           }
           if (updateType === SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS) {
             const payload = frame.arguments?.[0]?.Payload;
-            if (
-              payload
-              && typeof payload === 'object'
-              && (
-                payload.operation === 'backup-restore'
-                || payload.operation === 'backup-export'
-                || payload.operation === 'backup-remote-run'
-              )
-            ) {
-              dispatchBackupProgress(payload as BackupProgressDetail);
-            }
+            if (isBackupProgressDetail(payload)) dispatchBackupProgress(payload);
             continue;
           }
           if (updateType !== SIGNALR_UPDATE_TYPE_SYNC_VAULT) continue;
@@ -1205,10 +1187,6 @@ export default function App() {
     },
     onOpenDisableTotp: () => setDisableTotpOpen(true),
     onGetRecoveryCode: accountSecurityActions.getRecoveryCode,
-    passkeys: passkeysQuery.data || [],
-    onCreatePasskey: handleCreatePasskey,
-    onRenamePasskey: handleRenamePasskey,
-    onDeletePasskey: handleDeletePasskey,
     onRefreshAuthorizedDevices: accountSecurityActions.refreshAuthorizedDevices,
     onRevokeDeviceTrust: accountSecurityActions.openRevokeDeviceTrust,
     onRemoveDevice: accountSecurityActions.openRemoveDevice,
@@ -1270,7 +1248,8 @@ export default function App() {
         <AuthViews
           mode={phase}
           pendingAction={pendingAuthAction}
-          unlockReady={!!profile}
+          unlockReady={!!profile?.key && !!session}
+          unlockPreparing={unlockPreparing}
           loginValues={loginValues}
           registerValues={registerValues}
           unlockPassword={unlockPassword}
@@ -1280,7 +1259,6 @@ export default function App() {
           onChangeRegister={setRegisterValues}
           onChangeUnlock={setUnlockPassword}
           onSubmitLogin={() => void handleLogin()}
-          onSubmitPasskey={() => void handlePasskeyLogin()}
           onSubmitRegister={() => void handleRegister()}
           onSubmitUnlock={() => void handleUnlock()}
           onGotoLogin={() => {
@@ -1297,14 +1275,13 @@ export default function App() {
           onLogout={logoutNow}
           onTogglePasswordHint={() => void handleTogglePasswordHint()}
           onShowLockedPasswordHint={handleShowLockedPasswordHint}
-          passkeySupported={passkeySupported()}
         />
         <AppGlobalOverlays
           toasts={toasts}
           onCloseToast={removeToast}
           confirm={confirm}
           onCancelConfirm={() => setConfirm(null)}
-          pendingTotpOpen={!!pendingTotp || pendingPasskeyTotp}
+          pendingTotpOpen={!!pendingTotp}
           totpCode={totpCode}
           rememberDevice={rememberDevice}
           onTotpCodeChange={setTotpCode}
@@ -1312,13 +1289,11 @@ export default function App() {
           onConfirmTotp={() => void handleTotpVerify()}
           onCancelTotp={() => {
             setPendingTotp(null);
-            setPendingPasskeyTotp(false);
             setTotpCode('');
             setRememberDevice(true);
           }}
           onUseRecoveryCode={() => {
             setPendingTotp(null);
-            setPendingPasskeyTotp(false);
             setTotpCode('');
             setRememberDevice(true);
             navigate('/recover-2fa');

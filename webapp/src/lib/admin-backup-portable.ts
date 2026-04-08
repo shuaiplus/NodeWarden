@@ -1,4 +1,4 @@
-import { base64ToBytes, decryptBw } from './crypto';
+import { base64ToBytes, decryptBw, toBufferSource } from './crypto';
 import type { AdminBackupSettings, BackupSettingsPortablePayload } from './api/backup';
 import type { Profile, SessionState } from './types';
 
@@ -9,7 +9,7 @@ const AES_GCM_ALGORITHM = 'AES-GCM';
 async function importPortablePrivateKey(pkcs8: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     'pkcs8',
-    pkcs8,
+    toBufferSource(pkcs8),
     { name: PORTABLE_ALGORITHM, hash: PORTABLE_HASH },
     false,
     ['decrypt']
@@ -17,7 +17,7 @@ async function importPortablePrivateKey(pkcs8: Uint8Array): Promise<CryptoKey> {
 }
 
 async function importPortableAesKey(keyBytes: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', keyBytes, { name: AES_GCM_ALGORITHM }, false, ['decrypt']);
+  return crypto.subtle.importKey('raw', toBufferSource(keyBytes), { name: AES_GCM_ALGORITHM }, false, ['decrypt']);
 }
 
 export async function decryptPortableBackupSettings(
@@ -50,15 +50,15 @@ export async function decryptPortableBackupSettings(
     await crypto.subtle.decrypt(
       { name: PORTABLE_ALGORITHM },
       privateKey,
-      base64ToBytes(wrap.wrappedKey)
+      toBufferSource(base64ToBytes(wrap.wrappedKey))
     )
   );
   const aesKey = await importPortableAesKey(portableDek);
   const plaintext = new Uint8Array(
     await crypto.subtle.decrypt(
-      { name: AES_GCM_ALGORITHM, iv: base64ToBytes(portable.iv) },
+      { name: AES_GCM_ALGORITHM, iv: toBufferSource(base64ToBytes(portable.iv)) },
       aesKey,
-      base64ToBytes(portable.ciphertext)
+      toBufferSource(base64ToBytes(portable.ciphertext))
     )
   );
   return JSON.parse(new TextDecoder().decode(plaintext)) as AdminBackupSettings;

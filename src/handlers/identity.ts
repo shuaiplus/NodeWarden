@@ -18,6 +18,7 @@ import {
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TWO_FACTOR_PROVIDER_AUTHENTICATOR = 0;
 const TWO_FACTOR_PROVIDER_REMEMBER = 5;
+const WEB_REFRESH_COOKIE = 'nodewarden_web_refresh';
 // Android client (2026.2.x) deserializes TwoFactorProviders2 keys with -1 for recovery code.
 // Keep request parsing backward-compatible with historical provider values (8 / 100).
 const TWO_FACTOR_PROVIDER_RECOVERY_CODE_RESPONSE = '-1';
@@ -29,6 +30,54 @@ function resolveTotpSecret(userSecret: string | null): string | null {
     return userSecret;
   }
   return null;
+}
+
+function shouldUseWebSession(request: Request): boolean {
+  return String(request.headers.get('X-NodeWarden-Web-Session') || '').trim() === '1';
+}
+
+function parseCookieValue(request: Request, name: string): string | null {
+  const rawCookie = String(request.headers.get('Cookie') || '').trim();
+  if (!rawCookie) return null;
+  for (const part of rawCookie.split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key !== name) continue;
+    const value = rest.join('=').trim();
+    return value ? decodeURIComponent(value) : null;
+  }
+  return null;
+}
+
+function buildRefreshCookie(request: Request, refreshToken: string, maxAgeSeconds: number): string {
+  const isHttps = new URL(request.url).protocol === 'https:';
+  const parts = [
+    `${WEB_REFRESH_COOKIE}=${encodeURIComponent(refreshToken)}`,
+    'Path=/identity/connect',
+    'HttpOnly',
+    'SameSite=Strict',
+    `Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}`,
+  ];
+  if (isHttps) parts.push('Secure');
+  return parts.join('; ');
+}
+
+function buildClearedRefreshCookie(request: Request): string {
+  return buildRefreshCookie(request, '', 0);
+}
+
+function withWebRefreshCookie(request: Request, response: Response, refreshToken: string | null): Response {
+  const headers = new Headers(response.headers);
+  headers.append(
+    'Set-Cookie',
+    refreshToken
+      ? buildRefreshCookie(request, refreshToken, Math.floor(LIMITS.auth.refreshTokenTtlMs / 1000))
+      : buildClearedRefreshCookie(request)
+  );
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 function buildPreloginResponse(
@@ -283,7 +332,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       access_token: accessToken,
       expires_in: LIMITS.auth.accessTokenTtlSeconds,
       token_type: 'Bearer',
-      refresh_token: refreshToken,
+      ...(shouldUseWebSession(request) ? { web_session: true } : { refresh_token: refreshToken }),
       ...(trustedTwoFactorTokenToReturn ? { TwoFactorToken: trustedTwoFactorTokenToReturn } : {}),
       Key: user.key,
       PrivateKey: user.privateKey,
@@ -305,7 +354,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       userDecryptionOptions: buildUserDecryptionOptions(user),
     };
 
-    return jsonResponse(response);
+    const baseResponse = jsonResponse(response);
+    return shouldUseWebSession(request)
+      ? withWebRefreshCookie(request, baseResponse, refreshToken)
+      : baseResponse;
 
   } else if (grantType === 'send_access') {
     const sendAccessLimit = await rateLimit.consumeBudget(`${clientIdentifier}:public`, LIMITS.rateLimit.publicRequestsPerMinute);
@@ -371,14 +423,21 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     }
 
     // Refresh token
-    const refreshToken = body.refresh_token;
+    const refreshToken = String(body.refresh_token || '').trim() || (
+      shouldUseWebSession(request)
+        ? parseCookieValue(request, WEB_REFRESH_COOKIE)
+        : null
+    );
     if (!refreshToken) {
       return identityErrorResponse('Refresh token is required', 'invalid_request', 400);
     }
 
     const result = await auth.refreshAccessToken(refreshToken);
     if (!result) {
-      return identityErrorResponse('Invalid refresh token', 'invalid_grant', 400);
+      const invalidResponse = identityErrorResponse('Invalid refresh token', 'invalid_grant', 400);
+      return shouldUseWebSession(request)
+        ? withWebRefreshCookie(request, invalidResponse, null)
+        : invalidResponse;
     }
 
     // Keep a short overlap window for old refresh token to absorb
@@ -395,7 +454,7 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       access_token: accessToken,
       expires_in: LIMITS.auth.accessTokenTtlSeconds,
       token_type: 'Bearer',
-      refresh_token: newRefreshToken,
+      ...(shouldUseWebSession(request) ? { web_session: true } : { refresh_token: newRefreshToken }),
       Key: user.key,
       PrivateKey: user.privateKey,
       AccountKeys: buildAccountKeys(user),
@@ -416,7 +475,10 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       userDecryptionOptions: buildUserDecryptionOptions(user),
     };
 
-    return jsonResponse(response);
+    const baseResponse = jsonResponse(response);
+    return shouldUseWebSession(request)
+      ? withWebRefreshCookie(request, baseResponse, newRefreshToken)
+      : baseResponse;
   }
 
   return identityErrorResponse('Unsupported grant type', 'unsupported_grant_type', 400);
@@ -470,10 +532,17 @@ export async function handleRevocation(request: Request, env: Env): Promise<Resp
     return new Response(null, { status: 200 });
   }
 
-  const token = String(body.token || '').trim();
+  const token = String(body.token || '').trim() || (
+    shouldUseWebSession(request)
+      ? (parseCookieValue(request, WEB_REFRESH_COOKIE) || '')
+      : ''
+  );
   if (token) {
     await storage.deleteRefreshToken(token);
   }
 
-  return new Response(null, { status: 200 });
+  const baseResponse = new Response(null, { status: 200 });
+  return shouldUseWebSession(request)
+    ? withWebRefreshCookie(request, baseResponse, null)
+    : baseResponse;
 }

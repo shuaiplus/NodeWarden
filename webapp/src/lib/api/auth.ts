@@ -8,11 +8,12 @@ import type {
   TokenSuccess,
 } from '../types';
 import { parseJson, type AuthedFetch, type SessionSetter } from './shared';
-import { createPasskeyCredential, requestPasskeyAssertion } from '../passkey';
 
 const SESSION_KEY = 'nodewarden.web.session.v4';
+const PROFILE_SNAPSHOT_KEY = 'nodewarden.web.profile-snapshot.v1';
 const DEVICE_IDENTIFIER_KEY = 'nodewarden.web.device.identifier.v1';
 const TOTP_REMEMBER_TOKEN_KEY = 'nodewarden.web.totp.remember-token.v1';
+const WEB_SESSION_HEADER = 'X-NodeWarden-Web-Session';
 
 export interface PreloginResult {
   hash: string;
@@ -27,13 +28,23 @@ export interface PreloginKdfConfig {
   kdfParallelism: number | null;
 }
 
-export interface AccountPasskey {
-  id: string;
-  name: string;
-  creationDate: string;
-  revisionDate: string;
-  lastUsedDate: string | null;
+interface PersistedSessionState {
+  email: string;
+  authMode: 'token' | 'web-cookie';
 }
+
+interface RefreshFailure {
+  ok: false;
+  transient: boolean;
+  error: string;
+}
+
+interface RefreshSuccess {
+  ok: true;
+  token: TokenSuccess;
+}
+
+type RefreshResult = RefreshFailure | RefreshSuccess;
 
 function randomHex(length: number): string {
   const bytes = crypto.getRandomValues(new Uint8Array(Math.max(1, Math.ceil(length / 2))));
@@ -75,12 +86,19 @@ export function loadSession(): SessionState | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as SessionState;
-    if (!parsed.accessToken || !parsed.refreshToken) return null;
+    const parsed = JSON.parse(raw) as Partial<SessionState> & Partial<PersistedSessionState>;
+    if (parsed.authMode === 'web-cookie' && parsed.email) {
+      return {
+        email: parsed.email,
+        authMode: 'web-cookie',
+      };
+    }
+    if (!parsed.accessToken || !parsed.refreshToken || !parsed.email) return null;
     return {
       accessToken: parsed.accessToken,
       refreshToken: parsed.refreshToken,
       email: parsed.email,
+      authMode: 'token',
     };
   } catch {
     return null;
@@ -92,12 +110,33 @@ export function saveSession(session: SessionState | null): void {
     localStorage.removeItem(SESSION_KEY);
     return;
   }
-  const persisted: SessionState = {
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
+  const persisted: PersistedSessionState = {
     email: session.email,
+    authMode: session.authMode === 'token' ? 'token' : 'web-cookie',
   };
   localStorage.setItem(SESSION_KEY, JSON.stringify(persisted));
+}
+
+export function loadProfileSnapshot(email?: string | null): Profile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Profile;
+    if (!parsed?.email || !parsed?.key) return null;
+    if (email && parsed.email !== email) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveProfileSnapshot(profile: Profile | null): void {
+  if (!profile) return;
+  localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(profile));
+}
+
+export function clearProfileSnapshot(): void {
+  localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
 }
 
 export function getCurrentDeviceIdentifier(): string {
@@ -179,7 +218,10 @@ export async function loginWithPassword(
   }
   const resp = await fetch('/identity/connect/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      [WEB_SESSION_HEADER]: '1',
+    },
     body: body.toString(),
   });
   const json = (await parseJson<TokenSuccess & TokenError>(resp)) || {};
@@ -192,96 +234,60 @@ export async function loginWithPassword(
   return json;
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<TokenSuccess | null> {
+function isTransientRefreshStatus(status: number): boolean {
+  return status === 0 || status === 429 || status >= 500;
+}
+
+export async function refreshAccessToken(session: SessionState): Promise<RefreshResult> {
   const body = new URLSearchParams();
   body.set('grant_type', 'refresh_token');
-  body.set('refresh_token', refreshToken);
-  const resp = await fetch('/identity/connect/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-  if (!resp.ok) return null;
-  const json = await parseJson<TokenSuccess>(resp);
-  return json || null;
-}
-
-export async function listAccountPasskeys(authedFetch: AuthedFetch): Promise<AccountPasskey[]> {
-  const resp = await authedFetch('/api/accounts/passkeys');
-  if (!resp.ok) throw new Error('Failed to load passkeys');
-  const body = (await parseJson<{ data?: AccountPasskey[] }>(resp)) || {};
-  return Array.isArray(body.data) ? body.data : [];
-}
-
-export async function registerAccountPasskey(authedFetch: AuthedFetch, name: string, session: SessionState): Promise<void> {
-  const beginResp = await authedFetch('/api/accounts/passkeys/begin-registration', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  if (!beginResp.ok) throw new Error('Failed to start passkey registration');
-  const begin = (await parseJson<{ challengeId: string; publicKey: Record<string, any> }>(beginResp)) || {};
-  if (!begin.challengeId || !begin.publicKey) throw new Error('Invalid registration challenge');
-
-  const credential = await createPasskeyCredential(begin.publicKey);
-  const finishResp = await authedFetch('/api/accounts/passkeys/finish-registration', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      challengeId: begin.challengeId,
-      name,
-      wrappedVaultKeys: JSON.stringify({
-        symEncKey: session.symEncKey || '',
-        symMacKey: session.symMacKey || '',
-      }),
-      credential,
-    }),
-  });
-  if (!finishResp.ok) {
-    const err = await parseJson<TokenError>(finishResp);
-    throw new Error(err?.error_description || err?.error || 'Failed to finish passkey registration');
+  if (session.authMode !== 'web-cookie' && session.refreshToken) {
+    body.set('refresh_token', session.refreshToken);
+  }
+  try {
+    const resp = await fetch('/identity/connect/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(session.authMode === 'web-cookie' ? { [WEB_SESSION_HEADER]: '1' } : {}),
+      },
+      body: body.toString(),
+    });
+    if (!resp.ok) {
+      const json = await parseJson<TokenError>(resp);
+      return {
+        ok: false,
+        transient: isTransientRefreshStatus(resp.status),
+        error: json?.error_description || json?.error || 'Session refresh failed',
+      };
+    }
+    const json = await parseJson<TokenSuccess>(resp);
+    if (!json?.access_token) {
+      return { ok: false, transient: false, error: 'Session refresh failed' };
+    }
+    return { ok: true, token: json };
+  } catch (error) {
+    return {
+      ok: false,
+      transient: true,
+      error: error instanceof Error ? error.message : 'Network error',
+    };
   }
 }
 
-export async function renameAccountPasskey(authedFetch: AuthedFetch, passkeyId: string, name: string): Promise<void> {
-  const resp = await authedFetch(`/api/accounts/passkeys/${passkeyId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
-  if (!resp.ok) throw new Error('Failed to rename passkey');
-}
-
-export async function deleteAccountPasskey(authedFetch: AuthedFetch, passkeyId: string): Promise<void> {
-  const resp = await authedFetch(`/api/accounts/passkeys/${passkeyId}`, { method: 'DELETE' });
-  if (!resp.ok && resp.status !== 204) throw new Error('Failed to delete passkey');
-}
-
-export async function loginWithPasskey(email?: string, totpCode?: string): Promise<TokenSuccess | TokenError> {
-  const beginResp = await fetch('/identity/passkeys/begin-login', {
+export async function revokeCurrentSession(session: SessionState | null): Promise<void> {
+  const body = new URLSearchParams();
+  if (session?.authMode !== 'web-cookie' && session?.refreshToken) {
+    body.set('token', session.refreshToken);
+  }
+  await fetch('/identity/connect/revocation', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: String(email || '').trim().toLowerCase() || undefined }),
-  });
-  if (!beginResp.ok) return ((await parseJson<TokenError>(beginResp)) || {});
-  const begin = (await parseJson<{ challengeId: string; publicKey: Record<string, any> }>(beginResp)) || {};
-  if (!begin.challengeId || !begin.publicKey) return { error: 'Passkey challenge missing' };
-
-  const credential = await requestPasskeyAssertion(begin.publicKey);
-  const finishResp = await fetch('/identity/passkeys/finish-login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      challengeId: begin.challengeId,
-      credential,
-      deviceIdentifier: getOrCreateDeviceIdentifier(),
-      deviceName: guessDeviceName(),
-      deviceType: '14',
-      twoFactorToken: totpCode || undefined,
-    }),
-  });
-  const result = (await parseJson<TokenSuccess & TokenError>(finishResp)) || {};
-  return result;
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(session?.authMode === 'web-cookie' ? { [WEB_SESSION_HEADER]: '1' } : {}),
+    },
+    body: body.toString(),
+  }).catch(() => undefined);
 }
 
 export async function registerAccount(args: {
@@ -366,18 +372,22 @@ export function createAuthedFetch(getSession: () => SessionState | null, setSess
     headers.set('Authorization', `Bearer ${session.accessToken}`);
 
     let resp = await fetch(input, { ...init, headers });
-    if (resp.status !== 401 || !session.refreshToken) return resp;
+    if (resp.status !== 401 || (!session.refreshToken && session.authMode !== 'web-cookie')) return resp;
 
-    const refreshed = await refreshAccessToken(session.refreshToken);
-    if (!refreshed?.access_token) {
+    const refreshed = await refreshAccessToken(session);
+    if (!refreshed.ok) {
+      if (refreshed.transient) {
+        throw new Error(refreshed.error || 'Session refresh temporarily unavailable');
+      }
       setSession(null);
       throw new Error('Session expired');
     }
 
     const nextSession: SessionState = {
       ...session,
-      accessToken: refreshed.access_token,
-      refreshToken: refreshed.refresh_token || session.refreshToken,
+      accessToken: refreshed.token.access_token,
+      refreshToken: refreshed.token.refresh_token || session.refreshToken,
+      authMode: refreshed.token.web_session ? 'web-cookie' : (session.authMode || 'token'),
     };
     setSession(nextSession);
     saveSession(nextSession);

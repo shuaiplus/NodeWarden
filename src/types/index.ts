@@ -94,7 +94,6 @@ export interface CipherLogin {
   uris: CipherLoginUri[] | null;
   totp: string | null;
   autofillOnPageLoad: boolean | null;
-  fido2Credentials: any[] | null;
   uri: string | null;
   passwordRevisionDate: string | null;
 }
@@ -347,7 +346,8 @@ export interface TokenResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
-  refresh_token: string;
+  refresh_token?: string;
+  web_session?: boolean;
   TwoFactorToken?: string;
   Key: string;
   PrivateKey: string | null;
@@ -371,20 +371,6 @@ export interface TokenResponse {
     symEncKey: string;
     symMacKey: string;
   };
-}
-
-export interface PasskeyCredential {
-  id: string;
-  userId: string;
-  credentialId: string;
-  publicKey: string;
-  counter: number;
-  transports: string | null;
-  name: string;
-  wrappedVaultKeys: string;
-  createdAt: string;
-  updatedAt: string;
-  lastUsedAt: string | null;
 }
 
 export interface ProfileResponse {

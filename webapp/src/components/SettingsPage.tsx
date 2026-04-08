@@ -15,10 +15,6 @@ interface SettingsPageProps {
   onOpenDisableTotp: () => void;
   onGetRecoveryCode: (masterPassword: string) => Promise<string>;
   onNotify?: (type: 'success' | 'error', text: string) => void;
-  passkeys: Array<{ id: string; name: string; creationDate: string; lastUsedDate: string | null }>;
-  onCreatePasskey: (name: string) => Promise<void>;
-  onRenamePasskey: (id: string, name: string) => Promise<void>;
-  onDeletePasskey: (id: string) => Promise<void>;
 }
 
 function randomBase32Secret(length: number): string {
@@ -52,10 +48,6 @@ export default function SettingsPage(props: SettingsPageProps) {
   const [totpLocked, setTotpLocked] = useState(props.totpEnabled);
   const [recoveryMasterPassword, setRecoveryMasterPassword] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
-  const [passkeyName, setPasskeyName] = useState('');
-  const [renamePasskey, setRenamePasskey] = useState<{ id: string; name: string } | null>(null);
-  const [renamePasskeyName, setRenamePasskeyName] = useState('');
-  const [deletePasskey, setDeletePasskey] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!props.totpEnabled) {
@@ -100,21 +92,6 @@ export default function SettingsPage(props: SettingsPageProps) {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return value;
     return parsed.toLocaleString();
-  }
-
-  async function confirmRenamePasskey(): Promise<void> {
-    if (!renamePasskey) return;
-    const nextName = renamePasskeyName.trim();
-    if (!nextName) return;
-    await props.onRenamePasskey(renamePasskey.id, nextName);
-    setRenamePasskey(null);
-    setRenamePasskeyName('');
-  }
-
-  async function confirmDeletePasskey(): Promise<void> {
-    if (!deletePasskey) return;
-    await props.onDeletePasskey(deletePasskey.id);
-    setDeletePasskey(null);
   }
 
   return (
@@ -171,91 +148,6 @@ export default function SettingsPage(props: SettingsPageProps) {
           {t('txt_change_password')}
         </button>
       </section>
-
-      <section className="card">
-        <h3>Passkey</h3>
-        <div className="field-grid">
-          <label className="field">
-            <span>名称</span>
-            <input className="input" value={passkeyName} onInput={(e) => setPasskeyName((e.currentTarget as HTMLInputElement).value)} placeholder="例如：MacBook Touch ID" />
-          </label>
-          <div className="field" style={{ alignSelf: 'end' }}>
-            <button type="button" className="btn btn-primary" disabled={!passkeyName.trim()} onClick={() => void props.onCreatePasskey(passkeyName.trim()).then(() => setPasskeyName(''))}>
-              创建 Passkey
-            </button>
-          </div>
-        </div>
-        <p className="muted-inline" style={{ marginBottom: 8 }}>最多 5 个，支持重命名和删除。</p>
-        <div className="stack" style={{ gap: 6 }}>
-          {props.passkeys.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                border: '1px solid var(--line)',
-                borderRadius: 10,
-                padding: '10px 12px',
-                flexWrap: 'wrap',
-              }}
-            >
-              <strong>{item.name}</strong>
-              <span style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.72 }}>
-                创建于 {formatDateTime(item.creationDate)}
-              </span>
-              <button
-                type="button"
-                className="btn btn-secondary small"
-                onClick={() => {
-                  setRenamePasskey({ id: item.id, name: item.name });
-                  setRenamePasskeyName(item.name);
-                }}
-              >
-                {t('txt_edit')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger small"
-                onClick={() => setDeletePasskey({ id: item.id, name: item.name })}
-              >
-                删除
-              </button>
-            </div>
-          ))}
-          {!props.passkeys.length && <div className="empty">暂无 Passkey</div>}
-        </div>
-      </section>
-
-      <ConfirmDialog
-        open={!!renamePasskey}
-        title={t('txt_edit')}
-        message={t('txt_enter_a_folder_name')}
-        confirmText={t('txt_save')}
-        cancelText={t('txt_cancel')}
-        onConfirm={() => void confirmRenamePasskey()}
-        onCancel={() => {
-          setRenamePasskey(null);
-          setRenamePasskeyName('');
-        }}
-      >
-        <label className="field">
-          <span>{t('txt_name')}</span>
-          <input className="input" value={renamePasskeyName} onInput={(e) => setRenamePasskeyName((e.currentTarget as HTMLInputElement).value)} />
-        </label>
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        open={!!deletePasskey}
-        title={t('txt_delete')}
-        message={deletePasskey ? `确认删除 Passkey「${deletePasskey.name}」吗？` : ''}
-        variant="warning"
-        danger
-        confirmText={t('txt_delete')}
-        cancelText={t('txt_cancel')}
-        onConfirm={() => void confirmDeletePasskey()}
-        onCancel={() => setDeletePasskey(null)}
-      />
 
       <section className="card">
         <div className="settings-twofactor-grid">

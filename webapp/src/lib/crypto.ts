@@ -18,7 +18,7 @@ export function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
-function toBufferSource(bytes: Uint8Array): ArrayBuffer {
+export function toBufferSource(bytes: Uint8Array): ArrayBuffer {
   return new Uint8Array(bytes).buffer;
 }
 

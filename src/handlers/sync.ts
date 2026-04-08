@@ -99,12 +99,6 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const url = new URL(request.url);
   const excludeDomainsParam = url.searchParams.get('excludeDomains');
   const excludeDomains = excludeDomainsParam !== null && /^(1|true|yes)$/i.test(excludeDomainsParam);
-  const userAgent = String(request.headers.get('user-agent') || '').toLowerCase();
-  const omitFido2Credentials =
-    userAgent.includes('android') ||
-    userAgent.includes('iphone') ||
-    userAgent.includes('ipad') ||
-    userAgent.includes('ios');
   
   const user = await storage.getUserById(userId);
   if (!user) {
@@ -156,7 +150,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
   const cipherResponses: CipherResponse[] = [];
   for (const cipher of ciphers) {
     const attachments = attachmentsByCipher.get(cipher.id) || [];
-    cipherResponses.push(cipherToResponse(cipher, attachments, { omitFido2Credentials }));
+    cipherResponses.push(cipherToResponse(cipher, attachments));
   }
 
   // Build folder responses

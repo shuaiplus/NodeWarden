@@ -31,7 +31,6 @@ export interface BitwardenCipherInput {
     username?: string | null;
     password?: string | null;
     totp?: string | null;
-    fido2Credentials?: Array<Record<string, unknown>> | null;
   } | null;
   card?: Record<string, unknown> | null;
   identity?: Record<string, unknown> | null;
@@ -90,7 +89,6 @@ export function normalizeBitwardenImport(raw: unknown): CiphersImportPayload {
             username: item.login.username ?? null,
             password: item.login.password ?? null,
             totp: item.login.totp ?? null,
-            fido2Credentials: Array.isArray(item.login.fido2Credentials) ? item.login.fido2Credentials : null,
             uris: Array.isArray(item.login.uris)
               ? item.login.uris.map((u) => ({ uri: u?.uri ?? null, match: u?.match ?? null }))
               : null,

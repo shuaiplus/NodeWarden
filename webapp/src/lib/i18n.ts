@@ -671,8 +671,6 @@ const messages: Record<Locale, Record<string, string>> = {
     txt_total_items_count: "{count} items",
     txt_totp_secret: "TOTP Secret",
     txt_totp_verify_failed: "TOTP verify failed",
-    txt_passkey: "Passkey",
-    txt_passkey_created_at_value: "Created at {value}",
     txt_attachments: "Attachments",
     txt_upload_attachments: "Upload attachments",
     txt_new_attachments: "New attachments",
@@ -1431,8 +1429,6 @@ zhCNOverrides.txt_lock = '锁定';
 zhCNOverrides.txt_menu = '菜单';
 zhCNOverrides.txt_settings = '设置';
 zhCNOverrides.txt_back = '返回';
-zhCNOverrides.txt_passkey = 'Passkey';
-zhCNOverrides.txt_passkey_created_at_value = '创建于 {value}';
 zhCNOverrides.txt_attachments = '附件';
 zhCNOverrides.txt_upload_attachments = '上传附件';
 zhCNOverrides.txt_new_attachments = '待上传附件';

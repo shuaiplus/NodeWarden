@@ -40,6 +40,12 @@ export default function AdminPage(props: AdminPageProps) {
     return status || '-';
   };
 
+  const normalizeToggleableStatus = (status: string): 'active' | 'banned' | null => {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'active' || normalized === 'banned') return normalized;
+    return null;
+  };
+
   return (
     <div className="stack">
       <section className="card">
@@ -55,8 +61,10 @@ export default function AdminPage(props: AdminPageProps) {
             </tr>
           </thead>
           <tbody>
-            {props.users.map((user) => (
-              <tr key={user.id}>
+            {props.users.map((user) => {
+              const toggleableStatus = normalizeToggleableStatus(user.status);
+              return (
+                <tr key={user.id}>
                 <td data-label={t('txt_email')}>{user.email}</td>
                 <td data-label={t('txt_name')}>{user.name || t('txt_dash')}</td>
                 <td data-label={t('txt_role')}>{roleText(user.role)}</td>
@@ -66,8 +74,11 @@ export default function AdminPage(props: AdminPageProps) {
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      disabled={user.id === props.currentUserId}
-                      onClick={() => void props.onToggleUserStatus(user.id, user.status)}
+                      disabled={user.id === props.currentUserId || !toggleableStatus}
+                      onClick={() => {
+                        if (!toggleableStatus) return;
+                        void props.onToggleUserStatus(user.id, toggleableStatus);
+                      }}
                     >
                       {user.status === 'active' ? <UserX size={14} className="btn-icon" /> : <UserCheck size={14} className="btn-icon" />}
                       {user.status === 'active' ? t('txt_ban') : t('txt_unban')}
@@ -80,8 +91,9 @@ export default function AdminPage(props: AdminPageProps) {
                     )}
                   </div>
                 </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>
