@@ -28,6 +28,7 @@ permissions:
 # 全局环境变量：
 # =============================================
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Cloudflare API 令牌（必填）
   # 创建地址：https://dash.cloudflare.com/profile/api-tokens
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
