@@ -9,7 +9,6 @@ import {
 } from './handlers/sends';
 import { handleKnownDevice } from './handlers/devices';
 import { handleToken, handlePrelogin, handleRevocation } from './handlers/identity';
-import { handleBeginPasskeyLogin, handleFinishPasskeyLogin } from './handlers/passkeys';
 import {
   handleRegister,
   handleGetPasswordHint,
@@ -273,14 +272,6 @@ export async function handlePublicRoute(
 
   if (path === '/identity/connect/token' && method === 'POST') {
     return handleToken(request, env);
-  }
-
-  if (path === '/identity/passkeys/begin-login' && method === 'POST') {
-    return handleBeginPasskeyLogin(request, env);
-  }
-
-  if (path === '/identity/passkeys/finish-login' && method === 'POST') {
-    return handleFinishPasskeyLogin(request, env);
   }
 
   if (path === '/api/devices/knowndevice' && method === 'GET') {

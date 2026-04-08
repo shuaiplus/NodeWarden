@@ -71,6 +71,7 @@ export interface BackupFileIntegrityCheckResult {
 export interface BuildBackupArchiveOptions {
   includeAttachments?: boolean;
   progress?: BackupArchiveBuildProgressReporter;
+  timeZone?: string;
 }
 
 export interface BackupArchiveBuildProgressEvent {
@@ -93,17 +94,30 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function buildBackupFileName(date: Date = new Date(), checksumPrefix: string | null = null): string {
-  const parts = [
-    date.getUTCFullYear().toString().padStart(4, '0'),
-    (date.getUTCMonth() + 1).toString().padStart(2, '0'),
-    date.getUTCDate().toString().padStart(2, '0'),
-    date.getUTCHours().toString().padStart(2, '0'),
-    date.getUTCMinutes().toString().padStart(2, '0'),
-    date.getUTCSeconds().toString().padStart(2, '0'),
-  ];
+function getDateParts(date: Date, timeZone: string): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = formatter.formatToParts(date);
+  const pick = (type: string): string => parts.find((part) => part.type === type)?.value || '';
+  return `${pick('year')}${pick('month')}${pick('day')}_${pick('hour')}${pick('minute')}${pick('second')}`;
+}
+
+function buildBackupFileNameInTimeZone(
+  date: Date = new Date(),
+  checksumPrefix: string | null = null,
+  timeZone: string = 'UTC'
+): string {
+  const parts = getDateParts(date, timeZone);
   const suffix = checksumPrefix ? `_${checksumPrefix}` : '';
-  return `nodewarden_backup_${parts[0]}${parts[1]}${parts[2]}_${parts[3]}${parts[4]}${parts[5]}${suffix}.zip`;
+  return `nodewarden_backup_${parts}${suffix}.zip`;
 }
 
 export function extractBackupFileChecksumPrefix(fileName: string): string | null {
@@ -398,7 +412,8 @@ export async function buildBackupArchive(
   });
   const bytes = zipSync(createZipEntries(files));
   const fileHashPrefix = (await sha256Hex(bytes)).slice(0, BACKUP_FILE_HASH_PREFIX_LENGTH);
-  const fileName = buildBackupFileName(date, fileHashPrefix);
+  const backupTimeZone = options.timeZone || 'UTC';
+  const fileName = buildBackupFileNameInTimeZone(date, fileHashPrefix, backupTimeZone);
   await options.progress?.({
     step: 'archive_ready',
     fileName,

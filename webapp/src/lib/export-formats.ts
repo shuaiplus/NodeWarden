@@ -198,7 +198,6 @@ function mapCipherEncrypted(cipher: Cipher): Record<string, unknown> {
               match: (uri as { match?: unknown })?.match ?? null,
             }))
           : [],
-        fido2Credentials: Array.isArray(login.fido2Credentials) ? cloneValue(login.fido2Credentials) : [],
       }
     : null;
 
@@ -291,9 +290,6 @@ async function mapCipherPlain(cipher: Cipher, userEnc: Uint8Array, userMac: Uint
               match: (uri as { match?: unknown })?.match ?? null,
             }))
           )
-        : [],
-      fido2Credentials: Array.isArray(cipher.login.fido2Credentials)
-        ? await Promise.all(cipher.login.fido2Credentials.map((credential) => deepDecryptUnknown(credential, keyParts.enc, keyParts.mac)))
         : [],
     };
   } else {

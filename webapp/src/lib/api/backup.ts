@@ -16,6 +16,7 @@ import {
   type AuthedFetch,
 } from './shared';
 import { readResponseBytesWithProgress } from '../download';
+import { toBufferSource } from '../crypto';
 import { unzipSync, zipSync } from 'fflate';
 
 export type {
@@ -148,32 +149,21 @@ interface BackupExportManifest {
 
 const BACKUP_FILE_HASH_PREFIX_LENGTH = 5;
 
-function parseBackupTimestampFromFileName(fileName: string): Date | null {
+function extractBackupTimestampFromFileName(fileName: string): string | null {
   const match = String(fileName || '').match(/nodewarden_backup_(\d{8})_(\d{6})(?:_[0-9a-f]{5})?\.zip$/i);
   if (!match) return null;
-  const datePart = match[1];
-  const timePart = match[2];
-  const iso = `${datePart.slice(0, 4)}-${datePart.slice(4, 6)}-${datePart.slice(6, 8)}T${timePart.slice(0, 2)}:${timePart.slice(2, 4)}:${timePart.slice(4, 6)}.000Z`;
-  const parsed = new Date(iso);
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
+  return `${match[1]}_${match[2]}`;
 }
 
-function buildBackupFileName(date: Date, checksumPrefix: string): string {
-  const parts = [
-    date.getUTCFullYear().toString().padStart(4, '0'),
-    (date.getUTCMonth() + 1).toString().padStart(2, '0'),
-    date.getUTCDate().toString().padStart(2, '0'),
-    date.getUTCHours().toString().padStart(2, '0'),
-    date.getUTCMinutes().toString().padStart(2, '0'),
-    date.getUTCSeconds().toString().padStart(2, '0'),
-  ];
-  return `nodewarden_backup_${parts[0]}${parts[1]}${parts[2]}_${parts[3]}${parts[4]}${parts[5]}_${checksumPrefix}.zip`;
+function buildBackupFileName(timestamp: string, checksumPrefix: string): string {
+  return `nodewarden_backup_${timestamp}_${checksumPrefix}.zip`;
 }
 
 async function applyBackupFileIntegrityName(fileName: string, bytes: Uint8Array): Promise<string> {
   const integrity = await verifyBackupFileIntegrity(bytes, fileName);
-  const effectiveDate = parseBackupTimestampFromFileName(fileName) || new Date();
-  return buildBackupFileName(effectiveDate, integrity.actualPrefix);
+  const timestamp = extractBackupTimestampFromFileName(fileName);
+  if (!timestamp) return fileName;
+  return buildBackupFileName(timestamp, integrity.actualPrefix);
 }
 
 export async function exportAdminBackup(
@@ -378,7 +368,7 @@ export function extractBackupFileChecksumPrefix(fileName: string): string | null
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const digest = await crypto.subtle.digest('SHA-256', toBufferSource(bytes));
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 

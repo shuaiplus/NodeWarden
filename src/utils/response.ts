@@ -15,12 +15,42 @@ const DEFAULT_CORS_HEADERS = [
   'X-Request-Email',
   'X-Device-Identifier',
   'X-Device-Name',
+  'X-NodeWarden-Web-Session',
 ];
 
-function getAllowedOrigin(request: Request): string | null {
+function isExtensionOrigin(origin: string): boolean {
+  return (
+    origin.startsWith('chrome-extension://')
+    || origin.startsWith('moz-extension://')
+    || origin.startsWith('safari-web-extension://')
+  );
+}
+
+function isWildcardCorsPath(path: string): boolean {
+  return (
+    path.startsWith('/icons/')
+    || path === '/config'
+    || path === '/api/config'
+    || path === '/api/version'
+  );
+}
+
+function getCorsPolicy(request: Request): { allowOrigin: string | null; allowCredentials: boolean } {
+  const url = new URL(request.url);
   const origin = request.headers.get('Origin');
-  if (!origin) return '*';
-  return origin;
+  if (isWildcardCorsPath(url.pathname)) {
+    return { allowOrigin: '*', allowCredentials: false };
+  }
+  if (!origin) {
+    return { allowOrigin: null, allowCredentials: false };
+  }
+  if (origin === url.origin) {
+    return { allowOrigin: origin, allowCredentials: true };
+  }
+  if (isExtensionOrigin(origin)) {
+    return { allowOrigin: origin, allowCredentials: false };
+  }
+  return { allowOrigin: null, allowCredentials: false };
 }
 
 function buildCorsHeaders(request: Request): Record<string, string> {
@@ -35,13 +65,14 @@ function buildCorsHeaders(request: Request): Record<string, string> {
     'Access-Control-Allow-Headers': allowHeaders.join(', '),
     'Access-Control-Expose-Headers': '*',
     'Access-Control-Max-Age': String(LIMITS.cors.preflightMaxAgeSeconds),
-    'Access-Control-Allow-Private-Network': 'true',
   };
 
-  const allowedOrigin = getAllowedOrigin(request);
-  if (allowedOrigin) {
-    headers['Access-Control-Allow-Origin'] = allowedOrigin;
-    headers['Access-Control-Allow-Credentials'] = 'true';
+  const corsPolicy = getCorsPolicy(request);
+  if (corsPolicy.allowOrigin) {
+    headers['Access-Control-Allow-Origin'] = corsPolicy.allowOrigin;
+    if (corsPolicy.allowCredentials) {
+      headers['Access-Control-Allow-Credentials'] = 'true';
+    }
     headers['Vary'] = 'Origin, Access-Control-Request-Headers';
   }
 

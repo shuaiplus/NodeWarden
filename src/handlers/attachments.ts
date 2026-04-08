@@ -10,7 +10,7 @@ import {
   verifyAttachmentUploadToken,
   verifyFileDownloadToken,
 } from '../utils/jwt';
-import { cipherToResponse, shouldOmitPasskeysForResponse } from './ciphers';
+import { cipherToResponse } from './ciphers';
 import { LIMITS } from '../config/limits';
 import { readActingDeviceIdentifier } from '../utils/device';
 import {
@@ -158,9 +158,7 @@ export async function handleCreateAttachment(
     attachmentId: attachmentId,
     url: buildDirectUploadUrl(request, `/api/ciphers/${cipherId}/attachment/${attachmentId}`, uploadToken),
     fileUploadType: 1,
-    cipherResponse: cipherToResponse(updatedCipher!, attachments, {
-      omitFido2Credentials: shouldOmitPasskeysForResponse(request),
-    }),
+    cipherResponse: cipherToResponse(updatedCipher!, attachments),
   });
 }
 
@@ -372,9 +370,7 @@ export async function handleDeleteAttachment(
   const attachments = await storage.getAttachmentsByCipher(cipherId);
 
   return jsonResponse({
-    cipher: cipherToResponse(updatedCipher!, attachments, {
-      omitFido2Credentials: shouldOmitPasskeysForResponse(request),
-    }),
+    cipher: cipherToResponse(updatedCipher!, attachments),
   });
 }
 

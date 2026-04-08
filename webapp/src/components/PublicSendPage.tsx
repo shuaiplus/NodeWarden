@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Download, Eye, Lock } from 'lucide-preact';
 import { accessPublicSend, accessPublicSendFile, decryptPublicSend, decryptPublicSendFileBytes } from '@/lib/api/send';
+import { toBufferSource } from '@/lib/crypto';
 import { downloadBytesAsFile, readResponseBytesWithProgress } from '@/lib/download';
 import StandalonePageFrame from '@/components/StandalonePageFrame';
 import { t } from '@/lib/i18n';
@@ -61,13 +62,13 @@ export default function PublicSendPage(props: PublicSendPageProps) {
       if (props.keyPart) {
         try {
           const decryptedBytes = await decryptPublicSendFileBytes(encryptedBytes, props.keyPart);
-          blob = new Blob([decryptedBytes as unknown as BlobPart], { type: 'application/octet-stream' });
+          blob = new Blob([toBufferSource(decryptedBytes)], { type: 'application/octet-stream' });
         } catch {
           // Legacy compatibility: early web-created file sends uploaded plaintext bytes.
-          blob = new Blob([encryptedBytes], { type: 'application/octet-stream' });
+          blob = new Blob([toBufferSource(encryptedBytes)], { type: 'application/octet-stream' });
         }
       } else {
-        blob = new Blob([encryptedBytes], { type: 'application/octet-stream' });
+        blob = new Blob([toBufferSource(encryptedBytes)], { type: 'application/octet-stream' });
       }
       downloadBytesAsFile(
         new Uint8Array(await blob.arrayBuffer()),

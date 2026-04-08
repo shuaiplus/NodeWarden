@@ -20,7 +20,6 @@ interface VaultDetailViewProps {
   repromptApprovedCipherId: string | null;
   showPassword: boolean;
   totpLive: { code: string; remain: number } | null;
-  passkeyCreatedAt: string | null;
   hiddenFieldVisibleMap: Record<number, boolean>;
   folderName: (id: string | null | undefined) => string;
   downloadingAttachmentKey: string;
@@ -134,15 +133,6 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
                       <Clipboard size={14} className="btn-icon" /> {t('txt_copy')}
                     </button>
                   </div>
-                </div>
-              )}
-              {!!props.passkeyCreatedAt && (
-                <div className="kv-row">
-                  <span className="kv-label">{t('txt_passkey')}</span>
-                  <div className="kv-main">
-                    <strong>{t('txt_passkey_created_at_value', { value: formatHistoryTime(props.passkeyCreatedAt) })}</strong>
-                  </div>
-                  <div className="kv-actions" />
                 </div>
               )}
             </div>

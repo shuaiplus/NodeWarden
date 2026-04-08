@@ -1,4 +1,4 @@
-import type { RefObject } from 'preact';
+import type { JSX, RefObject } from 'preact';
 import { CheckCheck, Download, GripVertical, Paperclip, Plus, RefreshCw, Star, StarOff, Trash2, Upload, X } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import {
@@ -71,6 +71,7 @@ function SortableWebsiteRow(props: SortableWebsiteRowProps) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.id,
   });
+  const dragButtonAttributes = attributes as JSX.HTMLAttributes<HTMLButtonElement>;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -89,7 +90,7 @@ function SortableWebsiteRow(props: SortableWebsiteRowProps) {
         className="btn btn-secondary small website-drag-btn"
         title={t('txt_drag_to_reorder')}
         aria-label={t('txt_drag_to_reorder')}
-        {...attributes}
+        {...dragButtonAttributes}
         {...listeners}
       >
         <GripVertical size={14} className="btn-icon" />

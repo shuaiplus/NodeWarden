@@ -625,7 +625,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
       setSettings(result.settings);
       setSelectedDestinationId(selectedDestination.id);
       await loadRemoteBrowser(selectedDestination.id, currentRemoteBrowserPath, { force: true });
-      props.onNotify('success', t('txt_backup_remote_run_success_verified', { name: result.fileName }));
+      props.onNotify('success', t('txt_backup_remote_run_success_verified', { name: result.result.fileName }));
     } catch (error) {
       const message = error instanceof Error ? error.message : t('txt_backup_remote_run_failed');
       setLocalError(message);

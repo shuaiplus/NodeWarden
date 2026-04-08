@@ -134,6 +134,7 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
     ...COMMON_TIME_ZONES,
     ...props.availableTimeZones,
   ]));
+  const selectedIntervalHours = props.selectedDestination?.schedule.intervalHours ?? 24;
 
   if (props.selectedRecommendedProvider) {
     return (
@@ -216,7 +217,7 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={String(props.selectedDestination.schedule.intervalHours || 24)}
+                    value={String(selectedIntervalHours)}
                     disabled={props.loadingSettings || props.disableWhileBusy}
                     onInput={(event) => {
                       const raw = (event.currentTarget as HTMLInputElement).value.replace(/[^\d]/g, '');
@@ -234,7 +235,7 @@ export function BackupDestinationDetail(props: BackupDestinationDetailProps) {
                 </div>
                 <div className="backup-interval-presets" aria-label={t('txt_backup_interval_hours_presets')}>
                   {INTERVAL_HOUR_PRESETS.map((preset) => {
-                    const active = preset === props.selectedDestination.schedule.intervalHours;
+                    const active = preset === selectedIntervalHours;
                     return (
                       <button
                         key={preset}

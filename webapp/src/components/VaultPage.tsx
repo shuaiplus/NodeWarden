@@ -16,7 +16,6 @@ import {
   draftFromCipher,
   buildCipherDuplicateSignature,
   firstCipherUri,
-  firstPasskeyCreationTime,
   isCipherVisibleInArchive,
   isCipherVisibleInNormalVault,
   isCipherVisibleInTrash,
@@ -352,7 +351,6 @@ export default function VaultPage(props: VaultPageProps) {
     () => filteredCiphers.slice(virtualRange.start, virtualRange.end),
     [filteredCiphers, virtualRange.start, virtualRange.end]
   );
-  const passkeyCreatedAt = firstPasskeyCreationTime(selectedCipher);
   const selectedAttachments = useMemo(
     () => (Array.isArray(selectedCipher?.attachments) ? selectedCipher.attachments : []),
     [selectedCipher]
@@ -973,7 +971,6 @@ function folderName(id: string | null | undefined): string {
                 repromptApprovedCipherId={repromptApprovedCipherId}
                 showPassword={showPassword}
                 totpLive={totpLive}
-                passkeyCreatedAt={passkeyCreatedAt}
                 hiddenFieldVisibleMap={hiddenFieldVisibleMap}
                 folderName={folderName}
                 onOpenReprompt={() => setRepromptOpen(true)}
