@@ -16,6 +16,7 @@ import {
   draftFromCipher,
   buildCipherDuplicateSignature,
   firstCipherUri,
+  firstPasskeyCreationTime,
   isCipherVisibleInArchive,
   isCipherVisibleInNormalVault,
   isCipherVisibleInTrash,
@@ -103,6 +104,7 @@ export default function VaultPage(props: VaultPageProps) {
   const [repromptOpen, setRepromptOpen] = useState(false);
   const [repromptPassword, setRepromptPassword] = useState('');
   const [repromptApprovedCipherId, setRepromptApprovedCipherId] = useState<string | null>(null);
+  const [pendingDeletePasskeyIndex, setPendingDeletePasskeyIndex] = useState<number | null>(null);
   const [isMobileLayout, setIsMobileLayout] = useState(getInitialIsMobileLayout);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail' | 'edit'>('list');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -444,11 +446,24 @@ function folderName(id: string | null | undefined): string {
     setLocalError('');
     setAttachmentQueue([]);
     setRemovedAttachmentIds({});
+    setPendingDeletePasskeyIndex(null);
     if (isMobileLayout) setMobilePanel(returnToDetail ? 'detail' : 'list');
   }
 
   function updateDraft(patch: Partial<VaultDraft>): void {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
+  function confirmDeleteLoginPasskey(): void {
+    if (pendingDeletePasskeyIndex == null) return;
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        loginFido2Credentials: prev.loginFido2Credentials.filter((_, index) => index !== pendingDeletePasskeyIndex),
+      };
+    });
+    setPendingDeletePasskeyIndex(null);
   }
 
   async function seedSshDefaults(force = false): Promise<void> {
@@ -946,6 +961,7 @@ function folderName(id: string | null | undefined): string {
                 onUpdateDraftLoginUri={updateDraftLoginUri}
                 onUpdateDraftLoginUriMatch={updateDraftLoginUriMatch}
                 onReorderDraftLoginUri={reorderDraftLoginUri}
+                onRequestDeleteLoginPasskey={setPendingDeletePasskeyIndex}
                 onQueueAttachmentFiles={queueAttachmentFiles}
                 onToggleExistingAttachmentRemoval={toggleExistingAttachmentRemoval}
                 onRemoveQueuedAttachment={removeQueuedAttachment}
@@ -971,6 +987,7 @@ function folderName(id: string | null | undefined): string {
                 repromptApprovedCipherId={repromptApprovedCipherId}
                 showPassword={showPassword}
                 totpLive={totpLive}
+                passkeyCreatedAt={firstPasskeyCreationTime(selectedCipher)}
                 hiddenFieldVisibleMap={hiddenFieldVisibleMap}
                 folderName={folderName}
                 onOpenReprompt={() => setRepromptOpen(true)}
@@ -1013,6 +1030,7 @@ function folderName(id: string | null | undefined): string {
         deleteAllFoldersOpen={deleteAllFoldersOpen}
         repromptOpen={repromptOpen}
         repromptPassword={repromptPassword}
+        deletePasskeyOpen={pendingDeletePasskeyIndex != null}
         onConfirmAddField={() => {
           if (!draft) return;
           if (!fieldLabel.trim()) {
@@ -1075,6 +1093,8 @@ function folderName(id: string | null | undefined): string {
           setRepromptPassword('');
         }}
         onRepromptPasswordChange={setRepromptPassword}
+        onConfirmDeletePasskey={confirmDeleteLoginPasskey}
+        onCancelDeletePasskey={() => setPendingDeletePasskeyIndex(null)}
       />
     </>
   );

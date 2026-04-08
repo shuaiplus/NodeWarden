@@ -96,6 +96,7 @@ export interface CipherLogin {
   uris: CipherLoginUri[] | null;
   totp: string | null;
   autofillOnPageLoad: boolean | null;
+  fido2Credentials: any[] | null;
   uri: string | null;
   passwordRevisionDate: string | null;
 }

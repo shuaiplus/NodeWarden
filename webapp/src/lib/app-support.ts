@@ -99,6 +99,7 @@ export function buildEmptyImportDraft(type: number): VaultDraft {
     loginPassword: '',
     loginTotp: '',
     loginUris: [{ uri: '', match: null }],
+    loginFido2Credentials: [],
     cardholderName: '',
     cardNumber: '',
     cardBrand: '',
@@ -173,6 +174,9 @@ export function importCipherToDraft(cipher: Record<string, unknown>, folderId: s
       })
       .filter((u) => !!u.uri);
     draft.loginUris = uris.length ? uris : [{ uri: '', match: null }];
+    draft.loginFido2Credentials = Array.isArray(login.fido2Credentials)
+      ? login.fido2Credentials.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      : [];
   } else if (type === 3) {
     const card = (cipher.card || {}) as Record<string, unknown>;
     draft.cardholderName = asText(card.cardholderName);
