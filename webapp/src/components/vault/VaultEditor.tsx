@@ -20,7 +20,15 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { Cipher, Folder, VaultDraft, VaultDraftField } from '@/lib/types';
 import { t } from '@/lib/i18n';
-import { CREATE_TYPE_OPTIONS, cipherTypeLabel, createEmptyLoginUri, formatAttachmentSize, toBooleanFieldValue, WEBSITE_MATCH_OPTIONS } from '@/components/vault/vault-page-helpers';
+import {
+  CREATE_TYPE_OPTIONS,
+  cipherTypeLabel,
+  createEmptyLoginUri,
+  formatAttachmentSize,
+  formatHistoryTime,
+  toBooleanFieldValue,
+  WEBSITE_MATCH_OPTIONS,
+} from '@/components/vault/vault-page-helpers';
 
 interface VaultEditorProps {
   draft: VaultDraft;
@@ -44,6 +52,7 @@ interface VaultEditorProps {
   onUpdateDraftLoginUri: (index: number, value: string) => void;
   onUpdateDraftLoginUriMatch: (index: number, value: number | null) => void;
   onReorderDraftLoginUri: (fromIndex: number, toIndex: number) => void;
+  onRequestDeleteLoginPasskey: (index: number) => void;
   onQueueAttachmentFiles: (list: FileList | null) => void;
   onToggleExistingAttachmentRemoval: (attachmentId: string) => void;
   onRemoveQueuedAttachment: (index: number) => void;
@@ -288,6 +297,42 @@ export default function VaultEditor(props: VaultEditorProps) {
               ))}
             </SortableContext>
           </DndContext>
+          {props.draft.loginFido2Credentials.length > 0 && (
+            <>
+              <div className="section-head" style={{ marginTop: '18px' }}>
+                <h4>{t('txt_passkeys')}</h4>
+              </div>
+              <div className="attachment-list">
+                {props.draft.loginFido2Credentials.map((credential, index) => {
+                  const createdAt = String(credential?.creationDate || '').trim();
+                  const label = createdAt
+                    ? t('txt_passkey_created_at_value', { value: formatHistoryTime(createdAt) })
+                    : t('txt_passkey');
+                  return (
+                    <div key={`login-passkey-${index}`} className="attachment-row">
+                      <div className="attachment-main">
+                        <div className="attachment-text">
+                          <strong>{t('txt_passkey')}</strong>
+                          <span>{label}</span>
+                        </div>
+                      </div>
+                      <div className="kv-actions">
+                        <button
+                          type="button"
+                          className="btn btn-secondary small"
+                          disabled={props.busy}
+                          onClick={() => props.onRequestDeleteLoginPasskey(index)}
+                        >
+                          <X size={14} className="btn-icon" />
+                          {t('txt_remove')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 

@@ -63,11 +63,10 @@ function normalizeCipherForStorage(cipher: Cipher): Cipher {
 
 export function normalizeCipherLoginForStorage(login: any): any {
   if (!login || typeof login !== 'object') return login ?? null;
-
-  const rest = { ...login };
-  const passkeyField = ['f', 'i', 'd', 'o', '2', 'C', 'r', 'e', 'd', 'e', 'n', 't', 'i', 'a', 'l', 's'].join('');
-  delete (rest as Record<string, unknown>)[passkeyField];
-  return rest;
+  return {
+    ...login,
+    fido2Credentials: Array.isArray(login.fido2Credentials) ? login.fido2Credentials : null,
+  };
 }
 
 export function normalizeCipherLoginForCompatibility(login: any): any {

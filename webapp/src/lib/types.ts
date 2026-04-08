@@ -49,11 +49,17 @@ export interface CipherAttachment {
   object?: string;
 }
 
+export interface CipherLoginPasskey {
+  creationDate?: string | null;
+  [key: string]: unknown;
+}
+
 export interface CipherLogin {
   username?: string | null;
   password?: string | null;
   totp?: string | null;
   uris?: CipherLoginUri[] | null;
+  fido2Credentials?: CipherLoginPasskey[] | null;
   decUsername?: string;
   decPassword?: string;
   decTotp?: string;
@@ -223,6 +229,7 @@ export interface VaultDraft {
   loginPassword: string;
   loginTotp: string;
   loginUris: VaultDraftLoginUri[];
+  loginFido2Credentials: Array<Record<string, unknown>>;
   cardholderName: string;
   cardNumber: string;
   cardBrand: string;
