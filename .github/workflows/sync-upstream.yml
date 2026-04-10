@@ -1,0 +1,26 @@
+name: Sync Upstream
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天自动同步一次
+  workflow_dispatch: # 支持手动触发
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Sync Upstream
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const upstream = '原作者仓库地址'; // 替换为你要同步的上游仓库
+            const upstreamBranch = 'main';
+            const targetBranch = 'main';
+            await github.rest.repos.mergeUpstream({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: targetBranch,
+              upstream_branch: `${upstream}:${upstreamBranch}`
+            });
