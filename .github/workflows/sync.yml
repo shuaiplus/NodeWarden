@@ -1,0 +1,115 @@
+name: Sync Upstream Repository
+
+on:
+  schedule:
+    # 每天 UTC 时间 2:00 AM (北京时间早上10:00)
+    - cron: '0 2 * * *'
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Configure upstream remote
+        run: |
+          # 设置上游仓库URL - 请将下方URL替换为实际的上游仓库地址
+          UPSTREAM_REPO_URL="${{ secrets.UPSTREAM_REPO_URL || vars.UPSTREAM_REPO_URL || 'https://github.com/shuaiplus/nodewarden' }}"
+          
+          # 验证URL是否有效
+          if [ "$UPSTREAM_REPO_URL" = "https://github.com/UPSTREAM_OWNER/UPSTREAM_REPO.git" ]; then
+            echo "Error: Please set the correct upstream repository URL in repository secrets or variables."
+            echo "Go to Settings > Secrets and variables > Actions and add UPSTREAM_REPO_URL"
+            exit 1
+          fi
+          
+          # 添加上游远程仓库
+          git remote add upstream "$UPSTREAM_REPO_URL" 2>/dev/null || git remote set-url upstream "$UPSTREAM_REPO_URL"
+          git fetch upstream --all
+
+      - name: Save local customizations
+        run: |
+          # 记录当前工作区的修改，以便后续恢复
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "Detected local changes, saving them temporarily..."
+            
+            # 创建一个patch文件保存本地更改
+            git diff HEAD > /tmp/local-changes.patch
+            
+            # 检查patch是否为空
+            if [ -s /tmp/local-changes.patch ]; then
+              echo "Local changes saved to patch file"
+            else
+              echo "No actual changes to save"
+              rm /tmp/local-changes.patch
+            fi
+          else
+            echo "No local changes to preserve"
+          fi
+
+      - name: Update to upstream state
+        run: |
+          # 获取当前分支名
+          BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+          
+          # 获取上游分支的最新状态
+          git fetch upstream
+          
+          # 重置到上游最新状态，保留工作区更改
+          git reset --hard upstream/$BRANCH_NAME
+          
+          echo "Successfully reset to upstream state"
+
+      - name: Apply local customizations
+        run: |
+          # 如果存在本地更改的patch，则应用它
+          if [ -f "/tmp/local-changes.patch" ]; then
+            echo "Applying local customizations..."
+            
+            # 应用保存的本地更改
+            git apply --ignore-space-change --ignore-whitespace /tmp/local-changes.patch
+            
+            # 检查是否有冲突
+            if ! git diff --quiet; then
+              echo "Applied local changes, checking for modifications..."
+            fi
+            
+            # 清理patch文件
+            rm /tmp/local-changes.patch
+          fi
+
+      - name: Push updates if any
+        run: |
+          # 检查是否有任何更改
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "Changes detected, committing and pushing..."
+            
+            # 添加所有更改
+            git add .
+            
+            # 提交更改 - 使用 --amend 如果只想更新最后一次提交
+            git commit -m "Sync with upstream - preserving local customizations" --no-verify
+            
+            # 推送到远程仓库
+            git push --force-with-lease origin HEAD:$GITHUB_REF_NAME
+          else
+            echo "No changes after sync, nothing to push"
+          fi
+
+      - name: Report sync status
+        run: |
+          echo "Sync operation completed!"
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Current status:"
+          git status
