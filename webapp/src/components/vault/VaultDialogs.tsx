@@ -25,6 +25,7 @@ interface VaultDialogsProps {
   deleteAllFoldersOpen: boolean;
   repromptOpen: boolean;
   repromptPassword: string;
+  deletePasskeyOpen: boolean;
   onConfirmAddField: () => void;
   onCancelFieldModal: () => void;
   onFieldTypeChange: (value: CustomFieldType) => void;
@@ -54,6 +55,8 @@ interface VaultDialogsProps {
   onConfirmReprompt: () => void;
   onCancelReprompt: () => void;
   onRepromptPasswordChange: (value: string) => void;
+  onConfirmDeletePasskey: () => void;
+  onCancelDeletePasskey: () => void;
 }
 
 export default function VaultDialogs(props: VaultDialogsProps) {
@@ -181,6 +184,17 @@ export default function VaultDialogs(props: VaultDialogsProps) {
           <input className="input" type="password" value={props.repromptPassword} onInput={(e) => props.onRepromptPasswordChange((e.currentTarget as HTMLInputElement).value)} />
         </label>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={props.deletePasskeyOpen}
+        title={t('txt_delete_passkey')}
+        message={t('txt_are_you_sure_you_want_to_delete_this_passkey')}
+        confirmText={t('txt_delete')}
+        cancelText={t('txt_cancel')}
+        danger
+        onConfirm={props.onConfirmDeletePasskey}
+        onCancel={props.onCancelDeletePasskey}
+      />
     </>
   );
 }
