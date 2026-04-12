@@ -1,0 +1,62 @@
+name: "Feature Request"
+description: "Suggest an improvement / 功能建议"
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals with clear use-case and expected value are easier to evaluate.
+        说明清晰的使用场景和价值，有助于快速评估。
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-check / 提交前确认
+      options:
+        - label: I have searched existing issues and this request is not duplicated. / 我已搜索现有 issue，确认不是重复建议。
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement / 现存问题
+      description: "What is difficult or missing today?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution / 建议方案
+      description: "Describe your expected behavior, UI flow, API changes, etc."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered / 备选方案
+      description: "Any alternatives or workarounds you've considered."
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected Impact / 预期价值
+      description: "Who benefits? Any performance/security/maintenance concerns?"
+    validations:
+      required: true
+
+  - type: input
+    id: scope
+    attributes:
+      label: Scope (Optional) / 影响范围（可选）
+      placeholder: "frontend / backend / docs / deployment"
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional Context / 补充信息
+      description: "Mockups, references, related links, etc."
