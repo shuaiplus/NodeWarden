@@ -165,7 +165,7 @@ export function websiteIconUrl(host: string): string {
 }
 
 export function createEmptyLoginUri(): VaultDraftLoginUri {
-  return { uri: '', match: null };
+  return { uri: '', match: null, originalUri: '', extra: {} };
 }
 
 export function websiteMatchLabel(value: number | null | undefined): string {
@@ -313,6 +313,10 @@ export function draftFromCipher(cipher: Cipher): VaultDraft {
     draft.loginUris = (cipher.login.uris || []).map((x) => ({
       uri: x.decUri || x.uri || '',
       match: x.match ?? null,
+      originalUri: x.decUri || x.uri || '',
+      extra: Object.fromEntries(
+        Object.entries(x as Record<string, unknown>).filter(([key]) => !['uri', 'match', 'decUri'].includes(key))
+      ),
     }));
     draft.loginFido2Credentials = Array.isArray(cipher.login.fido2Credentials)
       ? cipher.login.fido2Credentials.map((credential) => ({ ...credential }))

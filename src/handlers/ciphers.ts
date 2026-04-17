@@ -13,6 +13,26 @@ function normalizeOptionalId(value: unknown): string | null {
   return normalized ? normalized : null;
 }
 
+function mergeCipherNestedObject<T>(
+  existingValue: T | null | undefined,
+  incomingValue: unknown
+): T | null {
+  if (incomingValue === undefined) {
+    return (existingValue ?? null) as T | null;
+  }
+  if (incomingValue === null || typeof incomingValue !== 'object' || Array.isArray(incomingValue)) {
+    return incomingValue as T | null;
+  }
+  const existingObject =
+    existingValue && typeof existingValue === 'object' && !Array.isArray(existingValue)
+      ? (existingValue as Record<string, unknown>)
+      : {};
+  return {
+    ...existingObject,
+    ...(incomingValue as Record<string, unknown>),
+  } as T;
+}
+
 async function notifyVaultSyncForRequest(
   request: Request,
   env: Env,
@@ -178,10 +198,12 @@ export async function handleGetCiphers(request: Request, env: Env, userId: strin
       : ciphers.filter(c => !c.deletedAt);
   }
 
-  const attachmentsByCipher = await storage.getAttachmentsByUserId(userId);
+  const attachmentsByCipher = await storage.getAttachmentsByCipherIds(
+    filteredCiphers.map((cipher) => cipher.id)
+  );
 
-  // Get attachments for all ciphers
-  const cipherResponses = [];
+  // Build responses only for the current page to keep pagination cheap.
+  const cipherResponses: CipherResponse[] = [];
   for (const cipher of filteredCiphers) {
     const attachments = attachmentsByCipher.get(cipher.id) || [];
     cipherResponses.push(cipherToResponse(cipher, attachments));
@@ -302,6 +324,11 @@ export async function handleUpdateCipher(request: Request, env: Env, userId: str
     archivedAt: readCipherArchivedAt(cipherData, existingCipher.archivedAt ?? null),
     deletedAt: existingCipher.deletedAt,
   };
+  cipher.login = mergeCipherNestedObject(existingCipher.login, cipherData.login);
+  cipher.card = mergeCipherNestedObject(existingCipher.card, cipherData.card);
+  cipher.identity = mergeCipherNestedObject(existingCipher.identity, cipherData.identity);
+  cipher.secureNote = mergeCipherNestedObject(existingCipher.secureNote, cipherData.secureNote);
+  cipher.sshKey = mergeCipherNestedObject(existingCipher.sshKey, cipherData.sshKey);
 
   // Custom fields deletion compatibility:
   // - Accept both camelCase "fields" and PascalCase "Fields".

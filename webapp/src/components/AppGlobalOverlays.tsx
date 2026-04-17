@@ -27,11 +27,13 @@ interface AppGlobalOverlaysProps {
   onConfirmTotp: () => void;
   onCancelTotp: () => void;
   onUseRecoveryCode: () => void;
+  totpSubmitting: boolean;
   disableTotpOpen: boolean;
   disableTotpPassword: string;
   onDisableTotpPasswordChange: (value: string) => void;
   onConfirmDisableTotp: () => void;
   onCancelDisableTotp: () => void;
+  disableTotpSubmitting: boolean;
 }
 
 export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
@@ -57,12 +59,14 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
         confirmText={t('txt_verify')}
         cancelText={t('txt_cancel')}
         showIcon={false}
+        confirmDisabled={props.totpSubmitting}
+        cancelDisabled={props.totpSubmitting}
         onConfirm={props.onConfirmTotp}
         onCancel={props.onCancelTotp}
         afterActions={(
           <div className="dialog-extra">
             <div className="dialog-divider" />
-            <button type="button" className="btn btn-secondary dialog-btn" onClick={props.onUseRecoveryCode}>
+            <button type="button" className="btn btn-secondary dialog-btn" disabled={props.totpSubmitting} onClick={props.onUseRecoveryCode}>
               {t('txt_use_recovery_code')}
             </button>
           </div>
@@ -86,6 +90,8 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
         cancelText={t('txt_cancel')}
         danger
         showIcon={false}
+        confirmDisabled={props.disableTotpSubmitting}
+        cancelDisabled={props.disableTotpSubmitting}
         onConfirm={props.onConfirmDisableTotp}
         onCancel={props.onCancelDisableTotp}
       >

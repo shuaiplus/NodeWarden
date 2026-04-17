@@ -1009,6 +1009,7 @@ function folderName(id: string | null | undefined): string {
       </div>
 
       <VaultDialogs
+        busy={busy}
         fieldModalOpen={fieldModalOpen}
         fieldType={fieldType}
         fieldLabel={fieldLabel}

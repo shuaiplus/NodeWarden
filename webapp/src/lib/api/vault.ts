@@ -2,7 +2,6 @@ import { base64ToBytes, decryptBw, decryptBwFileData, decryptStr, encryptBw, enc
 import type {
   Cipher,
   Folder,
-  ListResponse,
   SessionState,
   VaultDraft,
   VaultDraftField,
@@ -16,12 +15,11 @@ import {
   type AuthedFetch,
 } from './shared';
 import { readResponseBytesWithProgress } from '../download';
+import { loadVaultSyncSnapshot } from './vault-sync';
 
 export async function getFolders(authedFetch: AuthedFetch): Promise<Folder[]> {
-  const resp = await authedFetch('/api/folders');
-  if (!resp.ok) throw new Error('Failed to load folders');
-  const body = await parseJson<ListResponse<Folder>>(resp);
-  return body?.data || [];
+  const body = await loadVaultSyncSnapshot(authedFetch);
+  return body.folders || [];
 }
 
 export async function createFolder(
@@ -93,10 +91,8 @@ export async function updateFolder(
 }
 
 export async function getCiphers(authedFetch: AuthedFetch): Promise<Cipher[]> {
-  const resp = await authedFetch('/api/ciphers?deleted=true');
-  if (!resp.ok) throw new Error('Failed to load ciphers');
-  const body = await parseJson<ListResponse<Cipher>>(resp);
-  return body?.data || [];
+  const body = await loadVaultSyncSnapshot(authedFetch);
+  return body.ciphers || [];
 }
 
 export interface CiphersImportPayload {
@@ -372,12 +368,20 @@ async function encryptUris(
   uris: VaultDraft['loginUris'],
   enc: Uint8Array,
   mac: Uint8Array
-): Promise<Array<{ uri: string | null; match: number | null }>> {
-  const out: Array<{ uri: string | null; match: number | null }> = [];
+): Promise<Array<Record<string, unknown>>> {
+  const out: Array<Record<string, unknown>> = [];
   for (const entry of uris || []) {
     const trimmed = String(entry?.uri || '').trim();
     if (!trimmed) continue;
+    const preservedExtra =
+      entry?.extra && typeof entry.extra === 'object'
+        ? { ...entry.extra }
+        : {};
+    if (String(entry?.originalUri || '').trim() !== trimmed) {
+      delete preservedExtra.uriChecksum;
+    }
     out.push({
+      ...preservedExtra,
       uri: await encryptTextValue(trimmed, enc, mac),
       match: typeof entry?.match === 'number' && Number.isFinite(entry.match) ? entry.match : null,
     });
@@ -495,7 +499,12 @@ async function buildCipherPayload(
       cipher?.login && Array.isArray((cipher.login as any).fido2Credentials)
         ? (cipher.login as any).fido2Credentials
         : draft.loginFido2Credentials;
+    const existingLogin =
+      cipher?.login && typeof cipher.login === 'object'
+        ? { ...(cipher.login as Record<string, unknown>) }
+        : {};
     payload.login = {
+      ...existingLogin,
       username: await encryptTextValue(draft.loginUsername, keys.enc, keys.mac),
       password: await encryptTextValue(draft.loginPassword, keys.enc, keys.mac),
       totp: await encryptTextValue(draft.loginTotp, keys.enc, keys.mac),

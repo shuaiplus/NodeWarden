@@ -97,8 +97,9 @@ export async function handleGetSends(request: Request, env: Env, userId: string)
     sends = await storage.getAllSends(userId);
   }
 
+  const sendResponses = sends.map(sendToResponse);
   return jsonResponse({
-    data: sends.map(sendToResponse),
+    data: sendResponses,
     object: 'list',
     continuationToken,
   });

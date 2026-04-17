@@ -87,6 +87,7 @@ async function verifyUserSecret(
 
 function toProfile(user: User, env: Env): ProfileResponse {
   void env;
+  const accountKeys = buildAccountKeys(user);
   return {
     id: user.id,
     name: user.name,
@@ -100,7 +101,7 @@ function toProfile(user: User, env: Env): ProfileResponse {
     twoFactorEnabled: !!user.totpSecret,
     key: user.key,
     privateKey: user.privateKey,
-    accountKeys: buildAccountKeys(user),
+    accountKeys,
     securityStamp: user.securityStamp || user.id,
     organizations: [],
     providers: [],

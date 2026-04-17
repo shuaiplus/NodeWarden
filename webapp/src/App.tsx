@@ -172,9 +172,11 @@ export default function App() {
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
   const [totpCode, setTotpCode] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
+  const [totpSubmitting, setTotpSubmitting] = useState(false);
 
   const [disableTotpOpen, setDisableTotpOpen] = useState(false);
   const [disableTotpPassword, setDisableTotpPassword] = useState('');
+  const [disableTotpSubmitting, setDisableTotpSubmitting] = useState(false);
   const [recoverValues, setRecoverValues] = useState({ email: '', password: '', recoveryCode: '' });
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => readThemePreference());
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => resolveSystemTheme());
@@ -433,16 +435,20 @@ export default function App() {
   }
 
   async function handleTotpVerify() {
+    if (totpSubmitting) return;
     if (!pendingTotp) return;
     if (!totpCode.trim()) {
       pushToast('error', t('txt_please_input_totp_code'));
       return;
     }
+    setTotpSubmitting(true);
     try {
       const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice);
       await finalizeLogin(login);
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : t('txt_totp_verify_failed'));
+    } finally {
+      setTotpSubmitting(false);
     }
   }
 
@@ -631,11 +637,13 @@ export default function App() {
         onConfirmTotp={() => {}}
         onCancelTotp={() => {}}
         onUseRecoveryCode={() => {}}
+        totpSubmitting={false}
         disableTotpOpen={false}
         disableTotpPassword=""
         onDisableTotpPasswordChange={() => {}}
         onConfirmDisableTotp={() => {}}
         onCancelDisableTotp={() => {}}
+        disableTotpSubmitting={false}
       />
     );
   }
@@ -1288,21 +1296,25 @@ export default function App() {
           onRememberDeviceChange={setRememberDevice}
           onConfirmTotp={() => void handleTotpVerify()}
           onCancelTotp={() => {
+            if (totpSubmitting) return;
             setPendingTotp(null);
             setTotpCode('');
             setRememberDevice(true);
           }}
           onUseRecoveryCode={() => {
+            if (totpSubmitting) return;
             setPendingTotp(null);
             setTotpCode('');
             setRememberDevice(true);
             navigate('/recover-2fa');
           }}
+          totpSubmitting={totpSubmitting}
           disableTotpOpen={false}
           disableTotpPassword=""
           onDisableTotpPasswordChange={() => {}}
           onConfirmDisableTotp={() => {}}
           onCancelDisableTotp={() => {}}
+          disableTotpSubmitting={false}
         />
       </>
     );
@@ -1341,14 +1353,27 @@ export default function App() {
         onConfirmTotp={() => {}}
         onCancelTotp={() => {}}
         onUseRecoveryCode={() => {}}
+        totpSubmitting={false}
         disableTotpOpen={disableTotpOpen}
         disableTotpPassword={disableTotpPassword}
         onDisableTotpPasswordChange={setDisableTotpPassword}
-        onConfirmDisableTotp={() => void accountSecurityActions.disableTotp()}
+        onConfirmDisableTotp={() => {
+          if (disableTotpSubmitting) return;
+          void (async () => {
+            setDisableTotpSubmitting(true);
+            try {
+              await accountSecurityActions.disableTotp();
+            } finally {
+              setDisableTotpSubmitting(false);
+            }
+          })();
+        }}
         onCancelDisableTotp={() => {
+          if (disableTotpSubmitting) return;
           setDisableTotpOpen(false);
           setDisableTotpPassword('');
         }}
+        disableTotpSubmitting={disableTotpSubmitting}
       />
     </>
   );

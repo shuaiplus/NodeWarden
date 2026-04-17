@@ -10,6 +10,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/shuaiplus/NodeWarden?display_name=tag)](https://github.com/shuaiplus/NodeWarden/releases/latest)
 [![Sync Upstream](https://github.com/shuaiplus/NodeWarden/actions/workflows/sync-upstream.yml/badge.svg)](https://github.com/shuaiplus/NodeWarden/actions/workflows/sync-upstream.yml)
 [Release Notes](./RELEASE_NOTES.md) | [Report an Issue](https://github.com/shuaiplus/NodeWarden/issues/new/choose) | [Latest Release](https://github.com/shuaiplus/NodeWarden/releases/latest)
+[Telegram Channel](https://t.me/NodeWarden_News) | [Telegram Group](https://t.me/NodeWarden_Official)
 中文说明：[`README.md`](./README.md)
 
 > **Disclaimer**

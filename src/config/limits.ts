@@ -130,6 +130,9 @@
     // Max total items (folders + ciphers) allowed in a single import.
     // 单次导入允许的最大条目数（文件夹 + 密码项合计）。
     importItemLimit: 5000,
+    // Small fixed concurrency for blob/attachment batch cleanup work.
+    // 附件 / blob 批量清理时的保守并发数。
+    attachmentDeleteConcurrency: 4,
   },
   request: {
     // Hard body size limit for JSON API endpoints (bytes). File upload paths are exempt.

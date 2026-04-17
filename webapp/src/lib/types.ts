@@ -29,13 +29,18 @@ export interface Folder {
 
 export interface CipherLoginUri {
   uri?: string | null;
+  uriChecksum?: string | null;
   match?: number | null;
+  response?: unknown | null;
   decUri?: string;
+  [key: string]: unknown;
 }
 
 export interface VaultDraftLoginUri {
   uri: string;
   match: number | null;
+  originalUri?: string;
+  extra?: Record<string, unknown>;
 }
 
 export interface CipherAttachment {
@@ -60,9 +65,14 @@ export interface CipherLogin {
   totp?: string | null;
   uris?: CipherLoginUri[] | null;
   fido2Credentials?: CipherLoginPasskey[] | null;
+  autofillOnPageLoad?: boolean | null;
+  uri?: string | null;
+  passwordRevisionDate?: string | null;
+  response?: unknown | null;
   decUsername?: string;
   decPassword?: string;
   decTotp?: string;
+  [key: string]: unknown;
 }
 
 export interface CipherCard {

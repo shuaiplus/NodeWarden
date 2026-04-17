@@ -528,6 +528,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
     allowChecksumMismatch: boolean = false,
     knownIntegrity?: BackupFileIntegrityCheckResult
   ) {
+    if (importing) return;
     if (!selectedFile) {
       const message = t('txt_backup_file_required');
       setLocalError(message);
@@ -654,6 +655,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
   }
 
   async function handleDeleteRemote(path: string) {
+    if (deletingRemotePath) return;
     if (!savedSelectedDestination) return;
     setDeletingRemotePath(path);
     setLocalError('');
@@ -723,6 +725,7 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
     allowChecksumMismatch: boolean = false,
     knownIntegrity?: BackupFileIntegrityCheckResult
   ) {
+    if (restoringRemotePath) return;
     if (!savedSelectedDestination) return;
     setConfirmRemoteReplaceOpen(false);
     setConfirmIntegrityWarningOpen(false);
@@ -896,9 +899,12 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         message={selectedFile ? t('txt_backup_selected_file_name', { name: selectedFile.name }) : t('txt_backup_restore_note')}
         confirmText={t('txt_backup_import')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={importing}
+        cancelDisabled={importing}
         danger
         onConfirm={() => void runLocalRestore(false)}
         onCancel={() => {
+          if (importing) return;
           setConfirmLocalRestoreOpen(false);
           resetSelectedFile();
           resetPendingIntegrityWarning();
@@ -959,6 +965,8 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         variant="warning"
         confirmText={t('txt_backup_restore_checksum_warning_confirm')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={importing || !!restoringRemotePath}
+        cancelDisabled={importing || !!restoringRemotePath}
         danger
         onConfirm={() => {
           if (!pendingRestoreIntegrity) return;
@@ -984,6 +992,8 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         message={t('txt_backup_remote_delete_confirm_message', { name: pendingRemoteDeletePath.split('/').pop() || pendingRemoteDeletePath })}
         confirmText={t('txt_delete')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={!!deletingRemotePath}
+        cancelDisabled={!!deletingRemotePath}
         danger
         onConfirm={() => void handleDeleteRemote(pendingRemoteDeletePath)}
         onCancel={() => {
@@ -1001,6 +1011,8 @@ export default function BackupCenterPage(props: BackupCenterPageProps) {
         })}
         confirmText={t('txt_delete')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={savingSettings}
+        cancelDisabled={savingSettings}
         danger
         onConfirm={() => void handleDeleteDestination()}
         onCancel={() => {

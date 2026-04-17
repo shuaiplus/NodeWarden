@@ -38,6 +38,18 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  const limit = Math.max(1, concurrency);
+  for (let index = 0; index < items.length; index += limit) {
+    await Promise.all(items.slice(index, index + limit).map(worker));
+  }
+}
+
 async function processAttachmentUpload(
   request: Request,
   env: Env,
@@ -381,10 +393,9 @@ export async function deleteAllAttachmentsForCipher(
 ): Promise<void> {
   const storage = new StorageService(env.DB);
   const attachments = await storage.getAttachmentsByCipher(cipherId);
-
-  for (const attachment of attachments) {
+  await runWithConcurrency(attachments, LIMITS.performance.attachmentDeleteConcurrency, async (attachment) => {
     const path = getAttachmentObjectKey(cipherId, attachment.id);
     await deleteBlobObject(env, path);
     await storage.deleteAttachment(attachment.id);
-  }
+  });
 }

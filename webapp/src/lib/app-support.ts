@@ -170,10 +170,14 @@ export function importCipherToDraft(cipher: Record<string, unknown>, folderId: s
         return {
           uri,
           match: typeof matchRaw === 'number' && Number.isFinite(matchRaw) ? matchRaw : null,
+          originalUri: uri,
+          extra: Object.fromEntries(
+            Object.entries(row).filter(([key]) => !['uri', 'match'].includes(key))
+          ),
         };
       })
       .filter((u) => !!u.uri);
-    draft.loginUris = uris.length ? uris : [{ uri: '', match: null }];
+    draft.loginUris = uris.length ? uris : [{ uri: '', match: null, originalUri: '', extra: {} }];
     draft.loginFido2Credentials = Array.isArray(login.fido2Credentials)
       ? login.fido2Credentials.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
       : [];

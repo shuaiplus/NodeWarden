@@ -13,6 +13,10 @@
 
 [更新日志](./RELEASE_NOTES.md) | [提交问题](https://github.com/shuaiplus/NodeWarden/issues/new/choose) | [最新发布](https://github.com/shuaiplus/NodeWarden/releases/latest)
 
+[文档首页](./nodewarden.wiki/Home.md) | [快速开始](./nodewarden.wiki/快速开始.md)
+
+[Telegram 频道](https://t.me/NodeWarden_News) | [Telegram 群组](https://t.me/NodeWarden_Official)
+
 English: [`README_EN.md`](./README_EN.md)
 
 > **免责声明**  

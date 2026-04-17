@@ -4,6 +4,7 @@ import { FIELD_TYPE_OPTIONS, toBooleanFieldValue } from '@/components/vault/vaul
 import { t } from '@/lib/i18n';
 
 interface VaultDialogsProps {
+  busy: boolean;
   fieldModalOpen: boolean;
   fieldType: CustomFieldType;
   fieldLabel: string;
@@ -108,6 +109,8 @@ export default function VaultDialogs(props: VaultDialogsProps) {
         message={t('txt_archive_item_message')}
         confirmText={t('txt_archive')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
         onConfirm={props.onConfirmArchive}
         onCancel={props.onCancelArchive}
       />
@@ -118,11 +121,22 @@ export default function VaultDialogs(props: VaultDialogsProps) {
         message={t('txt_archive_selected_items_message', { count: props.selectedCount })}
         confirmText={t('txt_archive')}
         cancelText={t('txt_cancel')}
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
         onConfirm={props.onConfirmBulkArchive}
         onCancel={props.onCancelBulkArchive}
       />
 
-      <ConfirmDialog open={props.pendingDeleteOpen} title={t('txt_delete_item')} message={t('txt_are_you_sure_you_want_to_delete_this_item')} danger onConfirm={props.onConfirmDelete} onCancel={props.onCancelDelete} />
+      <ConfirmDialog
+        open={props.pendingDeleteOpen}
+        title={t('txt_delete_item')}
+        message={t('txt_are_you_sure_you_want_to_delete_this_item')}
+        danger
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
+        onConfirm={props.onConfirmDelete}
+        onCancel={props.onCancelDelete}
+      />
 
       <ConfirmDialog
         open={props.bulkDeleteOpen}
@@ -133,11 +147,23 @@ export default function VaultDialogs(props: VaultDialogsProps) {
             : t('txt_are_you_sure_you_want_to_delete_count_selected_items', { count: props.selectedCount })
         }
         danger
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
         onConfirm={props.onConfirmBulkDelete}
         onCancel={props.onCancelBulkDelete}
       />
 
-      <ConfirmDialog open={props.moveOpen} title={t('txt_move_selected_items')} message={t('txt_choose_destination_folder')} confirmText={t('txt_move')} cancelText={t('txt_cancel')} onConfirm={props.onConfirmMove} onCancel={props.onCancelMove}>
+      <ConfirmDialog
+        open={props.moveOpen}
+        title={t('txt_move_selected_items')}
+        message={t('txt_choose_destination_folder')}
+        confirmText={t('txt_move')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
+        onConfirm={props.onConfirmMove}
+        onCancel={props.onCancelMove}
+      >
         <label className="field">
           <span>{t('txt_folder')}</span>
           <select className="input" value={props.moveFolderId} onInput={(e) => props.onMoveFolderIdChange((e.currentTarget as HTMLSelectElement).value)}>
@@ -151,14 +177,34 @@ export default function VaultDialogs(props: VaultDialogsProps) {
         </label>
       </ConfirmDialog>
 
-      <ConfirmDialog open={props.createFolderOpen} title={t('txt_create_folder')} message={t('txt_enter_a_folder_name')} confirmText={t('txt_create')} cancelText={t('txt_cancel')} onConfirm={props.onConfirmCreateFolder} onCancel={props.onCancelCreateFolder}>
+      <ConfirmDialog
+        open={props.createFolderOpen}
+        title={t('txt_create_folder')}
+        message={t('txt_enter_a_folder_name')}
+        confirmText={t('txt_create')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
+        onConfirm={props.onConfirmCreateFolder}
+        onCancel={props.onCancelCreateFolder}
+      >
         <label className="field">
           <span>{t('txt_folder_name')}</span>
           <input className="input" value={props.newFolderName} onInput={(e) => props.onNewFolderNameChange((e.currentTarget as HTMLInputElement).value)} />
         </label>
       </ConfirmDialog>
 
-      <ConfirmDialog open={props.renameFolderOpen} title={t('txt_edit')} message={t('txt_enter_a_folder_name')} confirmText={t('txt_save')} cancelText={t('txt_cancel')} onConfirm={props.onConfirmRenameFolder} onCancel={props.onCancelRenameFolder}>
+      <ConfirmDialog
+        open={props.renameFolderOpen}
+        title={t('txt_edit')}
+        message={t('txt_enter_a_folder_name')}
+        confirmText={t('txt_save')}
+        cancelText={t('txt_cancel')}
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
+        onConfirm={props.onConfirmRenameFolder}
+        onCancel={props.onCancelRenameFolder}
+      >
         <label className="field">
           <span>{t('txt_folder_name')}</span>
           <input className="input" value={props.renameFolderName} onInput={(e) => props.onRenameFolderNameChange((e.currentTarget as HTMLInputElement).value)} />
@@ -172,13 +218,37 @@ export default function VaultDialogs(props: VaultDialogsProps) {
         confirmText={t('txt_delete')}
         cancelText={t('txt_cancel')}
         danger
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
         onConfirm={props.onConfirmDeleteFolder}
         onCancel={props.onCancelDeleteFolder}
       />
 
-      <ConfirmDialog open={props.deleteAllFoldersOpen} title={t('txt_delete_all_folders')} message={t('txt_delete_all_folders_message')} confirmText={t('txt_delete')} cancelText={t('txt_cancel')} danger onConfirm={props.onConfirmDeleteAllFolders} onCancel={props.onCancelDeleteAllFolders} />
+      <ConfirmDialog
+        open={props.deleteAllFoldersOpen}
+        title={t('txt_delete_all_folders')}
+        message={t('txt_delete_all_folders_message')}
+        confirmText={t('txt_delete')}
+        cancelText={t('txt_cancel')}
+        danger
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
+        onConfirm={props.onConfirmDeleteAllFolders}
+        onCancel={props.onCancelDeleteAllFolders}
+      />
 
-      <ConfirmDialog open={props.repromptOpen} title={t('txt_unlock_item')} message={t('txt_enter_master_password_to_view_this_item')} confirmText={t('txt_unlock')} cancelText={t('txt_cancel')} showIcon={false} onConfirm={props.onConfirmReprompt} onCancel={props.onCancelReprompt}>
+      <ConfirmDialog
+        open={props.repromptOpen}
+        title={t('txt_unlock_item')}
+        message={t('txt_enter_master_password_to_view_this_item')}
+        confirmText={t('txt_unlock')}
+        cancelText={t('txt_cancel')}
+        showIcon={false}
+        confirmDisabled={props.busy}
+        cancelDisabled={props.busy}
+        onConfirm={props.onConfirmReprompt}
+        onCancel={props.onCancelReprompt}
+      >
         <label className="field">
           <span>{t('txt_master_password')}</span>
           <input className="input" type="password" value={props.repromptPassword} onInput={(e) => props.onRepromptPasswordChange((e.currentTarget as HTMLInputElement).value)} />
