@@ -83,7 +83,7 @@ export async function verifyYubikeyOtpWithYubico(
   const publicId = extractYubikeyPublicId(otp);
   const clientId = String(options.clientId || '').trim();
   const secretKey = String(options.secretKey || '').trim();
-  const apiUrl = String(options.apiUrl || DEFAULT_YUBICO_API_URL).trim() || DEFAULT_YUBICO_API_URL;
+  const apiUrl = String(options.apiUrl || DEFAULT_YUBICO_API_URL).trim();
 
   if (!publicId || !clientId) {
     return { ok: false, status: 'BAD_OTP', publicId };
