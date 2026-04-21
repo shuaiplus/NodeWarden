@@ -107,8 +107,9 @@ import {
 } from './storage-revision-repo';
 
 const TWO_FACTOR_REMEMBER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const YUBIKEY_OTP_REPLAY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STORAGE_SCHEMA_VERSION_KEY = 'schema.version';
-const STORAGE_SCHEMA_VERSION = '2026-04-18.1';
+const STORAGE_SCHEMA_VERSION = '2026-04-21.1';
 
 // D1-backed storage.
 // Contract:
@@ -121,10 +122,12 @@ export class StorageService {
   private static schemaVerified = false;
   private static lastRefreshTokenCleanupAt = 0;
   private static lastAttachmentTokenCleanupAt = 0;
+  private static lastYubikeyOtpCleanupAt = 0;
   private static readonly MAX_D1_SQL_VARIABLES = 100;
 
   private static readonly REFRESH_TOKEN_CLEANUP_INTERVAL_MS = LIMITS.cleanup.refreshTokenCleanupIntervalMs;
   private static readonly ATTACHMENT_TOKEN_CLEANUP_INTERVAL_MS = LIMITS.cleanup.attachmentTokenCleanupIntervalMs;
+  private static readonly YUBIKEY_OTP_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
   private static readonly PERIODIC_CLEANUP_PROBABILITY = LIMITS.cleanup.cleanupProbability;
 
   constructor(private db: D1Database) {}
@@ -507,6 +510,17 @@ export class StorageService {
     return `sha256:${digest}`;
   }
 
+  private async maybeCleanupUsedYubikeyOtps(nowMs: number): Promise<void> {
+    if (!this.shouldRunPeriodicCleanup(StorageService.lastYubikeyOtpCleanupAt, StorageService.YUBIKEY_OTP_CLEANUP_INTERVAL_MS)) {
+      return;
+    }
+    await this.db
+      .prepare('DELETE FROM used_yubikey_otps WHERE used_at < ?')
+      .bind(nowMs - YUBIKEY_OTP_REPLAY_TTL_MS)
+      .run();
+    StorageService.lastYubikeyOtpCleanupAt = nowMs;
+  }
+
   // --- Devices ---
 
   async upsertDevice(
@@ -598,6 +612,25 @@ export class StorageService {
 
   async getTrustedTwoFactorDeviceTokenUserId(token: string, deviceIdentifier: string): Promise<string | null> {
     return findStoredTrustedTokenUserId(this.db, this.trustedTwoFactorTokenKey.bind(this), token, deviceIdentifier);
+  }
+
+  async isYubikeyOtpAlreadyUsed(otp: string): Promise<boolean> {
+    const now = Date.now();
+    await this.maybeCleanupUsedYubikeyOtps(now);
+    const digest = await this.sha256Hex(otp);
+    const row = await this.db.prepare('SELECT otp_hash FROM used_yubikey_otps WHERE otp_hash = ?').bind(`sha256:${digest}`).first<{ otp_hash: string }>();
+    return !!row?.otp_hash;
+  }
+
+  async markYubikeyOtpUsed(otp: string): Promise<boolean> {
+    const now = Date.now();
+    await this.maybeCleanupUsedYubikeyOtps(now);
+    const digest = await this.sha256Hex(otp);
+    const result = await this.db
+      .prepare('INSERT INTO used_yubikey_otps(otp_hash, used_at) VALUES(?, ?) ON CONFLICT(otp_hash) DO NOTHING')
+      .bind(`sha256:${digest}`, now)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
   }
 
   // --- Revision dates ---

@@ -3,3 +3,8 @@
 # Generate one with: openssl rand -hex 32
 # (Example only, 64 hex chars = 32 bytes)
 JWT_SECRET=Enter-your-JWT-key-here-at-least-32-characters
+
+# Optional: YubiKey OTP validation (Yubico Cloud)
+# YUBICO_CLIENT_ID=12345
+# YUBICO_SECRET_KEY=base64-secret-from-yubico
+# YUBICO_API_URL=https://api.yubico.com/wsapi/2.0/verify

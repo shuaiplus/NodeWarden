@@ -191,7 +191,8 @@ export async function loginWithPassword(
   email: string,
   passwordHash: string,
   options?: {
-    totpCode?: string;
+    twoFactorToken?: string;
+    twoFactorProvider?: '0' | '3';
     rememberDevice?: boolean;
     useRememberToken?: boolean;
   }
@@ -209,9 +210,9 @@ export async function loginWithPassword(
   if (rememberedToken) {
     body.set('twoFactorProvider', '5');
     body.set('twoFactorToken', rememberedToken);
-  } else if (options?.totpCode) {
-    body.set('twoFactorProvider', '0');
-    body.set('twoFactorToken', options.totpCode);
+  } else if (options?.twoFactorToken) {
+    body.set('twoFactorProvider', options.twoFactorProvider || '0');
+    body.set('twoFactorToken', options.twoFactorToken);
     if (options.rememberDevice) {
       body.set('twoFactorRemember', '1');
     }
@@ -507,6 +508,38 @@ export async function getTotpStatus(authedFetch: AuthedFetch): Promise<{ enabled
   if (!resp.ok) throw new Error('Failed to load TOTP status');
   const body = (await parseJson<{ enabled?: boolean }>(resp)) || {};
   return { enabled: !!body.enabled };
+}
+
+export async function getYubikeyStatus(
+  authedFetch: AuthedFetch
+): Promise<{ enabled: boolean; publicIds: string[] }> {
+  const resp = await authedFetch('/api/accounts/yubikey');
+  if (!resp.ok) throw new Error('Failed to load YubiKey status');
+  const body = (await parseJson<{ enabled?: boolean; publicIds?: string[] }>(resp)) || {};
+  return {
+    enabled: !!body.enabled,
+    publicIds: Array.isArray(body.publicIds) ? body.publicIds.map((id) => String(id || '').trim()).filter((id) => !!id) : [],
+  };
+}
+
+export async function setYubikey(
+  authedFetch: AuthedFetch,
+  payload: { enabled?: boolean; otp?: string; masterPasswordHash?: string; removePublicId?: string }
+): Promise<{ enabled: boolean; publicIds: string[] }> {
+  const resp = await authedFetch('/api/accounts/yubikey', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'YubiKey update failed');
+  }
+  const body = (await parseJson<{ enabled?: boolean; publicIds?: string[] }>(resp)) || {};
+  return {
+    enabled: !!body.enabled,
+    publicIds: Array.isArray(body.publicIds) ? body.publicIds.map((id) => String(id || '').trim()).filter((id) => !!id) : [],
+  };
 }
 
 export async function getTotpRecoveryCode(

@@ -17,6 +17,8 @@ export interface PendingTotp {
   email: string;
   passwordHash: string;
   masterKey: Uint8Array;
+  availableProviders: Array<'0' | '3'>;
+  preferredProvider: '0' | '3';
 }
 
 export type JwtUnsafeReason = 'missing' | 'default' | 'too_short';
@@ -45,7 +47,7 @@ export interface CompletedLogin {
 
 export type PasswordLoginResult =
   | { kind: 'success'; login: CompletedLogin }
-  | { kind: 'totp'; pendingTotp: PendingTotp }
+  | { kind: 'twoFactor'; pendingTotp: PendingTotp }
   | { kind: 'error'; message: string };
 
 export interface RecoverTwoFactorResult {
@@ -278,6 +280,14 @@ export async function completeLogin(
   };
 }
 
+function parseTwoFactorProviders(raw: unknown): Array<'0' | '3'> {
+  if (!Array.isArray(raw)) return [];
+  const providers = raw
+    .map((value) => String(value || '').trim())
+    .filter((value): value is '0' | '3' => value === '0' || value === '3');
+  return Array.from(new Set(providers));
+}
+
 export async function performPasswordLogin(
   email: string,
   password: string,
@@ -296,12 +306,16 @@ export async function performPasswordLogin(
 
   const tokenError = token as { TwoFactorProviders?: unknown; error_description?: string; error?: string };
   if (tokenError.TwoFactorProviders) {
+    const availableProviders = parseTwoFactorProviders(tokenError.TwoFactorProviders);
+    const preferredProvider: '0' | '3' = availableProviders.includes('0') ? '0' : '3';
     return {
-      kind: 'totp',
+      kind: 'twoFactor',
       pendingTotp: {
         email: normalizedEmail,
         passwordHash: derived.hash,
         masterKey: derived.masterKey,
+        availableProviders,
+        preferredProvider,
       },
     };
   }
@@ -314,11 +328,12 @@ export async function performPasswordLogin(
 
 export async function performTotpLogin(
   pendingTotp: PendingTotp,
-  totpCode: string,
+  twoFactorToken: string,
   rememberDevice: boolean
 ): Promise<CompletedLogin> {
   const token = await loginWithPassword(pendingTotp.email, pendingTotp.passwordHash, {
-    totpCode: totpCode.trim(),
+    twoFactorProvider: pendingTotp.preferredProvider,
+    twoFactorToken: twoFactorToken.trim(),
     rememberDevice,
   });
   if ('access_token' in token && token.access_token) {
@@ -384,4 +399,3 @@ export async function performUnlock(
   }
   return { ...refreshedSession, ...keys };
 }
-

@@ -39,7 +39,7 @@ English: [`README_EN.md`](./README_EN.md)
 | TOTP / Steam TOTP | ✅ | ✅ | 含 `steam://` 支持 |
 | 多用户 | ✅ | ✅ | 支持邀请码注册 |
 | 组织 / 集合 / 成员权限 | ✅ | ❌ | 未实现 |
-| 登录 2FA | ✅ | ⚠️ 部分支持 | 当前仅支持用户级 TOTP |
+| 登录 2FA | ✅ | ✅ | 支持用户级 TOTP / YubiKey OTP |
 | SSO / SCIM / 企业目录 | ✅ | ❌ | 未实现 |
 
 ---

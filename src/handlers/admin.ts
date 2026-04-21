@@ -71,7 +71,7 @@ export async function handleAdminListUsers(
       name: user.name,
       role: user.role,
       status: user.status,
-      twoFactorEnabled: !!user.totpSecret,
+      twoFactorEnabled: !!user.totpSecret || !!(user.yubikeyOtpPublicIds && user.yubikeyOtpPublicIds.length),
       creationDate: user.createdAt,
       revisionDate: user.updatedAt,
       object: 'user',

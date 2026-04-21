@@ -11,6 +11,9 @@ export interface Env {
   ATTACHMENTS_KV?: KVNamespace;
   JWT_SECRET: string;
   TOTP_SECRET?: string;
+  YUBICO_CLIENT_ID?: string;
+  YUBICO_SECRET_KEY?: string;
+  YUBICO_API_URL?: string;
 }
 
 export type UserRole = 'admin' | 'user';
@@ -50,6 +53,7 @@ export interface User {
   verifyDevices?: boolean;
   totpSecret: string | null;
   totpRecoveryCode: string | null;
+  yubikeyOtpPublicIds: string[] | null;
   createdAt: string;
   updatedAt: string;
 }

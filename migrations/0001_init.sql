@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   verify_devices INTEGER NOT NULL DEFAULT 1,
   totp_secret TEXT,
   totp_recovery_code TEXT,
+  yubikey_otp_public_ids TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -172,6 +173,12 @@ CREATE TABLE IF NOT EXISTS trusted_two_factor_device_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_trusted_two_factor_device_tokens_user_device
   ON trusted_two_factor_device_tokens(user_id, device_identifier);
+
+CREATE TABLE IF NOT EXISTS used_yubikey_otps (
+  otp_hash TEXT PRIMARY KEY,
+  used_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_used_yubikey_otps_used_at ON used_yubikey_otps(used_at);
 
 -- Rate limiting
 CREATE TABLE IF NOT EXISTS login_attempts_ip (

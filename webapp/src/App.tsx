@@ -17,6 +17,7 @@ import {
   saveProfileSnapshot,
   revokeCurrentSession,
   getTotpStatus,
+  getYubikeyStatus,
   saveSession,
 } from '@/lib/api/auth';
 import { listAdminInvites, listAdminUsers } from '@/lib/api/admin';
@@ -171,6 +172,7 @@ export default function App() {
   const [unlockPassword, setUnlockPassword] = useState('');
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
   const [totpCode, setTotpCode] = useState('');
+  const [twoFactorProvider, setTwoFactorProvider] = useState<'0' | '3'>('0');
   const [rememberDevice, setRememberDevice] = useState(true);
   const [totpSubmitting, setTotpSubmitting] = useState(false);
 
@@ -391,6 +393,7 @@ export default function App() {
     setUnlockPreparing(false);
     setPendingTotp(null);
     setTotpCode('');
+    setTwoFactorProvider('0');
     setPhase('app');
     if (location === '/' || location === '/login' || location === '/register' || location === '/lock') {
       navigate('/vault');
@@ -420,9 +423,10 @@ export default function App() {
         await finalizeLogin(result.login);
         return;
       }
-      if (result.kind === 'totp') {
+      if (result.kind === 'twoFactor') {
         setPendingTotp(result.pendingTotp);
         setTotpCode('');
+        setTwoFactorProvider(result.pendingTotp.preferredProvider);
         setRememberDevice(true);
         return;
       }
@@ -438,15 +442,16 @@ export default function App() {
     if (totpSubmitting) return;
     if (!pendingTotp) return;
     if (!totpCode.trim()) {
-      pushToast('error', t('txt_please_input_totp_code'));
+      pushToast('error', twoFactorProvider === '3' ? t('txt_please_input_yubikey_otp') : t('txt_please_input_totp_code'));
       return;
     }
     setTotpSubmitting(true);
     try {
+      pendingTotp.preferredProvider = twoFactorProvider;
       const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice);
       await finalizeLogin(login);
     } catch (error) {
-      pushToast('error', error instanceof Error ? error.message : t('txt_totp_verify_failed'));
+      pushToast('error', error instanceof Error ? error.message : t('txt_two_factor_verify_failed'));
     } finally {
       setTotpSubmitting(false);
     }
@@ -607,6 +612,7 @@ export default function App() {
     setProfile(null);
     setUnlockPreparing(false);
     setPendingTotp(null);
+    setTwoFactorProvider('0');
     setPhase('login');
     navigate('/login');
   }
@@ -631,8 +637,12 @@ export default function App() {
         onCancelConfirm={() => {}}
         pendingTotpOpen={false}
         totpCode=""
+        twoFactorProvider="0"
+        twoFactorHasTotp={false}
+        twoFactorHasYubikey={false}
         rememberDevice={false}
         onTotpCodeChange={() => {}}
+        onTwoFactorProviderChange={() => {}}
         onRememberDeviceChange={() => {}}
         onConfirmTotp={() => {}}
         onCancelTotp={() => {}}
@@ -676,6 +686,11 @@ export default function App() {
   const totpStatusQuery = useQuery({
     queryKey: ['totp-status', session?.accessToken],
     queryFn: () => getTotpStatus(authedFetch),
+    enabled: phase === 'app' && !!session?.accessToken,
+  });
+  const yubikeyStatusQuery = useQuery({
+    queryKey: ['yubikey-status', session?.accessToken],
+    queryFn: () => getYubikeyStatus(authedFetch),
     enabled: phase === 'app' && !!session?.accessToken,
   });
   const authorizedDevicesQuery = useQuery({
@@ -1074,6 +1089,7 @@ export default function App() {
     onProfileUpdated: setProfile,
     onSetConfirm: setConfirm,
     refetchTotpStatus: totpStatusQuery.refetch,
+    refetchYubikeyStatus: yubikeyStatusQuery.refetch,
     refetchAuthorizedDevices: authorizedDevicesQuery.refetch,
   });
   const adminActions = useAdminActions({
@@ -1159,6 +1175,8 @@ export default function App() {
     users: usersQuery.data || [],
     invites: invitesQuery.data || [],
     totpEnabled: !!totpStatusQuery.data?.enabled,
+    yubikeyEnabled: !!yubikeyStatusQuery.data?.enabled,
+    yubikeyPublicIds: yubikeyStatusQuery.data?.publicIds || [],
     authorizedDevices: authorizedDevicesQuery.data || [],
     authorizedDevicesLoading: authorizedDevicesQuery.isFetching,
     onNavigate: navigate,
@@ -1203,6 +1221,12 @@ export default function App() {
     },
     onOpenDisableTotp: () => setDisableTotpOpen(true),
     onGetRecoveryCode: accountSecurityActions.getRecoveryCode,
+    onBindYubikey: async (otp: string) => {
+      await accountSecurityActions.bindYubikey(otp);
+      await yubikeyStatusQuery.refetch();
+    },
+    onUnbindYubikey: accountSecurityActions.unbindYubikey,
+    onDisableYubikey: accountSecurityActions.disableYubikey,
     onRefreshAuthorizedDevices: accountSecurityActions.refreshAuthorizedDevices,
     onRenameAuthorizedDevice: accountSecurityActions.renameAuthorizedDevice,
     onRevokeDeviceTrust: accountSecurityActions.openRevokeDeviceTrust,
@@ -1300,20 +1324,26 @@ export default function App() {
           onCancelConfirm={() => setConfirm(null)}
           pendingTotpOpen={!!pendingTotp}
           totpCode={totpCode}
+          twoFactorProvider={twoFactorProvider}
+          twoFactorHasTotp={!!pendingTotp?.availableProviders.includes('0')}
+          twoFactorHasYubikey={!!pendingTotp?.availableProviders.includes('3')}
           rememberDevice={rememberDevice}
           onTotpCodeChange={setTotpCode}
+          onTwoFactorProviderChange={setTwoFactorProvider}
           onRememberDeviceChange={setRememberDevice}
           onConfirmTotp={() => void handleTotpVerify()}
           onCancelTotp={() => {
             if (totpSubmitting) return;
             setPendingTotp(null);
             setTotpCode('');
+            setTwoFactorProvider('0');
             setRememberDevice(true);
           }}
           onUseRecoveryCode={() => {
             if (totpSubmitting) return;
             setPendingTotp(null);
             setTotpCode('');
+            setTwoFactorProvider('0');
             setRememberDevice(true);
             navigate('/recover-2fa');
           }}
@@ -1356,8 +1386,12 @@ export default function App() {
         onCancelConfirm={() => setConfirm(null)}
         pendingTotpOpen={false}
         totpCode=""
+        twoFactorProvider="0"
+        twoFactorHasTotp={false}
+        twoFactorHasYubikey={false}
         rememberDevice={false}
         onTotpCodeChange={() => {}}
+        onTwoFactorProviderChange={() => {}}
         onRememberDeviceChange={() => {}}
         onConfirmTotp={() => {}}
         onCancelTotp={() => {}}

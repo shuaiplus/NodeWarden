@@ -45,6 +45,8 @@ export interface AppMainRoutesProps {
   users: AdminUser[];
   invites: AdminInvite[];
   totpEnabled: boolean;
+  yubikeyEnabled: boolean;
+  yubikeyPublicIds: string[];
   authorizedDevices: AuthorizedDevice[];
   authorizedDevicesLoading: boolean;
   onNavigate: (path: string) => void;
@@ -94,6 +96,9 @@ export interface AppMainRoutesProps {
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
   onGetRecoveryCode: (masterPassword: string) => Promise<string>;
+  onBindYubikey: (otp: string) => Promise<void>;
+  onUnbindYubikey: (publicId: string, masterPassword: string) => Promise<void>;
+  onDisableYubikey: (masterPassword: string) => Promise<void>;
   onRefreshAuthorizedDevices: () => Promise<void>;
   onRenameAuthorizedDevice: (device: AuthorizedDevice, name: string) => Promise<void>;
   onRevokeDeviceTrust: (device: AuthorizedDevice) => void;
@@ -220,11 +225,16 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               <SettingsPage
                 profile={props.profile}
                 totpEnabled={props.totpEnabled}
+                yubikeyEnabled={props.yubikeyEnabled}
+                yubikeyPublicIds={props.yubikeyPublicIds}
                 onChangePassword={props.onChangePassword}
                 onSavePasswordHint={props.onSavePasswordHint}
                 onEnableTotp={props.onEnableTotp}
                 onOpenDisableTotp={props.onOpenDisableTotp}
                 onGetRecoveryCode={props.onGetRecoveryCode}
+                onBindYubikey={props.onBindYubikey}
+                onUnbindYubikey={props.onUnbindYubikey}
+                onDisableYubikey={props.onDisableYubikey}
                 onNotify={props.onNotify}
               />
             </Suspense>

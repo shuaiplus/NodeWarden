@@ -67,7 +67,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     usesKeyConnector: false,
     masterPasswordHint: user.masterPasswordHint,
     culture: 'en-US',
-    twoFactorEnabled: !!user.totpSecret,
+    twoFactorEnabled: !!user.totpSecret || !!(user.yubikeyOtpPublicIds && user.yubikeyOtpPublicIds.length),
     key: user.key,
     privateKey: user.privateKey,
     accountKeys,

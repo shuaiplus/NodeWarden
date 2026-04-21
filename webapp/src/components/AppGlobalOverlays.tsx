@@ -21,8 +21,12 @@ interface AppGlobalOverlaysProps {
   onCancelConfirm: () => void;
   pendingTotpOpen: boolean;
   totpCode: string;
+  twoFactorProvider: '0' | '3';
+  twoFactorHasTotp: boolean;
+  twoFactorHasYubikey: boolean;
   rememberDevice: boolean;
   onTotpCodeChange: (value: string) => void;
+  onTwoFactorProviderChange: (value: '0' | '3') => void;
   onRememberDeviceChange: (checked: boolean) => void;
   onConfirmTotp: () => void;
   onCancelTotp: () => void;
@@ -72,8 +76,21 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
           </div>
         )}
       >
+        {(props.twoFactorHasTotp && props.twoFactorHasYubikey) && (
+          <label className="field">
+            <span>{t('txt_two_factor_method')}</span>
+            <select
+              className="input"
+              value={props.twoFactorProvider}
+              onChange={(e) => props.onTwoFactorProviderChange((e.currentTarget as HTMLSelectElement).value === '3' ? '3' : '0')}
+            >
+              <option value="0">{t('txt_totp_code')}</option>
+              <option value="3">{t('txt_yubikey_otp')}</option>
+            </select>
+          </label>
+        )}
         <label className="field">
-          <span>{t('txt_totp_code')}</span>
+          <span>{props.twoFactorProvider === '3' ? t('txt_yubikey_otp') : t('txt_totp_code')}</span>
           <input className="input" value={props.totpCode} autoComplete="one-time-code" onInput={(e) => props.onTotpCodeChange((e.currentTarget as HTMLInputElement).value)} />
         </label>
         <label className="check-line" style={{ marginBottom: 0 }}>

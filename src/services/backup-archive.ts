@@ -347,7 +347,7 @@ export async function buildBackupArchive(
   const encoder = new TextEncoder();
   const [configRows, userRows, revisionRows, folderRows, cipherRows, attachmentRows] = await Promise.all([
     queryRows(env.DB, 'SELECT key, value FROM config ORDER BY key ASC'),
-    queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, created_at, updated_at FROM users ORDER BY created_at ASC'),
+    queryRows(env.DB, 'SELECT id, email, name, master_password_hint, master_password_hash, key, private_key, public_key, kdf_type, kdf_iterations, kdf_memory, kdf_parallelism, security_stamp, role, status, verify_devices, totp_secret, totp_recovery_code, yubikey_otp_public_ids, created_at, updated_at FROM users ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT user_id, revision_date FROM user_revisions ORDER BY user_id ASC'),
     queryRows(env.DB, 'SELECT id, user_id, name, created_at, updated_at FROM folders ORDER BY created_at ASC'),
     queryRows(env.DB, 'SELECT id, user_id, type, folder_id, name, notes, favorite, data, reprompt, key, created_at, updated_at, archived_at, deleted_at FROM ciphers ORDER BY created_at ASC'),
