@@ -447,8 +447,7 @@ export default function App() {
     }
     setTotpSubmitting(true);
     try {
-      pendingTotp.preferredProvider = twoFactorProvider;
-      const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice);
+      const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice, twoFactorProvider);
       await finalizeLogin(login);
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : t('txt_two_factor_verify_failed'));

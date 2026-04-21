@@ -17,7 +17,9 @@ export interface PendingTotp {
   email: string;
   passwordHash: string;
   masterKey: Uint8Array;
+  // 0 = authenticator(TOTP), 3 = YubiKey OTP.
   availableProviders: Array<'0' | '3'>;
+  // 0 = authenticator(TOTP), 3 = YubiKey OTP.
   preferredProvider: '0' | '3';
 }
 
@@ -329,10 +331,11 @@ export async function performPasswordLogin(
 export async function performTotpLogin(
   pendingTotp: PendingTotp,
   twoFactorToken: string,
-  rememberDevice: boolean
+  rememberDevice: boolean,
+  provider?: '0' | '3'
 ): Promise<CompletedLogin> {
   const token = await loginWithPassword(pendingTotp.email, pendingTotp.passwordHash, {
-    twoFactorProvider: pendingTotp.preferredProvider,
+    twoFactorProvider: provider || pendingTotp.preferredProvider,
     twoFactorToken: twoFactorToken.trim(),
     rememberDevice,
   });
