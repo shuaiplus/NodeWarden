@@ -264,10 +264,9 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
       const canUseRecoveryCode = !!user.totpRecoveryCode;
       const normalizedTwoFactorProvider = String(twoFactorProvider ?? '').trim();
       const normalizedTwoFactorToken = String(twoFactorToken ?? '').trim();
-      const availableProviders = [
-        ...(effectiveTotpSecret ? [String(TWO_FACTOR_PROVIDER_AUTHENTICATOR)] : []),
-        ...(hasYubikeyOtp ? [String(TWO_FACTOR_PROVIDER_YUBIKEY)] : []),
-      ];
+      const availableProviders: string[] = [];
+      if (effectiveTotpSecret) availableProviders.push(String(TWO_FACTOR_PROVIDER_AUTHENTICATOR));
+      if (hasYubikeyOtp) availableProviders.push(String(TWO_FACTOR_PROVIDER_YUBIKEY));
       let rememberRequested = ['1', 'true', 'True', 'TRUE', 'on', 'yes', 'Yes', 'YES'].includes(String(twoFactorRemember || '').trim());
       const hasProvider = normalizedTwoFactorProvider.length > 0;
       const hasToken = normalizedTwoFactorToken.length > 0;

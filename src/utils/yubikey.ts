@@ -115,7 +115,8 @@ export async function verifyYubikeyOtpWithYubico(
   if (String(responseFields.nonce || '').trim() !== nonce) {
     return { ok: false, status: 'BAD_NONCE', publicId };
   }
-  if (String(responseFields.id || '').trim() && String(responseFields.id || '').trim() !== clientId) {
+  const responseClientId = String(responseFields.id || '').trim();
+  if (responseClientId && responseClientId !== clientId) {
     return { ok: false, status: 'BAD_CLIENT', publicId };
   }
 
