@@ -11,6 +11,8 @@ import {
   handleGetTotpStatus,
   handleSetTotpStatus,
   handleGetTotpRecoveryCode,
+  handleGetApiKey,
+  handleRotateApiKey,
 } from './handlers/accounts';
 import {
   handleGetCiphers,
@@ -117,6 +119,14 @@ export async function handleAuthenticatedRoute(
 
   if (path === '/api/accounts/verify-devices' && (method === 'PUT' || method === 'POST')) {
     return handleSetVerifyDevices(request, env, userId);
+  }
+
+  if (path === '/api/accounts/api_key' && method === 'POST') {
+    return handleGetApiKey(request, env, userId);
+  }
+
+  if (path === '/api/accounts/rotate_api_key' && method === 'POST') {
+    return handleRotateApiKey(request, env, userId);
   }
 
   if (path === '/api/sync' && method === 'GET') {

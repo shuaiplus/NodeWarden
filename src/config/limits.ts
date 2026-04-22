@@ -24,6 +24,9 @@
     // Default PBKDF2 iterations for account creation/prelogin fallback.
     // 账户创建与预登录回退使用的默认 PBKDF2 迭代次数。
     defaultKdfIterations: 600000,
+    // clientSecret length
+    // clientSecret 长度
+    clientSecretLength: 30,
   },
   rateLimit: {
     // Max failed login attempts before temporary lock.
