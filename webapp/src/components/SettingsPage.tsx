@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Clipboard, KeyRound, RefreshCw, ShieldCheck, ShieldOff } from 'lucide-preact';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import qrcode from 'qrcode-generator';
@@ -52,20 +52,12 @@ export default function SettingsPage(props: SettingsPageProps) {
   const [passwordHint, setPasswordHint] = useState(props.profile.masterPasswordHint || '');
   const [secret, setSecret] = useState(() => localStorage.getItem(totpSecretStorageKey) || randomBase32Secret(32));
   const [token, setToken] = useState('');
-  const [totpLocked, setTotpLocked] = useState(props.totpEnabled);
+  const totpLocked = props.totpEnabled;
   const [recoveryMasterPassword, setRecoveryMasterPassword] = useState('');
-  const [recoveryCode, setRecoveryCode] = useState('');
+  const recoveryCodeRef = useRef<HTMLInputElement | null>(null);
   const [yubikeyOtp, setYubikeyOtp] = useState('');
   const [yubikeyMasterPassword, setYubikeyMasterPassword] = useState('');
   const [yubikeyNfc, setYubikeyNfc] = useState(props.yubikeyNfcEnabled);
-
-  useEffect(() => {
-    if (!props.totpEnabled) {
-      setTotpLocked(false);
-      return;
-    }
-    setTotpLocked(true);
-  }, [props.totpEnabled]);
 
   useEffect(() => {
     setPasswordHint(props.profile.masterPasswordHint || '');
@@ -89,7 +81,6 @@ export default function SettingsPage(props: SettingsPageProps) {
       await props.onEnableTotp(secret, token);
       // Secret is now stored on the server; remove plaintext copy from localStorage.
       localStorage.removeItem(totpSecretStorageKey);
-      setTotpLocked(true);
     } catch {
       // Keep inputs editable after a failed attempt.
     }
@@ -97,7 +88,9 @@ export default function SettingsPage(props: SettingsPageProps) {
 
   async function loadRecoveryCode(): Promise<void> {
     const code = await props.onGetRecoveryCode(recoveryMasterPassword);
-    setRecoveryCode(code);
+    if (recoveryCodeRef.current) {
+      recoveryCodeRef.current.value = code;
+    }
     props.onNotify?.('success', t('txt_recovery_code_loaded'));
   }
 
@@ -234,20 +227,26 @@ export default function SettingsPage(props: SettingsPageProps) {
               <button
                 type="button"
                 className="btn btn-secondary"
-                disabled={!recoveryCode}
                 onClick={() => {
-                  void copyTextToClipboard(recoveryCode, { successMessage: t('txt_recovery_code_copied') });
+                  const code = recoveryCodeRef.current?.value || '';
+                  if (!code) return;
+                  void copyTextToClipboard(code, { successMessage: t('txt_recovery_code_copied') });
                 }}
               >
                 <Clipboard size={14} className="btn-icon" />
                 {t('txt_copy_code')}
               </button>
             </div>
-            {recoveryCode && (
-              <div className="card" style={{ marginTop: 10, marginBottom: 0 }}>
-                <div style={{ fontWeight: 800, letterSpacing: '0.08em' }}>{recoveryCode}</div>
-              </div>
-            )}
+            <div className="card" style={{ marginTop: 10, marginBottom: 0 }}>
+              <input
+                ref={recoveryCodeRef}
+                className="input"
+                readOnly
+                defaultValue=""
+                placeholder={t('txt_dash')}
+                style={{ fontWeight: 800, letterSpacing: '0.08em' }}
+              />
+            </div>
           </div>
 
           {props.yubikeyOtpConfigured && (
@@ -275,7 +274,9 @@ export default function SettingsPage(props: SettingsPageProps) {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => void props.onBindYubikey(yubikeyOtp, yubikeyNfc).then(() => setYubikeyOtp(''))}
+                  onClick={() => {
+                    void props.onBindYubikey(yubikeyOtp, yubikeyNfc).then(() => setYubikeyOtp(''));
+                  }}
                 >
                   <ShieldCheck size={14} className="btn-icon" />
                   {t('txt_bind_yubikey')}

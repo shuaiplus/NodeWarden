@@ -510,17 +510,36 @@ export async function getTotpStatus(authedFetch: AuthedFetch): Promise<{ enabled
   return { enabled: !!body.enabled };
 }
 
+export function normalizeYubikeyStatusResponse(body: {
+  enabled?: boolean;
+  publicIds?: string[];
+  keys?: string[];
+  nfc?: boolean;
+}): { enabled: boolean; publicIds: string[]; nfc: boolean } {
+  const source = Array.isArray(body.publicIds)
+    ? body.publicIds
+    : Array.isArray(body.keys)
+      ? body.keys
+      : [];
+
+  const publicIds = source
+    .map((id) => String(id || '').trim())
+    .filter((id) => !!id);
+
+  return {
+    enabled: !!body.enabled || publicIds.length > 0,
+    publicIds,
+    nfc: !!body.nfc,
+  };
+}
+
 export async function getYubikeyStatus(
   authedFetch: AuthedFetch
 ): Promise<{ enabled: boolean; publicIds: string[]; nfc: boolean }> {
   const resp = await authedFetch('/api/accounts/yubikey');
   if (!resp.ok) throw new Error('Failed to load YubiKey status');
-  const body = (await parseJson<{ enabled?: boolean; publicIds?: string[]; nfc?: boolean }>(resp)) || {};
-  return {
-    enabled: !!body.enabled,
-    publicIds: Array.isArray(body.publicIds) ? body.publicIds.map((id) => String(id || '').trim()).filter((id) => !!id) : [],
-    nfc: !!body.nfc,
-  };
+  const body = (await parseJson<{ enabled?: boolean; publicIds?: string[]; keys?: string[]; nfc?: boolean }>(resp)) || {};
+  return normalizeYubikeyStatusResponse(body);
 }
 
 export async function setYubikey(
@@ -536,12 +555,8 @@ export async function setYubikey(
     const body = await parseJson<TokenError>(resp);
     throw new Error(body?.error_description || body?.error || 'YubiKey update failed');
   }
-  const body = (await parseJson<{ enabled?: boolean; publicIds?: string[]; nfc?: boolean }>(resp)) || {};
-  return {
-    enabled: !!body.enabled,
-    publicIds: Array.isArray(body.publicIds) ? body.publicIds.map((id) => String(id || '').trim()).filter((id) => !!id) : [],
-    nfc: !!body.nfc,
-  };
+  const body = (await parseJson<{ enabled?: boolean; publicIds?: string[]; keys?: string[]; nfc?: boolean }>(resp)) || {};
+  return normalizeYubikeyStatusResponse(body);
 }
 
 export async function getTotpRecoveryCode(

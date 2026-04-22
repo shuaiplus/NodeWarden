@@ -32,6 +32,7 @@ interface UseAccountSecurityActionsOptions {
   onSetConfirm: (next: AppConfirmState | null) => void;
   refetchTotpStatus: () => Promise<unknown>;
   refetchYubikeyStatus: () => Promise<unknown>;
+  onYubikeyStatusUpdated: (next: { enabled: boolean; publicIds: string[]; nfc: boolean }) => void;
   refetchAuthorizedDevices: () => Promise<unknown>;
 }
 
@@ -48,6 +49,7 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
     onSetConfirm,
     refetchTotpStatus,
     refetchYubikeyStatus,
+    onYubikeyStatusUpdated,
     refetchAuthorizedDevices,
   } = options;
 
@@ -158,8 +160,8 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
           return;
         }
         try {
-          await setYubikey(authedFetch, { enabled: true, otp: normalized, nfc });
-          await refetchYubikeyStatus();
+          const nextStatus = await setYubikey(authedFetch, { enabled: true, otp: normalized, nfc });
+          onYubikeyStatusUpdated(nextStatus);
           onNotify('success', t('txt_yubikey_bound'));
         } catch (error) {
           onNotify('error', error instanceof Error ? error.message : t('txt_yubikey_bind_failed'));
@@ -167,31 +169,68 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
         }
       },
 
+      openUnbindYubikey(publicId: string, masterPassword: string) {
+        const normalizedPublicId = String(publicId || '').trim().toLowerCase();
+        onSetConfirm({
+          title: t('txt_unbind_yubikey'),
+          message: t('txt_unbind_yubikey_confirm_message', { publicId: normalizedPublicId }),
+          danger: true,
+          onConfirm: () => {
+            onSetConfirm(null);
+            void (async () => {
+              try {
+                await unbindYubikey(normalizedPublicId, masterPassword);
+              } catch (error) {
+                onNotify('error', error instanceof Error ? error.message : t('txt_unbind_yubikey_failed'));
+              }
+            })();
+          },
+        });
+      },
+
+      openDisableYubikey(masterPassword: string) {
+        onSetConfirm({
+          title: t('txt_disable_yubikey'),
+          message: t('txt_disable_yubikey_confirm_message'),
+          danger: true,
+          onConfirm: () => {
+            onSetConfirm(null);
+            void (async () => {
+              try {
+                await disableYubikey(masterPassword);
+              } catch (error) {
+                onNotify('error', error instanceof Error ? error.message : t('txt_disable_yubikey_failed'));
+              }
+            })();
+          },
+        });
+      },
+
       async unbindYubikey(publicId: string, masterPassword: string) {
         if (!profile) throw new Error(t('txt_profile_unavailable'));
         const normalizedPublicId = String(publicId || '').trim().toLowerCase();
-        const normalizedPassword = String(masterPassword || '');
+        const normalizedPassword = String(masterPassword || '').trim();
         if (!normalizedPublicId || !normalizedPassword) {
           throw new Error(t('txt_master_password_is_required'));
         }
         const derived = await deriveLoginHash(profile.email, normalizedPassword, defaultKdfIterations);
-        await setYubikey(authedFetch, {
+        const nextStatus = await setYubikey(authedFetch, {
           removePublicId: normalizedPublicId,
           masterPasswordHash: derived.hash,
         });
-        await refetchYubikeyStatus();
+        onYubikeyStatusUpdated(nextStatus);
       },
 
       async disableYubikey(masterPassword: string) {
         if (!profile) throw new Error(t('txt_profile_unavailable'));
-        const normalized = String(masterPassword || '');
+        const normalized = String(masterPassword || '').trim();
         if (!normalized) throw new Error(t('txt_master_password_is_required'));
         const derived = await deriveLoginHash(profile.email, normalized, defaultKdfIterations);
-        await setYubikey(authedFetch, {
+        const nextStatus = await setYubikey(authedFetch, {
           enabled: false,
           masterPasswordHash: derived.hash,
         });
-        await refetchYubikeyStatus();
+        onYubikeyStatusUpdated(nextStatus);
       },
 
       async refreshAuthorizedDevices() {
@@ -308,6 +347,7 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
       onProfileUpdated,
       onSetConfirm,
       profile,
+      onYubikeyStatusUpdated,
       refetchAuthorizedDevices,
       refetchYubikeyStatus,
       refetchTotpStatus,

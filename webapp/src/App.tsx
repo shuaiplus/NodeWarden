@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import AppAuthenticatedShell from '@/components/AppAuthenticatedShell';
 import AppGlobalOverlays, { type AppConfirmState } from '@/components/AppGlobalOverlays';
 import AuthViews from '@/components/AuthViews';
@@ -186,6 +186,7 @@ export default function App() {
 
   const [confirm, setConfirm] = useState<AppConfirmState | null>(null);
   const [mobileLayout, setMobileLayout] = useState(false);
+  const queryClient = useQueryClient();
   const [decryptedFolders, setDecryptedFolders] = useState<VaultFolder[]>([]);
   const [decryptedCiphers, setDecryptedCiphers] = useState<Cipher[]>([]);
   const [decryptedSends, setDecryptedSends] = useState<Send[]>([]);
@@ -693,6 +694,10 @@ export default function App() {
     queryFn: () => getYubikeyStatus(authedFetch),
     enabled: phase === 'app' && !!session?.accessToken && yubikeyOtpConfigured,
   });
+
+  function setYubikeyStatus(next: { enabled: boolean; publicIds: string[]; nfc: boolean }) {
+    queryClient.setQueryData(['yubikey-status', session?.accessToken], next);
+  }
   const authorizedDevicesQuery = useQuery({
     queryKey: ['authorized-devices', session?.accessToken],
     queryFn: () => getAuthorizedDevices(authedFetch),
@@ -1090,6 +1095,7 @@ export default function App() {
     onSetConfirm: setConfirm,
     refetchTotpStatus: totpStatusQuery.refetch,
     refetchYubikeyStatus: yubikeyStatusQuery.refetch,
+    onYubikeyStatusUpdated: setYubikeyStatus,
     refetchAuthorizedDevices: authorizedDevicesQuery.refetch,
   });
   const adminActions = useAdminActions({
@@ -1223,12 +1229,9 @@ export default function App() {
     },
     onOpenDisableTotp: () => setDisableTotpOpen(true),
     onGetRecoveryCode: accountSecurityActions.getRecoveryCode,
-    onBindYubikey: async (otp: string, nfc: boolean) => {
-      await accountSecurityActions.bindYubikey(otp, nfc);
-      await yubikeyStatusQuery.refetch();
-    },
-    onUnbindYubikey: accountSecurityActions.unbindYubikey,
-    onDisableYubikey: accountSecurityActions.disableYubikey,
+    onBindYubikey: accountSecurityActions.bindYubikey,
+    onUnbindYubikey: accountSecurityActions.openUnbindYubikey,
+    onDisableYubikey: accountSecurityActions.openDisableYubikey,
     onRefreshAuthorizedDevices: accountSecurityActions.refreshAuthorizedDevices,
     onRenameAuthorizedDevice: accountSecurityActions.renameAuthorizedDevice,
     onRevokeDeviceTrust: accountSecurityActions.openRevokeDeviceTrust,
