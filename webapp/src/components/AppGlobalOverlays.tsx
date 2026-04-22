@@ -19,7 +19,7 @@ interface AppGlobalOverlaysProps {
   onCloseToast: (id: string) => void;
   confirm: AppConfirmState | null;
   onCancelConfirm: () => void;
-  pendingTotpOpen: boolean;
+  pendingTwoFactorOpen: boolean;
   totpCode: string;
   twoFactorProvider: '0' | '3';
   twoFactorHasTotp: boolean;
@@ -57,7 +57,7 @@ export default function AppGlobalOverlays(props: AppGlobalOverlaysProps) {
       />
 
       <ConfirmDialog
-        open={props.pendingTotpOpen}
+        open={props.pendingTwoFactorOpen}
         title={t('txt_two_step_verification')}
         message={t('txt_password_is_already_verified')}
         confirmText={t('txt_verify')}

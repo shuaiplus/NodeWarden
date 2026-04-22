@@ -1,4 +1,5 @@
 export type AppPhase = 'register' | 'login' | 'locked' | 'app';
+export type TwoFactorProvider = '0' | '3';
 
 export interface SessionState {
   accessToken?: string;
@@ -319,6 +320,7 @@ export interface TokenError {
   error?: string;
   error_description?: string;
   TwoFactorProviders?: unknown;
+  TwoFactorProviders2?: unknown;
 }
 
 export interface ToastMessage {
@@ -326,6 +328,17 @@ export interface ToastMessage {
   type: 'success' | 'error' | 'warning';
   text: string;
 }
+
+export interface PendingTwoFactor {
+  email: string;
+  passwordHash: string;
+  masterKey: Uint8Array;
+  availableProviders: TwoFactorProvider[];
+  preferredProvider: TwoFactorProvider;
+  providerData: Partial<Record<TwoFactorProvider, unknown | null>>;
+}
+
+export type PendingTotp = PendingTwoFactor;
 
 export interface AdminUser {
   id: string;

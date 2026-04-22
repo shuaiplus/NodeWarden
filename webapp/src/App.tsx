@@ -43,11 +43,10 @@ import {
   performPasswordLogin,
   performRecoverTwoFactorLogin,
   performRegistration,
-  performTotpLogin,
+  performTwoFactorLogin,
   hydrateLockedSession,
   performUnlock,
   type JwtUnsafeReason,
-  type PendingTotp,
 } from '@/lib/app-auth';
 import useAccountSecurityActions from '@/hooks/useAccountSecurityActions';
 import useAdminActions from '@/hooks/useAdminActions';
@@ -57,7 +56,7 @@ import { useToastManager } from '@/hooks/useToastManager';
 import { t } from '@/lib/i18n';
 import { APP_NOTIFY_EVENT, type AppNotifyDetail } from '@/lib/app-notify';
 import { dispatchBackupProgress, type BackupProgressDetail } from '@/lib/backup-restore-progress';
-import type { AppPhase, Cipher, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
+import type { AppPhase, Cipher, Folder as VaultFolder, PendingTwoFactor, Profile, Send, SessionState, TwoFactorProvider } from '@/lib/types';
 
 function isBackupProgressDetail(value: unknown): value is BackupProgressDetail {
   if (!value || typeof value !== 'object') return false;
@@ -171,7 +170,7 @@ export default function App() {
   });
   const [inviteCodeFromUrl, setInviteCodeFromUrl] = useState(initialInviteCode);
   const [unlockPassword, setUnlockPassword] = useState('');
-  const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
+  const [pendingTwoFactor, setPendingTwoFactor] = useState<PendingTwoFactor | null>(null);
   const [totpCode, setTotpCode] = useState('');
   const [twoFactorProvider, setTwoFactorProvider] = useState<'0' | '3'>('0');
   const [rememberDevice, setRememberDevice] = useState(true);
@@ -393,7 +392,7 @@ export default function App() {
     setSession(login.session);
     setProfile(login.profile);
     setUnlockPreparing(false);
-    setPendingTotp(null);
+    setPendingTwoFactor(null);
     setTotpCode('');
     setTwoFactorProvider('0');
     setPhase('app');
@@ -426,9 +425,9 @@ export default function App() {
         return;
       }
       if (result.kind === 'twoFactor') {
-        setPendingTotp(result.pendingTotp);
+        setPendingTwoFactor(result.pendingTwoFactor);
         setTotpCode('');
-        setTwoFactorProvider(result.pendingTotp.preferredProvider);
+        setTwoFactorProvider(result.pendingTwoFactor.preferredProvider);
         setRememberDevice(true);
         return;
       }
@@ -442,14 +441,14 @@ export default function App() {
 
   async function handleTotpVerify() {
     if (totpSubmitting) return;
-    if (!pendingTotp) return;
+    if (!pendingTwoFactor) return;
     if (!totpCode.trim()) {
       pushToast('error', twoFactorProvider === '3' ? t('txt_please_input_yubikey_otp') : t('txt_please_input_totp_code'));
       return;
     }
     setTotpSubmitting(true);
     try {
-      const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice, twoFactorProvider);
+      const login = await performTwoFactorLogin(pendingTwoFactor, totpCode, rememberDevice, twoFactorProvider);
       await finalizeLogin(login);
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : t('txt_two_factor_verify_failed'));
@@ -612,7 +611,7 @@ export default function App() {
     clearProfileSnapshot();
     setProfile(null);
     setUnlockPreparing(false);
-    setPendingTotp(null);
+    setPendingTwoFactor(null);
     setTwoFactorProvider('0');
     setPhase('login');
     navigate('/login');
@@ -636,7 +635,7 @@ export default function App() {
         onCloseToast={removeToast}
         confirm={null}
         onCancelConfirm={() => {}}
-        pendingTotpOpen={false}
+        pendingTwoFactorOpen={false}
         totpCode=""
         twoFactorProvider="0"
         twoFactorHasTotp={false}
@@ -1325,11 +1324,11 @@ export default function App() {
           onCloseToast={removeToast}
           confirm={confirm}
           onCancelConfirm={() => setConfirm(null)}
-          pendingTotpOpen={!!pendingTotp}
+          pendingTwoFactorOpen={!!pendingTwoFactor}
           totpCode={totpCode}
           twoFactorProvider={twoFactorProvider}
-          twoFactorHasTotp={!!pendingTotp?.availableProviders.includes('0')}
-          twoFactorHasYubikey={!!pendingTotp?.availableProviders.includes('3')}
+          twoFactorHasTotp={!!pendingTwoFactor?.availableProviders.includes('0')}
+          twoFactorHasYubikey={!!pendingTwoFactor?.availableProviders.includes('3')}
           rememberDevice={rememberDevice}
           onTotpCodeChange={setTotpCode}
           onTwoFactorProviderChange={setTwoFactorProvider}
@@ -1337,14 +1336,14 @@ export default function App() {
           onConfirmTotp={() => void handleTotpVerify()}
           onCancelTotp={() => {
             if (totpSubmitting) return;
-            setPendingTotp(null);
+            setPendingTwoFactor(null);
             setTotpCode('');
             setTwoFactorProvider('0');
             setRememberDevice(true);
           }}
           onUseRecoveryCode={() => {
             if (totpSubmitting) return;
-            setPendingTotp(null);
+            setPendingTwoFactor(null);
             setTotpCode('');
             setTwoFactorProvider('0');
             setRememberDevice(true);
@@ -1387,7 +1386,7 @@ export default function App() {
         onCloseToast={removeToast}
         confirm={confirm}
         onCancelConfirm={() => setConfirm(null)}
-        pendingTotpOpen={false}
+        pendingTwoFactorOpen={false}
         totpCode=""
         twoFactorProvider="0"
         twoFactorHasTotp={false}

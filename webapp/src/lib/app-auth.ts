@@ -9,18 +9,23 @@ import {
   recoverTwoFactor,
   registerAccount,
   unlockVaultKey,
-} from '@/lib/api/auth';
-import { readInviteCodeFromUrl } from '@/lib/app-support';
-import type { AppPhase, Profile, SessionState, TokenSuccess, WebBootstrapResponse } from '@/lib/types';
+} from './api/auth';
+import type { AppPhase, PendingTwoFactor, Profile, SessionState, TokenSuccess, TwoFactorProvider, WebBootstrapResponse } from './types';
 
-export interface PendingTotp {
-  email: string;
-  passwordHash: string;
-  masterKey: Uint8Array;
-  // 0 = authenticator(TOTP), 3 = YubiKey OTP.
-  availableProviders: Array<'0' | '3'>;
-  // 0 = authenticator(TOTP), 3 = YubiKey OTP.
-  preferredProvider: '0' | '3';
+function readInviteCodeFromUrl(): string {
+  if (typeof window === 'undefined') return '';
+
+  const searchInvite = new URLSearchParams(window.location.search || '').get('invite');
+  if (searchInvite && searchInvite.trim()) return searchInvite.trim();
+
+  const rawHash = String(window.location.hash || '');
+  const queryIndex = rawHash.indexOf('?');
+  if (queryIndex >= 0) {
+    const hashInvite = new URLSearchParams(rawHash.slice(queryIndex + 1)).get('invite');
+    if (hashInvite && hashInvite.trim()) return hashInvite.trim();
+  }
+
+  return '';
 }
 
 export type JwtUnsafeReason = 'missing' | 'default' | 'too_short';
@@ -51,7 +56,7 @@ export interface CompletedLogin {
 
 export type PasswordLoginResult =
   | { kind: 'success'; login: CompletedLogin }
-  | { kind: 'twoFactor'; pendingTotp: PendingTotp }
+  | { kind: 'twoFactor'; pendingTwoFactor: PendingTwoFactor }
   | { kind: 'error'; message: string };
 
 export interface RecoverTwoFactorResult {
@@ -184,7 +189,7 @@ export function readInitialAppBootstrapState(): InitialAppBootstrapState {
   };
 }
 
-export async function bootstrapAppSession(initial: InitialAppBootstrapState = readInitialAppBootstrapState()): Promise<BootstrapAppResult> {
+export async function bootstrapAppSession(initial: InitialAppBootstrapState): Promise<BootstrapAppResult> {
   const remoteBoot = await fetchBootstrapConfig();
   const normalizedBoot = normalizeBootstrapResponse(remoteBoot);
   const defaultKdfIterations = normalizedBoot.defaultKdfIterations || initial.defaultKdfIterations;
@@ -293,12 +298,30 @@ export async function completeLogin(
   };
 }
 
-function parseTwoFactorProviders(raw: unknown): Array<'0' | '3'> {
-  if (!Array.isArray(raw)) return [];
-  const providers = raw
-    .map((value) => String(value || '').trim())
-    .filter((value): value is '0' | '3' => value === '0' || value === '3');
-  return Array.from(new Set(providers));
+export function parseTwoFactorChallenge(raw: {
+  TwoFactorProviders?: unknown;
+  TwoFactorProviders2?: unknown;
+}): Pick<PendingTwoFactor, 'availableProviders' | 'preferredProvider' | 'providerData'> {
+  const availableProviders = Array.isArray(raw.TwoFactorProviders)
+    ? Array.from(
+        new Set(
+          raw.TwoFactorProviders
+            .map((value) => String(value || '').trim())
+            .filter((value): value is TwoFactorProvider => value === '0' || value === '3')
+        )
+      )
+    : [];
+
+  const providerData =
+    raw.TwoFactorProviders2 && typeof raw.TwoFactorProviders2 === 'object'
+      ? (raw.TwoFactorProviders2 as Partial<Record<TwoFactorProvider, unknown | null>>)
+      : {};
+
+  return {
+    availableProviders,
+    preferredProvider: availableProviders.includes('0') ? '0' : '3',
+    providerData,
+  };
 }
 
 export async function performPasswordLogin(
@@ -317,18 +340,19 @@ export async function performPasswordLogin(
     };
   }
 
-  const tokenError = token as { TwoFactorProviders?: unknown; error_description?: string; error?: string };
+  const tokenError = token as { TwoFactorProviders?: unknown; TwoFactorProviders2?: unknown; error_description?: string; error?: string };
   if (tokenError.TwoFactorProviders) {
-    const availableProviders = parseTwoFactorProviders(tokenError.TwoFactorProviders);
-    const preferredProvider: '0' | '3' = availableProviders.includes('0') ? '0' : '3';
+    const challenge = parseTwoFactorChallenge({
+      TwoFactorProviders: tokenError.TwoFactorProviders,
+      TwoFactorProviders2: tokenError.TwoFactorProviders2,
+    });
     return {
       kind: 'twoFactor',
-      pendingTotp: {
+      pendingTwoFactor: {
         email: normalizedEmail,
         passwordHash: derived.hash,
         masterKey: derived.masterKey,
-        availableProviders,
-        preferredProvider,
+        ...challenge,
       },
     };
   }
@@ -339,22 +363,24 @@ export async function performPasswordLogin(
   };
 }
 
-export async function performTotpLogin(
-  pendingTotp: PendingTotp,
+export async function performTwoFactorLogin(
+  pendingTwoFactor: PendingTwoFactor,
   twoFactorToken: string,
   rememberDevice: boolean,
-  provider?: '0' | '3'
+  provider?: TwoFactorProvider
 ): Promise<CompletedLogin> {
-  const token = await loginWithPassword(pendingTotp.email, pendingTotp.passwordHash, {
-    twoFactorProvider: provider || pendingTotp.preferredProvider,
+  const effectiveProvider = provider || pendingTwoFactor.preferredProvider;
+  const token = await loginWithPassword(pendingTwoFactor.email, pendingTwoFactor.passwordHash, {
+    twoFactorProvider: effectiveProvider,
     twoFactorToken: twoFactorToken.trim(),
     rememberDevice,
   });
   if ('access_token' in token && token.access_token) {
-    return completeLogin(token, pendingTotp.email, pendingTotp.masterKey);
+    return completeLogin(token, pendingTwoFactor.email, pendingTwoFactor.masterKey);
   }
   const tokenError = token as { error_description?: string; error?: string };
-  throw new Error(tokenError.error_description || tokenError.error || 'TOTP verify failed');
+  const fallbackMessage = effectiveProvider === '3' ? 'Two-factor verify failed' : 'TOTP verify failed';
+  throw new Error(tokenError.error_description || tokenError.error || fallbackMessage);
 }
 
 export async function performRecoverTwoFactorLogin(
