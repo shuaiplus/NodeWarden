@@ -35,7 +35,7 @@
 | TOTP / Steam TOTP | ✅ | ✅ | Includes `steam://` support |
 | Multi-user | ✅ | ✅ | Invite-based registration |
 | Organizations / Collections / Member roles | ✅ | ❌ | Not implemented |
-| Login 2FA | ✅ | ✅ | Supports user-level TOTP / YubiKey OTP |
+| Login 2FA | ✅ | ⚠️ | Only supports user-level TOTP / YubiKey OTP |
 | SSO / SCIM / Enterprise directory | ✅ | ❌ | Not implemented |
 
 ---
