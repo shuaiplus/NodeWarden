@@ -94,6 +94,8 @@ export interface AppMainRoutesProps {
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
   onGetRecoveryCode: (masterPassword: string) => Promise<string>;
+  onGetApiKey: (masterPassword: string) => Promise<string>;
+  onRotateApiKey: (masterPassword: string) => Promise<string>;
   onRefreshAuthorizedDevices: () => Promise<void>;
   onRenameAuthorizedDevice: (device: AuthorizedDevice, name: string) => Promise<void>;
   onRevokeDeviceTrust: (device: AuthorizedDevice) => void;
@@ -225,6 +227,8 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 onEnableTotp={props.onEnableTotp}
                 onOpenDisableTotp={props.onOpenDisableTotp}
                 onGetRecoveryCode={props.onGetRecoveryCode}
+                onGetApiKey={props.onGetApiKey}
+                onRotateApiKey={props.onRotateApiKey}
                 onNotify={props.onNotify}
               />
             </Suspense>

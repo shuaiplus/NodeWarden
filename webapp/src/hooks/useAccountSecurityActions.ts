@@ -5,7 +5,9 @@ import {
   deleteAuthorizedDevice,
   deriveLoginHash,
   getCurrentDeviceIdentifier,
+  getApiKey,
   getTotpRecoveryCode,
+  rotateApiKey,
   revokeAuthorizedDeviceTrust,
   revokeAllAuthorizedDeviceTrust,
   setTotp,
@@ -146,6 +148,26 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
         const code = await getTotpRecoveryCode(authedFetch, derived.hash);
         if (!code) throw new Error(t('txt_recovery_code_is_empty'));
         return code;
+      },
+
+      async getApiKey(masterPassword: string): Promise<string> {
+        if (!profile) throw new Error(t('txt_profile_unavailable'));
+        const normalized = String(masterPassword || '');
+        if (!normalized) throw new Error(t('txt_master_password_is_required'));
+        const derived = await deriveLoginHash(profile.email, normalized, defaultKdfIterations);
+        const key = await getApiKey(authedFetch, derived.hash);
+        if (!key) throw new Error(t('txt_api_key_is_empty'));
+        return key;
+      },
+
+      async rotateApiKey(masterPassword: string): Promise<string> {
+        if (!profile) throw new Error(t('txt_profile_unavailable'));
+        const normalized = String(masterPassword || '');
+        if (!normalized) throw new Error(t('txt_master_password_is_required'));
+        const derived = await deriveLoginHash(profile.email, normalized, defaultKdfIterations);
+        const key = await rotateApiKey(authedFetch, derived.hash);
+        if (!key) throw new Error(t('txt_api_key_is_empty'));
+        return key;
       },
 
       async refreshAuthorizedDevices() {

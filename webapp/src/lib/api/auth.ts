@@ -594,3 +594,31 @@ export async function deleteAllAuthorizedDevices(authedFetch: AuthedFetch): Prom
   const resp = await authedFetch('/api/devices', { method: 'DELETE' });
   if (!resp.ok) throw new Error(t('txt_remove_all_devices_failed'));
 }
+
+export async function getApiKey(authedFetch: AuthedFetch, masterPasswordHash: string): Promise<string> {
+  const resp = await authedFetch('/api/accounts/api_key', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ masterPasswordHash }),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Failed to get API key');
+  }
+  const body = (await parseJson<{ apiKey?: string }>(resp)) || {};
+  return String(body.apiKey || '');
+}
+
+export async function rotateApiKey(authedFetch: AuthedFetch, masterPasswordHash: string): Promise<string> {
+  const resp = await authedFetch('/api/accounts/rotate_api_key', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ masterPasswordHash }),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Failed to rotate API key');
+  }
+  const body = (await parseJson<{ apiKey?: string }>(resp)) || {};
+  return String(body.apiKey || '');
+}

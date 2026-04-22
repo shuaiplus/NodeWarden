@@ -14,6 +14,8 @@ interface SettingsPageProps {
   onEnableTotp: (secret: string, token: string) => Promise<void>;
   onOpenDisableTotp: () => void;
   onGetRecoveryCode: (masterPassword: string) => Promise<string>;
+  onGetApiKey: (masterPassword: string) => Promise<string>;
+  onRotateApiKey: (masterPassword: string) => Promise<string>;
   onNotify?: (type: 'success' | 'error', text: string) => void;
 }
 
@@ -48,6 +50,10 @@ export default function SettingsPage(props: SettingsPageProps) {
   const [totpLocked, setTotpLocked] = useState(props.totpEnabled);
   const [recoveryMasterPassword, setRecoveryMasterPassword] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [apiKeyMasterPassword, setApiKeyMasterPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [rotateApiKeyConfirmOpen, setRotateApiKeyConfirmOpen] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!props.totpEnabled) {
@@ -85,6 +91,27 @@ export default function SettingsPage(props: SettingsPageProps) {
     const code = await props.onGetRecoveryCode(recoveryMasterPassword);
     setRecoveryCode(code);
     props.onNotify?.('success', t('txt_recovery_code_loaded'));
+  }
+
+  async function loadApiKey(): Promise<void> {
+    try {
+      const key = await props.onGetApiKey(apiKeyMasterPassword);
+      setApiKey(key);
+      setApiKeyDialogOpen(true);
+    } catch (error) {
+      props.onNotify?.('error', error instanceof Error ? error.message : t('txt_api_key_is_empty'));
+    }
+  }
+
+  async function doRotateApiKey(): Promise<void> {
+    try {
+      const key = await props.onRotateApiKey(apiKeyMasterPassword);
+      setApiKey(key);
+      setApiKeyDialogOpen(true);
+      props.onNotify?.('success', t('txt_api_key_rotated'));
+    } catch (error) {
+      props.onNotify?.('error', error instanceof Error ? error.message : t('txt_api_key_is_empty'));
+    }
   }
 
   function formatDateTime(value: string | null | undefined): string {
@@ -235,8 +262,68 @@ export default function SettingsPage(props: SettingsPageProps) {
               </div>
             )}
           </div>
+
+          <div className="settings-subcard">
+            <h3>{t('txt_api_key')}</h3>
+            <label className="field">
+              <span>{t('txt_master_password')}</span>
+              <input
+                className="input"
+                type="password"
+                value={apiKeyMasterPassword}
+                onInput={(e) => setApiKeyMasterPassword((e.currentTarget as HTMLInputElement).value)}
+              />
+            </label>
+            <div className="actions">
+              <button type="button" className="btn btn-secondary" onClick={() => void loadApiKey()}>
+                <KeyRound size={14} className="btn-icon" />
+                {t('txt_view_api_key')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setRotateApiKeyConfirmOpen(true)}
+              >
+                <RefreshCw size={14} className="btn-icon" />
+                {t('txt_rotate_api_key')}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
+      <ConfirmDialog
+        open={apiKeyDialogOpen}
+        title={t('txt_api_key')}
+        message=""
+        hideCancel
+        confirmText={t('txt_close')}
+        onConfirm={() => setApiKeyDialogOpen(false)}
+        onCancel={() => setApiKeyDialogOpen(false)}
+      >
+        <div className="stack" style={{ gap: 8, marginTop: 4 }}>
+          {([
+            [t('txt_client_id'), `user.${props.profile.id}`],
+            [t('txt_client_secret'), apiKey],
+            [t('txt_scope'), 'api'],
+          ] as [string, string][]).map(([label, value]) => (
+            <label key={label} className="field">
+              <span>{label}</span>
+              <input className="input" readOnly value={value} onFocus={(e) => (e.currentTarget as HTMLInputElement).select()} />
+            </label>
+          ))}
+        </div>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={rotateApiKeyConfirmOpen}
+        title={t('txt_rotate_api_key')}
+        message={t('txt_rotate_api_key_confirm')}
+        danger
+        onConfirm={() => {
+          setRotateApiKeyConfirmOpen(false);
+          void doRotateApiKey();
+        }}
+        onCancel={() => setRotateApiKeyConfirmOpen(false)}
+      />
     </div>
   );
 }
