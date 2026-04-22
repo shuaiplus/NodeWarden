@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 interface SettingsPageProps {
   profile: Profile;
   totpEnabled: boolean;
+  yubikeyOtpConfigured: boolean;
   yubikeyEnabled: boolean;
   yubikeyPublicIds: string[];
   onChangePassword: (currentPassword: string, nextPassword: string, nextPassword2: string) => Promise<void>;
@@ -243,64 +244,66 @@ export default function SettingsPage(props: SettingsPageProps) {
             )}
           </div>
 
-          <div className="settings-subcard">
-            <h3>{t('txt_yubikey_otp')}</h3>
-            {props.yubikeyEnabled && <div className="status-ok">{t('txt_yubikey_is_enabled_for_this_account')}</div>}
-            <label className="field">
-              <span>{t('txt_yubikey_otp')}</span>
-              <input
-                className="input"
-                value={yubikeyOtp}
-                onInput={(e) => setYubikeyOtp((e.currentTarget as HTMLInputElement).value)}
-                placeholder={t('txt_touch_yubikey_to_fill_otp')}
-              />
-            </label>
-            <div className="actions">
+          {props.yubikeyOtpConfigured && (
+            <div className="settings-subcard">
+              <h3>{t('txt_yubikey_otp')}</h3>
+              {props.yubikeyEnabled && <div className="status-ok">{t('txt_yubikey_is_enabled_for_this_account')}</div>}
+              <label className="field">
+                <span>{t('txt_yubikey_otp')}</span>
+                <input
+                  className="input"
+                  value={yubikeyOtp}
+                  onInput={(e) => setYubikeyOtp((e.currentTarget as HTMLInputElement).value)}
+                  placeholder={t('txt_touch_yubikey_to_fill_otp')}
+                />
+              </label>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void props.onBindYubikey(yubikeyOtp).then(() => setYubikeyOtp(''))}
+                >
+                  <ShieldCheck size={14} className="btn-icon" />
+                  {t('txt_bind_yubikey')}
+                </button>
+              </div>
+              <label className="field">
+                <span>{t('txt_master_password')}</span>
+                <input
+                  className="input"
+                  type="password"
+                  value={yubikeyMasterPassword}
+                  onInput={(e) => setYubikeyMasterPassword((e.currentTarget as HTMLInputElement).value)}
+                />
+                <div className="field-help">{t('txt_master_password_required_to_unbind_or_disable_yubikey')}</div>
+              </label>
+              {props.yubikeyPublicIds.length > 0 && (
+                <div className="stack" style={{ gap: 8 }}>
+                  {props.yubikeyPublicIds.map((id) => (
+                    <div key={id} className="actions" style={{ justifyContent: 'space-between' }}>
+                      <code>{id}</code>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => void props.onUnbindYubikey(id, yubikeyMasterPassword)}
+                      >
+                        {t('txt_unbind')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 type="button"
-                className="btn btn-primary"
-                onClick={() => void props.onBindYubikey(yubikeyOtp).then(() => setYubikeyOtp(''))}
+                className="btn btn-danger"
+                disabled={!props.yubikeyEnabled}
+                onClick={() => void props.onDisableYubikey(yubikeyMasterPassword)}
               >
-                <ShieldCheck size={14} className="btn-icon" />
-                {t('txt_bind_yubikey')}
+                <ShieldOff size={14} className="btn-icon" />
+                {t('txt_disable_yubikey')}
               </button>
             </div>
-            <label className="field">
-              <span>{t('txt_master_password')}</span>
-              <input
-                className="input"
-                type="password"
-                value={yubikeyMasterPassword}
-                onInput={(e) => setYubikeyMasterPassword((e.currentTarget as HTMLInputElement).value)}
-              />
-              <div className="field-help">{t('txt_master_password_required_to_unbind_or_disable_yubikey')}</div>
-            </label>
-            {props.yubikeyPublicIds.length > 0 && (
-              <div className="stack" style={{ gap: 8 }}>
-                {props.yubikeyPublicIds.map((id) => (
-                  <div key={id} className="actions" style={{ justifyContent: 'space-between' }}>
-                    <code>{id}</code>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => void props.onUnbindYubikey(id, yubikeyMasterPassword)}
-                    >
-                      {t('txt_unbind')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={!props.yubikeyEnabled}
-              onClick={() => void props.onDisableYubikey(yubikeyMasterPassword)}
-            >
-              <ShieldOff size={14} className="btn-icon" />
-              {t('txt_disable_yubikey')}
-            </button>
-          </div>
+          )}
         </div>
       </section>
     </div>

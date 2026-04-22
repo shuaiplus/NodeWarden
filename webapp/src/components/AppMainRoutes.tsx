@@ -45,6 +45,7 @@ export interface AppMainRoutesProps {
   users: AdminUser[];
   invites: AdminInvite[];
   totpEnabled: boolean;
+  yubikeyOtpConfigured: boolean;
   yubikeyEnabled: boolean;
   yubikeyPublicIds: string[];
   authorizedDevices: AuthorizedDevice[];
@@ -225,6 +226,7 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
               <SettingsPage
                 profile={props.profile}
                 totpEnabled={props.totpEnabled}
+                yubikeyOtpConfigured={props.yubikeyOtpConfigured}
                 yubikeyEnabled={props.yubikeyEnabled}
                 yubikeyPublicIds={props.yubikeyPublicIds}
                 onChangePassword={props.onChangePassword}

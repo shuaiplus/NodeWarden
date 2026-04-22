@@ -31,6 +31,7 @@ export interface WebBootstrapResponse {
   defaultKdfIterations: number;
   jwtUnsafeReason: JwtUnsafeReason;
   jwtSecretMinLength: number;
+  yubikeyOtpConfigured: boolean;
 }
 
 function isSameOriginWriteRequest(request: Request): boolean {
@@ -180,6 +181,9 @@ async function handleWebsiteIcon(host: string): Promise<Response> {
 
 export function buildWebBootstrapResponse(env: Env): WebBootstrapResponse {
   const secret = (env.JWT_SECRET || '').trim();
+  const yubicoClientId = String(env.YUBICO_CLIENT_ID || '').trim();
+  const yubicoSecretKey = String(env.YUBICO_SECRET_KEY || '').trim();
+  const yubicoApiUrl = String(env.YUBICO_API_URL || '').trim();
   const jwtUnsafeReason =
     !secret
       ? 'missing'
@@ -193,6 +197,7 @@ export function buildWebBootstrapResponse(env: Env): WebBootstrapResponse {
     defaultKdfIterations: LIMITS.auth.defaultKdfIterations,
     jwtUnsafeReason,
     jwtSecretMinLength: LIMITS.auth.jwtSecretMinLength,
+    yubikeyOtpConfigured: !!(yubicoClientId && yubicoSecretKey && yubicoApiUrl),
   };
 }
 

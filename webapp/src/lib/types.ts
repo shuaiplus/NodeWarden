@@ -285,6 +285,7 @@ export interface WebBootstrapResponse {
   defaultKdfIterations?: number;
   jwtUnsafeReason?: 'missing' | 'default' | 'too_short' | null;
   jwtSecretMinLength?: number;
+  yubikeyOtpConfigured?: boolean;
 }
 
 export interface TokenSuccess {

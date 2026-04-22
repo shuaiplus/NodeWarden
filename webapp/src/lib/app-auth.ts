@@ -28,6 +28,7 @@ export type JwtUnsafeReason = 'missing' | 'default' | 'too_short';
 export interface BootstrapAppResult {
   defaultKdfIterations: number;
   jwtWarning: { reason: JwtUnsafeReason; minLength: number } | null;
+  yubikeyOtpConfigured: boolean;
   session: SessionState | null;
   profile: Profile | null;
   phase: AppPhase;
@@ -37,6 +38,7 @@ export interface BootstrapAppResult {
 export interface InitialAppBootstrapState {
   defaultKdfIterations: number;
   jwtWarning: { reason: JwtUnsafeReason; minLength: number } | null;
+  yubikeyOtpConfigured: boolean;
   session: SessionState | null;
   phase: AppPhase;
 }
@@ -100,7 +102,9 @@ function readWindowBootstrap(): WebBootstrapResponse {
   return raw && typeof raw === 'object' ? raw : {};
 }
 
-function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'jwtWarning'> {
+function normalizeBootstrapResponse(
+  boot: WebBootstrapResponse
+): Pick<InitialAppBootstrapState, 'defaultKdfIterations' | 'jwtWarning' | 'yubikeyOtpConfigured'> {
   const defaultKdfIterations = Number(boot.defaultKdfIterations || 600000);
   const jwtUnsafeReason = boot.jwtUnsafeReason || null;
   const jwtWarning = jwtUnsafeReason
@@ -113,6 +117,7 @@ function normalizeBootstrapResponse(boot: WebBootstrapResponse): Pick<InitialApp
   return {
     defaultKdfIterations,
     jwtWarning,
+    yubikeyOtpConfigured: !!boot.yubikeyOtpConfigured,
   };
 }
 
@@ -166,13 +171,14 @@ function buildTransientProfile(token: TokenSuccess, email: string): Profile {
 }
 
 export function readInitialAppBootstrapState(): InitialAppBootstrapState {
-  const { defaultKdfIterations, jwtWarning } = normalizeBootstrapResponse(readWindowBootstrap());
+  const { defaultKdfIterations, jwtWarning, yubikeyOtpConfigured } = normalizeBootstrapResponse(readWindowBootstrap());
   const session = loadSession();
   const hasInviteCode = !!readInviteCodeFromUrl();
 
   return {
     defaultKdfIterations,
     jwtWarning,
+    yubikeyOtpConfigured,
     session,
     phase: jwtWarning ? 'login' : session ? 'locked' : hasInviteCode ? 'register' : 'login',
   };
@@ -183,11 +189,13 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
   const normalizedBoot = normalizeBootstrapResponse(remoteBoot);
   const defaultKdfIterations = normalizedBoot.defaultKdfIterations || initial.defaultKdfIterations;
   const jwtWarning = normalizedBoot.jwtWarning ?? initial.jwtWarning;
+  const yubikeyOtpConfigured = normalizedBoot.yubikeyOtpConfigured ?? initial.yubikeyOtpConfigured;
 
   if (jwtWarning) {
     return {
       defaultKdfIterations,
       jwtWarning,
+      yubikeyOtpConfigured,
       session: null,
       profile: null,
       phase: 'login',
@@ -199,6 +207,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     return {
       defaultKdfIterations,
       jwtWarning: null,
+      yubikeyOtpConfigured,
       session: null,
       profile: null,
       phase: initial.phase,
@@ -210,6 +219,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
     return {
       defaultKdfIterations,
       jwtWarning: null,
+      yubikeyOtpConfigured,
       session: loaded,
       profile: cachedProfile,
       phase: 'locked',
@@ -220,6 +230,7 @@ export async function bootstrapAppSession(initial: InitialAppBootstrapState = re
   return {
     defaultKdfIterations,
     jwtWarning: null,
+    yubikeyOtpConfigured,
     session: loaded,
     profile: null,
     phase: 'locked',

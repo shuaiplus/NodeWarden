@@ -149,6 +149,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(initialProfileSnapshot);
   const [defaultKdfIterations, setDefaultKdfIterations] = useState(initialBootstrap.defaultKdfIterations);
   const [jwtWarning, setJwtWarning] = useState<{ reason: JwtUnsafeReason; minLength: number } | null>(initialBootstrap.jwtWarning);
+  const [yubikeyOtpConfigured, setYubikeyOtpConfigured] = useState(initialBootstrap.yubikeyOtpConfigured);
 
   const [loginValues, setLoginValues] = useState({ email: '', password: '' });
   const [registerValues, setRegisterValues] = useState({
@@ -352,6 +353,7 @@ export default function App() {
       if (!mounted) return;
       setDefaultKdfIterations(boot.defaultKdfIterations);
       setJwtWarning(boot.jwtWarning);
+      setYubikeyOtpConfigured(boot.yubikeyOtpConfigured);
       setSession(boot.session);
       setProfile(boot.profile);
       setPhase(boot.phase);
@@ -690,7 +692,7 @@ export default function App() {
   const yubikeyStatusQuery = useQuery({
     queryKey: ['yubikey-status', session?.accessToken],
     queryFn: () => getYubikeyStatus(authedFetch),
-    enabled: phase === 'app' && !!session?.accessToken,
+    enabled: phase === 'app' && !!session?.accessToken && yubikeyOtpConfigured,
   });
   const authorizedDevicesQuery = useQuery({
     queryKey: ['authorized-devices', session?.accessToken],
@@ -1174,8 +1176,9 @@ export default function App() {
     users: usersQuery.data || [],
     invites: invitesQuery.data || [],
     totpEnabled: !!totpStatusQuery.data?.enabled,
-    yubikeyEnabled: !!yubikeyStatusQuery.data?.enabled,
-    yubikeyPublicIds: yubikeyStatusQuery.data?.publicIds || [],
+    yubikeyOtpConfigured,
+    yubikeyEnabled: yubikeyOtpConfigured && !!yubikeyStatusQuery.data?.enabled,
+    yubikeyPublicIds: yubikeyOtpConfigured ? (yubikeyStatusQuery.data?.publicIds || []) : [],
     authorizedDevices: authorizedDevicesQuery.data || [],
     authorizedDevicesLoading: authorizedDevicesQuery.isFetching,
     onNavigate: navigate,
