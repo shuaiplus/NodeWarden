@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  nodewarden:
+    build: .
+    # image: shuaiplus/nodewarden:latest # Alternatively, use pre-built image if available
+    container_name: nodewarden
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      - JWT_SECRET=YOUR_SECURE_RANDOM_SECRET_KEY_HERE_MIN_32_CHARS
+    volumes:
+      - ./data:/nodewarden

@@ -29,7 +29,13 @@ function hasKvStorage(env: Env): env is Env & { ATTACHMENTS_KV: KVNamespace } {
   return !!env.ATTACHMENTS_KV;
 }
 
-export function getBlobStorageKind(env: Env): 'r2' | 'kv' | null {
+function hasLocalStorage(env: Env): env is Env & { LOCAL_ATTACHMENTS_DIR: string } {
+  return !!env.LOCAL_ATTACHMENTS_DIR;
+}
+
+export function getBlobStorageKind(env: Env): 'r2' | 'kv' | 'local' | null {
+  // Prefer local when configured
+  if (hasLocalStorage(env)) return 'local';
   // Keep R2 as preferred backend when both are bound.
   if (hasR2Storage(env)) return 'r2';
   if (hasKvStorage(env)) return 'kv';
@@ -80,6 +86,42 @@ export async function putBlobObject(
     return;
   }
 
+  if (hasLocalStorage(env)) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const fullPath = path.join(env.LOCAL_ATTACHMENTS_DIR, key);
+    let buffer: Buffer;
+    if (value instanceof ReadableStream) {
+      // Consume the stream into memory since Node doesn't naturally write Web Streams to fs easily in all versions without util.stream
+      const reader = value.getReader();
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value: chunk } = await reader.read();
+        if (done) break;
+        if (chunk) chunks.push(chunk);
+      }
+      buffer = Buffer.concat(chunks);
+    } else if (typeof value === 'string') {
+      buffer = Buffer.from(value);
+    } else if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+      buffer = Buffer.from(value as ArrayBuffer);
+    } else {
+      throw new Error('Unsupported body type for local blob storage');
+    }
+
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, buffer);
+
+    const metaPath = fullPath + '.meta.json';
+    const metadata: KVBlobMetadata = {
+      size: options.size,
+      contentType,
+      customMetadata: options.customMetadata || null,
+    };
+    await fs.writeFile(metaPath, JSON.stringify(metadata), 'utf-8');
+    return;
+  }
+
   throw new Error('Attachment storage is not configured');
 }
 
@@ -109,6 +151,33 @@ export async function getBlobObject(env: Env, key: string): Promise<BlobObject |
     };
   }
 
+  if (hasLocalStorage(env)) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const fullPath = path.join(env.LOCAL_ATTACHMENTS_DIR, key);
+    const metaPath = fullPath + '.meta.json';
+    try {
+      const buffer = await fs.readFile(fullPath);
+      let contentType = DEFAULT_CONTENT_TYPE;
+      let size = buffer.length;
+      try {
+        const metaResult = await fs.readFile(metaPath, 'utf-8');
+        const metadata = JSON.parse(metaResult) as KVBlobMetadata;
+        if (metadata.contentType) contentType = metadata.contentType;
+        if (metadata.size) size = metadata.size;
+      } catch {
+        // Missing metadata is fine
+      }
+      return {
+        body: new Response(buffer).body,
+        size,
+        contentType,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   return null;
 }
 
@@ -119,6 +188,15 @@ export async function deleteBlobObject(env: Env, key: string): Promise<void> {
   }
   if (hasKvStorage(env)) {
     await env.ATTACHMENTS_KV.delete(key);
+    return;
+  }
+  if (hasLocalStorage(env)) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const fullPath = path.join(env.LOCAL_ATTACHMENTS_DIR, key);
+    const metaPath = fullPath + '.meta.json';
+    try { await fs.unlink(fullPath); } catch { }
+    try { await fs.unlink(metaPath); } catch { }
     return;
   }
 }
