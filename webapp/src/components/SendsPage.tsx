@@ -14,12 +14,13 @@ interface SendsPageProps {
   onBulkDelete: (ids: string[]) => Promise<void>;
   uploadingSendFileName: string;
   sendUploadPercent: number | null;
+  mobileSidebarToggleKey: number;
   onNotify: (type: 'success' | 'error', text: string) => void;
 }
 
 type SendTypeFilter = 'all' | 'text' | 'file';
 const AUTO_COPY_KEY = 'nodewarden.send.auto_copy_link.v1';
-const MOBILE_LAYOUT_QUERY = '(max-width: 900px)';
+const MOBILE_LAYOUT_QUERY = '(max-width: 1180px)';
 
 function daysFromNow(iso: string | null | undefined, fallback: number): string {
   if (!iso) return String(fallback);
@@ -108,12 +109,9 @@ export default function SendsPage(props: SendsPageProps) {
   }, []);
 
   useEffect(() => {
-    const onToggleSidebar = () => {
-      setMobileSidebarOpen((open) => !open);
-    };
-    window.addEventListener('nodewarden:toggle-sidebar', onToggleSidebar);
-    return () => window.removeEventListener('nodewarden:toggle-sidebar', onToggleSidebar);
-  }, []);
+    if (!props.mobileSidebarToggleKey) return;
+    setMobileSidebarOpen((open) => !open);
+  }, [props.mobileSidebarToggleKey]);
 
   useEffect(() => {
     try {
@@ -326,8 +324,7 @@ export default function SendsPage(props: SendsPageProps) {
           {filteredSends.map((send, index) => (
             <div
               key={send.id}
-              className={`list-item stagger-item ${selectedId === send.id ? 'active' : ''}`}
-              style={{ animationDelay: `${Math.min(index, 10) * 26}ms` }}
+              className={`list-item stagger-item stagger-delay-${Math.min(index, 10)} ${selectedId === send.id ? 'active' : ''}`}
               onClick={(event) => {
                 const target = event.target as HTMLElement;
                 if (target.closest('.row-check')) return;
@@ -406,7 +403,7 @@ export default function SendsPage(props: SendsPageProps) {
         )}
         {isEditing && draft && (
           <div key={`send-editor-${draft.id || selectedSend?.id || 'new'}-${draft.type}`} className="detail-switch-stage">
-            <div className="card stagger-item" style={{ animationDelay: '0ms' }}>
+            <div className="card stagger-item stagger-delay-0">
               <h3 className="detail-title">{isCreating ? t('txt_new_send') : t('txt_edit_send')}</h3>
               {!!props.uploadingSendFileName && <div className="detail-sub">{sendUploadLabel}</div>}
               <div className="field-grid">
@@ -506,12 +503,12 @@ export default function SendsPage(props: SendsPageProps) {
 
         {!isEditing && selectedSend && (
           <div key={`send-detail-${selectedSend.id}`} className="detail-switch-stage">
-            <div className="card stagger-item" style={{ animationDelay: '36ms' }}>
+            <div className="card stagger-item stagger-delay-1">
               <h3 className="detail-title">{selectedSend.decName || t('txt_no_name')}</h3>
               <div className="detail-sub">{Number(selectedSend.type) === 1 ? t('txt_file_send') : t('txt_text_send')}</div>
             </div>
 
-            <div className="card stagger-item" style={{ animationDelay: '72ms' }}>
+            <div className="card stagger-item stagger-delay-2">
               <h4>{t('txt_send_details')}</h4>
               <div className="kv-line"><span>{t('txt_access_count')}</span><strong>{selectedSend.accessCount || 0}</strong></div>
               <div className="kv-line"><span>{t('txt_deletion_date')}</span><strong>{selectedSend.deletionDate || t('txt_dash')}</strong></div>
@@ -534,7 +531,7 @@ export default function SendsPage(props: SendsPageProps) {
             </div>
 
             {!!(selectedSend.decNotes || '').trim() && (
-              <div className="card stagger-item" style={{ animationDelay: '108ms' }}>
+              <div className="card stagger-item stagger-delay-3">
                 <h4>{t('txt_notes')}</h4>
                 <div className="notes">{selectedSend.decNotes || ''}</div>
               </div>

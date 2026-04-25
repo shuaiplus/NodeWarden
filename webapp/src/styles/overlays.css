@@ -1,27 +1,17 @@
 .dialog-mask {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100dvh;
+  @apply fixed inset-0 grid h-dvh w-screen place-items-center p-5 opacity-0;
   background: rgba(15, 23, 42, 0.5);
-  display: grid;
-  place-items: center;
   z-index: 1200;
-  padding: 20px;
-  opacity: 0;
   animation: fade-in var(--dur-medium) var(--ease-smooth) both;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 
 .dialog-card {
-  width: min(460px, 100%);
-  background: #fff;
-  border-radius: 20px;
+  @apply rounded-[20px] border bg-white p-5 text-center;
+  width: min(5000px, 100%);
   border: 1px solid var(--line);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
-  padding: 20px;
-  text-align: center;
   transform-origin: 50% 30%;
   animation: dialog-in 240ms var(--ease-out-strong) both;
 }
@@ -45,20 +35,11 @@
 }
 
 .dialog-warning-head {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  @apply mb-2 flex items-center justify-center gap-3;
 }
 
 .dialog-warning-badge {
-  width: 48px;
-  height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
+  @apply inline-flex h-12 w-12 items-center justify-center rounded-2xl;
   background: linear-gradient(180deg, #fff1f2, #ffe4e6);
   color: #dc2626;
   box-shadow:
@@ -67,10 +48,7 @@
 }
 
 .dialog-warning-kicker {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  @apply text-xs font-extrabold uppercase tracking-[0.16em];
   color: #b91c1c;
 }
 
@@ -83,69 +61,50 @@
 }
 
 .dialog-card .field {
-  text-align: left;
+  @apply text-left;
 }
 
 .dialog-title {
-  margin: 6px 0;
-  font-size: 30px;
+  @apply my-1.5 text-3xl;
 }
 
 .dialog-message {
+  @apply mb-2.5;
   color: #475467;
-  margin-bottom: 10px;
 }
 
 .dialog-card.warning .dialog-title {
+  @apply mb-2.5;
   color: #7f1d1d;
-  margin-bottom: 10px;
 }
 
 .dialog-message.warning {
-  margin-bottom: 16px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  @apply mb-4 rounded-2xl px-4 py-3.5 leading-[1.65];
   border: 1px solid rgba(220, 38, 38, 0.16);
   background: linear-gradient(180deg, rgba(255, 241, 242, 0.94), rgba(255, 247, 237, 0.9));
   color: #7a2832;
-  line-height: 1.65;
   box-shadow: 0 10px 28px rgba(248, 113, 113, 0.08) inset;
 }
 
 .dialog-btn {
-  width: 100%;
-  height: 50px;
-  font-size: 20px;
-  margin-top: 8px;
+  @apply mt-2 h-[50px] w-full text-xl;
 }
 
 .dialog-extra {
-  margin-top: 8px;
+  @apply mt-2;
 }
 
 .dialog-divider {
-  height: 1px;
+  @apply my-2 mb-2.5 h-px;
   background: var(--line);
-  margin: 8px 0 10px;
 }
 
 .import-summary-dialog {
-  max-width: 520px;
-  text-align: left;
-  position: relative;
-  padding-top: 16px;
+  @apply relative max-w-[520px] pt-4 text-left;
 }
 
 .import-summary-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  border: none;
-  background: transparent;
-  color: #64748b;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
+  @apply absolute right-2.5 top-2.5 cursor-pointer border-0 bg-transparent text-2xl leading-none text-slate-500;
 }
 
 .import-summary-close:hover {
@@ -153,34 +112,29 @@
 }
 
 .import-summary-table-wrap {
-  margin-top: 8px;
+  @apply mt-2 overflow-hidden rounded-[10px];
   border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
 }
 
 .import-summary-table {
-  width: 100%;
+  @apply w-full text-sm;
   border-collapse: collapse;
-  font-size: 14px;
 }
 
 .import-summary-table th,
 .import-summary-table td {
-  padding: 10px 12px;
+  @apply px-3 py-2.5;
   border-bottom: 1px solid var(--line);
 }
 
 .import-summary-table th {
-  text-align: left;
+  @apply bg-slate-50 text-left;
   color: #475467;
-  background: #f8fafc;
 }
 
 .import-summary-table td:last-child,
 .import-summary-table th:last-child {
-  text-align: right;
-  width: 96px;
+  @apply w-24 text-right;
 }
 
 .import-summary-table tbody tr:last-child td {
@@ -188,72 +142,53 @@
 }
 
 .import-summary-failed-list {
-  margin-top: 10px;
-  padding: 10px 12px;
+  @apply mt-2.5 rounded-[10px] px-3 py-2.5 text-[13px];
   border: 1px solid #fecaca;
-  border-radius: 10px;
   background: #fef2f2;
   color: #991b1b;
-  font-size: 13px;
 }
 
 .import-summary-failed-title {
-  font-weight: 700;
-  margin-bottom: 6px;
+  @apply mb-1.5 font-bold;
 }
 
 .import-summary-failed-list ul {
-  margin: 0;
-  padding-left: 18px;
+  @apply m-0 pl-[18px];
 }
 
 .import-summary-failed-list li + li {
-  margin-top: 4px;
+  @apply mt-1;
 }
 
 .settings-twofactor-grid {
-  display: grid;
+  @apply grid gap-3;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
 }
 
 .settings-subcard {
+  @apply rounded-xl bg-white p-3;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
-  background: #fff;
 }
 
 .settings-subcard h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
+  @apply mb-2.5 mt-0;
 }
 
 .toast-stack {
-  position: fixed;
+  @apply fixed grid list-none gap-2.5 p-0;
   top: 16px;
   right: 16px;
   z-index: 1400;
   width: min(420px, calc(100vw - 20px));
-  list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 10px;
 }
 
 .toast-item {
-  position: relative;
-  border-radius: 10px;
+  @apply relative flex items-center justify-between overflow-hidden rounded-[10px] px-3.5 py-3;
   border: 1px solid #bbdfc6;
   background: #dff4e5;
   color: #0f5132;
-  padding: 12px 14px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  overflow: hidden;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   animation: toast-in 240ms var(--ease-out-strong) both;
 }
 
@@ -270,15 +205,11 @@
 }
 
 .toast-text {
-  font-weight: 700;
-  padding-right: 10px;
+  @apply pr-2.5 font-bold;
 }
 
 .toast-close {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 20px;
+  @apply cursor-pointer border-0 bg-transparent text-xl;
   color: inherit;
   transition: transform var(--dur-fast) var(--ease-out-soft), opacity var(--dur-fast) var(--ease-smooth);
 }
@@ -289,11 +220,7 @@
 }
 
 .toast-progress {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  height: 3px;
+  @apply absolute bottom-0 left-0 h-[3px] w-full;
   background: rgba(15, 23, 42, 0.2);
   animation: toast-life 4.5s linear forwards;
 }

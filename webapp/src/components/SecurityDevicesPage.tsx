@@ -66,8 +66,8 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
         <section className="card">
         <div className="section-head">
           <div>
-            <h3 style={{ margin: 0 }}>{t('txt_device_management')}</h3>
-            <div className="muted-inline" style={{ marginTop: 4 }}>
+            <h3 className="flush-title">{t('txt_device_management')}</h3>
+            <div className="muted-inline section-note">
               {t('txt_manage_device_sessions_and_30_day_totp_trusted_sessions')}
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
         </section>
 
         <section className="card">
-        <h3 style={{ marginTop: 0 }}>{t('txt_authorized_devices')}</h3>
+        <h3 className="section-title-flush">{t('txt_authorized_devices')}</h3>
         <table className="table">
           <thead>
             <tr>
@@ -169,7 +169,7 @@ export default function SecurityDevicesPage(props: SecurityDevicesPageProps) {
             {!props.loading && props.devices.length === 0 && (
               <tr>
                 <td colSpan={7}>
-                  <div className="empty" style={{ minHeight: 80 }}>{t('txt_no_devices_found')}</div>
+                  <div className="empty empty-comfortable">{t('txt_no_devices_found')}</div>
                 </td>
               </tr>
             )}

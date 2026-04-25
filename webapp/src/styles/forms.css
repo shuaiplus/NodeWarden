@@ -1,45 +1,27 @@
 .muted {
-  margin: 0 0 16px 0;
-  text-align: center;
-  color: var(--muted);
-  line-height: 1.65;
+  @apply m-0 mb-4 text-center leading-relaxed text-muted;
 }
 
 .field {
-  display: block;
-  margin-bottom: 14px;
+  @apply mb-3.5 block;
 }
 
 .field > span {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  @apply mb-2 mt-2.5 block text-sm font-semibold;
 }
 
 .input {
-  width: 100%;
-  height: 48px;
-  border: 1px solid rgba(74, 103, 150, 0.42);
-  border-radius: 14px;
-  padding: 10px 14px;
-  font-size: 16px;
-  outline: none;
-  color: var(--text);
+  @apply h-12 w-full rounded-xl border px-3.5 py-2.5 text-base text-ink outline-none transition;
   background: var(--panel);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition:
-    border-color var(--dur-fast) var(--ease-smooth),
-    box-shadow var(--dur-fast) var(--ease-out-soft),
-    background-color var(--dur-fast) var(--ease-smooth),
-    transform var(--dur-fast) var(--ease-out-soft);
+  border-color: rgba(74, 103, 150, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 select.input {
+  @apply pr-[42px];
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  padding-right: 42px;
   background-image:
     linear-gradient(45deg, transparent 50%, #365fa8 50%),
     linear-gradient(135deg, #365fa8 50%, transparent 50%);
@@ -51,23 +33,14 @@ select.input {
 }
 
 input[type='file'].input {
-  height: auto;
-  min-height: 48px;
-  padding: 8px 10px;
-  font-size: 14px;
-  line-height: 1.4;
+  @apply h-auto min-h-12 px-2.5 py-2 text-sm leading-[1.4];
 }
 
 input[type='file'].input::file-selector-button {
-  height: 32px;
-  border: 1px solid #3f5b9e;
-  border-radius: 999px;
-  padding: 0 12px;
+  @apply mr-2.5 h-8 cursor-pointer rounded-full border px-3 font-bold;
   background: #eef4ff;
+  border-color: #9db8ea;
   color: #1f4ea0;
-  font-weight: 700;
-  cursor: pointer;
-  margin-right: 10px;
 }
 
 input[type='file'].input::file-selector-button:hover {
@@ -76,65 +49,38 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .textarea {
-  min-height: 110px;
-  height: auto;
-  resize: vertical;
+  @apply h-auto min-h-28 resize-y;
 }
 
 .input:focus {
   border-color: rgba(43, 102, 217, 0.6);
   background-color: #fbfdff;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.11), 0 10px 20px rgba(37, 99, 235, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10), 0 8px 18px rgba(37, 99, 235, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .input-readonly {
-  background: #eef2f7;
-  color: #475569;
+  @apply bg-slate-100 text-slate-600;
 }
 
 .input:disabled {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-  color: #94a3b8;
-  cursor: not-allowed;
+  @apply cursor-not-allowed border-slate-300 bg-slate-200 text-slate-400;
 }
 
 .password-wrap {
-  position: relative;
+  @apply relative;
 }
 
 .password-wrap .input {
-  padding-right: 44px;
+  @apply pr-11;
 }
 
 .password-toggle {
-  position: absolute;
-  right: 8px;
-  top: 50%;
+  @apply absolute right-2 top-1/2 grid cursor-pointer place-items-center border-0 bg-transparent text-blue-700 transition;
   transform: translateY(-50%);
-  border: none;
-  background: transparent;
-  color: #275ac2;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: color var(--dur-fast) var(--ease-smooth), transform var(--dur-fast) var(--ease-out-soft);
 }
 
 .eye-btn {
-  position: absolute;
-  right: 10px;
-  bottom: 9px;
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  color: #334155;
-  transition: color var(--dur-fast) var(--ease-smooth), transform var(--dur-fast) var(--ease-out-soft);
+  @apply absolute bottom-2.5 right-2.5 grid h-8 w-8 cursor-pointer place-items-center border-0 bg-transparent text-slate-700 transition;
 }
 
 .password-toggle:hover,
@@ -144,35 +90,14 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .btn {
-  height: 36px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 0 16px;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  text-decoration: none;
-  transition:
-    transform var(--dur-fast) var(--ease-out-soft),
-    box-shadow var(--dur-fast) var(--ease-out-soft),
-    background-color var(--dur-fast) var(--ease-smooth),
-    border-color var(--dur-fast) var(--ease-smooth),
-    color var(--dur-fast) var(--ease-smooth),
-    opacity var(--dur-fast) var(--ease-smooth);
+  @apply inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-transparent px-4 text-[15px] font-bold no-underline transition;
 }
 
 .topbar-actions .btn,
 .user-chip,
 .side-link,
 .mobile-tab {
-  --mag-x: 0px;
-  --mag-y: 0px;
-  position: relative;
-  overflow: hidden;
+  @apply relative overflow-hidden;
 }
 
 .topbar-actions .btn::before,
@@ -180,15 +105,9 @@ input[type='file'].input::file-selector-button:hover {
 .side-link::before,
 .mobile-tab::before {
   content: '';
-  position: absolute;
-  left: var(--mx, 50%);
-  top: var(--my, 50%);
-  width: 110px;
-  height: 110px;
-  border-radius: 999px;
+  @apply absolute left-1/2 top-1/2 h-[110px] w-[110px] rounded-full opacity-0;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08) 42%, transparent 72%);
   transform: translate(-50%, -50%) scale(0.68);
-  opacity: 0;
   pointer-events: none;
   transition:
     opacity var(--dur-fast) var(--ease-smooth),
@@ -199,12 +118,11 @@ input[type='file'].input::file-selector-button:hover {
 .user-chip:hover::before,
 .side-link:hover::before,
 .mobile-tab:hover::before {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
+  opacity: 0;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.01);
+  transform: translateY(-1px);
 }
 
 .btn:active:not(:disabled) {
@@ -212,34 +130,27 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .btn-icon {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 
 .btn.full {
-  width: 100%;
-  height: 50px;
-  font-size: 22px;
-  margin: 10px 0;
+  @apply my-2.5 h-12 w-full text-lg;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #2563eb, #3b82f6 72%);
-  border-color: rgba(15, 63, 152, 0.32);
-  color: #fff;
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.24);
+  @apply border-blue-700/30 bg-blue-600 text-white;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.20);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #1d4ed8, #3377f0 72%);
-  border-color: rgba(15, 63, 152, 0.38);
-  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.28);
+  @apply bg-blue-700;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.22);
 }
 
 .btn-secondary {
-  background: var(--panel);
-  border-color: rgba(37, 99, 235, 0.22);
-  color: var(--primary-strong);
-  box-shadow: 0 8px 18px rgba(13, 31, 68, 0.05);
+  @apply bg-panel text-brand-strong;
+  border-color: rgba(37, 99, 235, 0.20);
+  box-shadow: 0 6px 14px rgba(13, 31, 68, 0.04);
 }
 
 .btn-secondary:hover {
@@ -248,9 +159,8 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .btn-danger {
-  background: rgba(255, 255, 255, 0.8);
+  @apply bg-white/80 text-danger;
   border-color: rgba(217, 45, 87, 0.28);
-  color: var(--danger);
 }
 
 .btn-danger:hover {
@@ -259,42 +169,27 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .btn:disabled {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-  color: #94a3b8;
-  cursor: not-allowed;
+  @apply cursor-not-allowed border-slate-300 bg-slate-200 text-slate-400;
 }
 
 .or {
-  text-align: center;
-  margin: 10px 0;
-  color: #334155;
+  @apply my-2.5 text-center text-slate-700;
 }
 
 .field-help {
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #667085;
+  @apply mt-2 text-[13px] leading-normal text-slate-500;
+}
+
+.check-line-compact {
+  @apply mb-0;
 }
 
 .auth-support-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: -2px 0 12px;
+  @apply -mt-0.5 mb-3 flex items-center justify-between gap-2.5;
 }
 
 .auth-link-btn {
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: #1d4ed8;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-smooth), transform var(--dur-fast) var(--ease-out-soft), opacity var(--dur-fast) var(--ease-smooth);
+  @apply cursor-pointer border-0 bg-transparent p-0 text-[13px] font-bold text-blue-700 transition;
 }
 
 .auth-link-btn:hover {
@@ -303,7 +198,5 @@ input[type='file'].input::file-selector-button:hover {
 }
 
 .auth-link-btn:disabled {
-  color: #94a3b8;
-  cursor: not-allowed;
-  text-decoration: none;
+  @apply cursor-not-allowed text-slate-400 no-underline;
 }

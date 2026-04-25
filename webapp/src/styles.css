@@ -9,4 +9,265 @@
 @import './styles/motion.css';
 @import './styles/responsive.css';
 @import './styles/dark.css';
-@import './styles/reduced-motion.css';
+
+/* Unified product polish: clean, flat, quiet surfaces across desktop, mobile, and dark mode. */
+.app-shell,
+.auth-card,
+.dialog-card,
+.card,
+.list-panel,
+.sidebar-block,
+.settings-subcard,
+.backup-operations-sidebar,
+.backup-destination-sidebar,
+.backup-detail-panel,
+.restore-progress-card,
+.backup-recommendation-card,
+.backup-destination-item,
+.backup-browser-list,
+.backup-browser-path,
+.totp-code-row,
+.mobile-settings-link,
+.table tr {
+  border-color: var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-shell {
+  background: var(--panel-soft);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.topbar,
+.mobile-tabbar,
+.app-side {
+  background: var(--panel-soft);
+  border-color: var(--line-soft);
+}
+
+.brand-logo,
+.brand-wordmark,
+.standalone-brand-logo,
+.standalone-brand-wordmark {
+  filter: none;
+}
+
+.btn,
+.input,
+.search-input,
+.side-link,
+.mobile-tab,
+.tree-btn,
+.list-item,
+.dialog-card,
+.mobile-sidebar-sheet,
+.mobile-detail-sheet,
+.create-menu,
+.sort-menu,
+.toast-item {
+  transition-duration: 150ms;
+}
+
+.btn:hover:not(:disabled),
+.side-link:hover,
+.mobile-tab:hover,
+.tree-btn:hover,
+.list-item:hover,
+.create-menu-item:hover,
+.sort-menu-item:hover,
+.folder-delete-btn:hover,
+.eye-btn:hover,
+.password-toggle:hover {
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--primary);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  box-shadow: none;
+}
+
+.btn-secondary,
+.btn-danger {
+  box-shadow: none;
+}
+
+.btn-secondary:hover,
+.side-link:hover,
+.mobile-tab:hover,
+.tree-btn:hover,
+.list-item:hover,
+.backup-destination-item:hover,
+.mobile-settings-link:hover {
+  background: var(--panel-subtle);
+}
+
+.side-link.active,
+.mobile-tab.active,
+.tree-btn.active,
+.list-item.active,
+.sort-menu-item.active,
+.backup-destination-item.active,
+.backup-interval-preset.active,
+.mobile-settings-link.active {
+  background: color-mix(in srgb, var(--primary) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  color: var(--primary-strong);
+  box-shadow: none;
+}
+
+.list-item::before,
+.topbar-actions .btn::before,
+.user-chip::before,
+.side-link::before,
+.mobile-tab::before {
+  display: none;
+}
+
+.stagger-item {
+  opacity: 1;
+  animation: none;
+}
+
+.dialog-mask {
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dialog-mask.warning {
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.dialog-card.warning,
+:root[data-theme='dark'] .dialog-card.warning {
+  background: var(--panel);
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--line));
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog-warning-badge {
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+  color: var(--danger);
+  box-shadow: none;
+}
+
+.dialog-warning-kicker {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.dialog-message.warning,
+:root[data-theme='dark'] .dialog-message.warning {
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 20%, var(--line));
+  box-shadow: none;
+  color: var(--text);
+}
+
+.mobile-sidebar-sheet,
+.mobile-detail-sheet {
+  transform: none;
+  box-shadow: var(--shadow-md);
+}
+
+.mobile-sidebar-sheet.open,
+.mobile-detail-sheet.open {
+  transform: none;
+}
+
+.mobile-fab-trigger {
+  box-shadow: var(--shadow-md);
+}
+
+.theme-switch-slider,
+.theme-switch-input:checked + .theme-switch-slider,
+:root[data-theme='dark'] .theme-switch-slider {
+  background: var(--panel-muted);
+  border-color: var(--line);
+}
+
+.theme-switch-slider::before,
+:root[data-theme='dark'] .theme-switch-slider::before {
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+:root[data-theme='dark'] .app-shell,
+:root[data-theme='dark'] .auth-card,
+:root[data-theme='dark'] .dialog-card,
+:root[data-theme='dark'] .card,
+:root[data-theme='dark'] .list-panel,
+:root[data-theme='dark'] .sidebar-block,
+:root[data-theme='dark'] .settings-subcard,
+:root[data-theme='dark'] .backup-operations-sidebar,
+:root[data-theme='dark'] .backup-destination-sidebar,
+:root[data-theme='dark'] .backup-detail-panel,
+:root[data-theme='dark'] .backup-recommendation-card,
+:root[data-theme='dark'] .backup-recommendation-dav-item,
+:root[data-theme='dark'] .backup-destination-item,
+:root[data-theme='dark'] .backup-browser-list,
+:root[data-theme='dark'] .backup-browser-path,
+:root[data-theme='dark'] .totp-code-row,
+:root[data-theme='dark'] .mobile-settings-link,
+:root[data-theme='dark'] .table tr,
+:root[data-theme='dark'] .list-item,
+:root[data-theme='dark'] .input,
+:root[data-theme='dark'] .search-input,
+:root[data-theme='dark'] .create-menu,
+:root[data-theme='dark'] .create-menu-item,
+:root[data-theme='dark'] .sort-menu,
+:root[data-theme='dark'] .sort-menu-item {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .mobile-tabbar,
+:root[data-theme='dark'] .app-side {
+  background: var(--panel-soft);
+}
+
+:root[data-theme='dark'] .btn-secondary {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--primary);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .btn-primary {
+  background: var(--primary);
+  border-color: transparent;
+  color: #08111f;
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .btn-danger {
+  background: var(--panel);
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  color: var(--danger);
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .list-item:hover,
+:root[data-theme='dark'] .sort-menu-item:hover,
+:root[data-theme='dark'] .create-menu-item:hover,
+:root[data-theme='dark'] .mobile-settings-link:hover,
+:root[data-theme='dark'] .backup-destination-item:hover,
+:root[data-theme='dark'] .side-link:hover,
+:root[data-theme='dark'] .mobile-tab:hover,
+:root[data-theme='dark'] .tree-btn:hover {
+  background: var(--panel-subtle);
+}

@@ -1,5 +1,5 @@
 import { createPortal } from 'preact/compat';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { TriangleAlert } from 'lucide-preact';
 import { t } from '@/lib/i18n';
@@ -42,6 +42,24 @@ function decrementDialogBodyLock() {
   body.dataset.dialogCount = String(nextCount);
 }
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+let dialogIdCounter = 0;
+
+function getFocusableElements(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true') return false;
+    return !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+  });
+}
+
 export function useDialogLifecycle(active: boolean, onCancel?: (() => void) | null) {
   useEffect(() => {
     if (!active) return;
@@ -64,7 +82,12 @@ export function useDialogLifecycle(active: boolean, onCancel?: (() => void) | nu
 export default function ConfirmDialog(props: ConfirmDialogProps) {
   const [present, setPresent] = useState(props.open);
   const [closing, setClosing] = useState(false);
-  const canDismiss = !props.cancelDisabled && !closing && !props.hideCancel;
+  const cardRef = useRef<HTMLFormElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const dialogId = useMemo(() => `confirm-dialog-${++dialogIdCounter}`, []);
+  const titleId = `${dialogId}-title`;
+  const messageId = `${dialogId}-message`;
+  const canDismiss = !props.cancelDisabled && !closing;
 
   useEffect(() => {
     if (props.open) {
@@ -83,6 +106,72 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
 
   useDialogLifecycle(present, canDismiss ? props.onCancel : null);
 
+  useEffect(() => {
+    if (!props.open || typeof document === 'undefined') return;
+    const activeElement = document.activeElement;
+    restoreFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const card = cardRef.current;
+      if (!card) return;
+      const focusable = getFocusableElements(card);
+      const firstField = focusable.find((element) => (
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLSelectElement ||
+        element instanceof HTMLTextAreaElement
+      ));
+      const cancelButton = focusable.find((element) => element.dataset.dialogCancel === 'true');
+      const confirmButton = focusable.find((element) => element.dataset.dialogConfirm === 'true');
+      const target = firstField || (props.danger ? cancelButton : confirmButton) || cancelButton || focusable[0] || card;
+      target.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [props.open, props.danger]);
+
+  useEffect(() => {
+    if (props.open || present || typeof document === 'undefined') return;
+    const target = restoreFocusRef.current;
+    restoreFocusRef.current = null;
+    if (!target || !document.contains(target)) return;
+    target.focus({ preventScroll: true });
+  }, [props.open, present]);
+
+  useEffect(() => {
+    return () => {
+      const target = restoreFocusRef.current;
+      if (!target || typeof document === 'undefined' || !document.contains(target)) return;
+      target.focus({ preventScroll: true });
+    };
+  }, []);
+
+  function handleDialogKeyDown(event: KeyboardEvent) {
+    if (event.key !== 'Tab') return;
+    const card = cardRef.current;
+    if (!card) return;
+    const focusable = getFocusableElements(card);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      card.focus({ preventScroll: true });
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const activeElement = document.activeElement;
+    if (event.shiftKey) {
+      if (activeElement === first || activeElement === card || !card.contains(activeElement)) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (activeElement === last || activeElement === card || !card.contains(activeElement)) {
+      event.preventDefault();
+      first.focus({ preventScroll: true });
+    }
+  }
+
   if (!present || typeof document === 'undefined') return null;
   return createPortal((
     <div
@@ -93,10 +182,14 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
       }}
     >
       <form
+        ref={cardRef}
         className={`dialog-card ${props.variant === 'warning' ? 'warning' : ''} ${props.open && !closing ? 'open' : ''} ${closing ? 'closing' : ''}`}
         role="dialog"
         aria-modal="true"
-        aria-label={props.title}
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
+        tabIndex={-1}
+        onKeyDown={handleDialogKeyDown}
         onSubmit={(e) => {
           e.preventDefault();
           if (props.confirmDisabled || closing) return;
@@ -114,13 +207,14 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
             </div>
           </>
         ) : null}
-        <h3 className="dialog-title">{props.title}</h3>
-        <div className={`dialog-message ${props.variant === 'warning' ? 'warning' : ''}`}>{props.message}</div>
+        <h3 id={titleId} className="dialog-title">{props.title}</h3>
+        <div id={messageId} className={`dialog-message ${props.variant === 'warning' ? 'warning' : ''}`}>{props.message}</div>
         {props.children}
         <button
           type="submit"
           className={`btn ${props.danger ? 'btn-danger' : 'btn-primary'} dialog-btn`}
           disabled={props.confirmDisabled}
+          data-dialog-confirm="true"
         >
           {props.confirmText || t('txt_yes')}
         </button>
@@ -129,6 +223,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
             type="button"
             className="btn btn-secondary dialog-btn"
             disabled={props.cancelDisabled}
+            data-dialog-cancel="true"
             onClick={() => {
               if (props.cancelDisabled) return;
               props.onCancel();

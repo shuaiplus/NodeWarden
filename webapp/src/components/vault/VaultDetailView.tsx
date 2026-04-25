@@ -105,7 +105,7 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
         <div className="card">
           <h4>{t('txt_master_password_reprompt_2')}</h4>
           <div className="detail-sub">{t('txt_this_item_requires_master_password_every_time_before_viewing_details')}</div>
-          <div className="actions" style={{ marginTop: '10px' }}>
+          <div className="actions detail-unlock-actions">
             <button type="button" className="btn btn-primary" onClick={props.onOpenReprompt}>
               <Eye size={14} className="btn-icon" /> {t('txt_unlock_details')}
             </button>
@@ -117,7 +117,7 @@ export default function VaultDetailView(props: VaultDetailViewProps) {
           <div className="card">
             <h3 className="detail-title">{props.selectedCipher.decName || t('txt_no_name')}</h3>
             <div className="detail-sub">{props.folderName(props.selectedCipher.folderId)}</div>
-            {isArchived && <div className="list-badge" style={{ marginTop: '8px', width: 'fit-content' }}>{t('txt_archived')}</div>}
+            {isArchived && <div className="list-badge archive-badge">{t('txt_archived')}</div>}
           </div>
 
           {props.selectedCipher.login && (

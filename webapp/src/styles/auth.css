@@ -1,134 +1,96 @@
 .loading-screen {
-  height: 100%;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  font-size: 18px;
-  animation: fade-in-up var(--dur-panel) var(--ease-out-strong) both;
+  @apply grid h-full place-items-center text-lg text-muted;
 }
 
 .auth-page {
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  position: relative;
-  background: transparent;
+  @apply relative grid min-h-full place-items-center bg-transparent p-6;
 }
 
 .public-send-page {
-  min-height: 80vh;
-  align-items: center;
+  @apply min-h-[80vh] items-center;
   justify-items: center;
 }
 
+.public-send-title {
+  @apply mt-2;
+}
+
+.public-send-card {
+  @apply mt-2.5;
+}
+
+.inline-status-icon {
+  @apply align-text-bottom;
+}
+
 .auth-card {
-  width: 100%;
-  position: relative;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  box-shadow: var(--shadow-lg);
-  padding: 30px;
-  overflow: hidden;
-  transform-origin: 50% 24%;
-  animation: surface-enter 520ms var(--ease-out-strong) both;
+  @apply relative w-full overflow-hidden border bg-panel p-[30px] shadow-elevated;
+  border-color: var(--line);
+  @apply rounded-[22px];
 }
 
 .auth-card h1 {
-  margin: 0 0 4px 0;
-  text-align: center;
+  @apply m-0 mb-1 text-center;
 }
 
 .standalone-shell {
-  width: min(640px, 100%);
-  display: grid;
-  gap: 14px;
-  animation: fade-in-up 420ms var(--ease-out-strong) both;
+  @apply grid w-[min(640px,100%)] gap-3.5;
 }
 
 .standalone-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 12px;
+  @apply mb-3 inline-flex items-center gap-3.5;
 }
 
 .standalone-brand-outside {
-  justify-content: center;
-  width: 100%;
-  margin-bottom: 2px;
+  @apply mb-0.5 w-full justify-center;
 }
 
 .standalone-brand-logo {
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
-  flex-shrink: 0;
+  @apply h-14 w-14 flex-shrink-0 object-contain;
   filter: drop-shadow(0 8px 18px rgba(43, 102, 217, 0.22));
 }
 
 .standalone-brand-wordmark {
-  display: block;
-  height: auto;
+  @apply block h-auto max-w-full;
   width: clamp(200px, 30vw, 360px);
-  max-width: 100%;
   filter: drop-shadow(0 10px 22px rgba(43, 102, 217, 0.18));
 }
 
 .standalone-title {
-  margin: 0 0 4px 0;
-  text-align: left;
-  font-size: 31px;
-  line-height: 1.15;
-  letter-spacing: -0.035em;
+  @apply m-0 mb-1 text-left text-3xl font-bold leading-tight tracking-normal;
 }
 
 .standalone-muted {
-  text-align: left;
+  @apply text-left;
 }
 
 .jwt-warning-head {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  @apply mb-2.5 flex items-center justify-center gap-2.5 text-center;
   color: #b45309;
-  text-align: center;
 }
 
 .jwt-warning-box {
-  border: 1px solid #f1d8a5;
-  border-radius: 12px;
-  background: #fffaf0;
-  padding: 12px 14px;
+  @apply rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3;
 }
 
 .jwt-warning-label {
-  font-size: 13px;
-  font-weight: 700;
+  @apply mb-1.5 text-[13px] font-bold;
   color: #92400e;
-  margin-bottom: 6px;
 }
 
 .jwt-warning-copy {
-  margin: 0 0 14px;
+  @apply m-0 mb-3.5 leading-[1.6];
   color: #475569;
-  line-height: 1.6;
 }
 
 .jwt-warning-list {
-  margin: 0;
-  padding-left: 18px;
+  @apply m-0 pl-[18px] leading-[1.55];
   color: #334155;
-  line-height: 1.55;
 }
 
 .jwt-inline-link {
+  @apply font-bold no-underline;
   color: #1d4ed8;
-  font-weight: 700;
-  text-decoration: none;
 }
 
 .jwt-inline-link:hover {
@@ -136,16 +98,12 @@
 }
 
 .jwt-secret-fields {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
+  @apply mt-2 grid gap-1.5;
 }
 
 .jwt-secret-row {
-  display: grid;
+  @apply grid items-start gap-2;
   grid-template-columns: 88px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
 }
 
 .jwt-secret-row > span {
@@ -153,34 +111,25 @@
 }
 
 .jwt-generator {
-  margin-top: 14px;
+  @apply mt-3.5;
 }
 
 .jwt-generator-actions {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  @apply mt-2.5 flex flex-wrap items-center gap-2.5;
 }
 
 .jwt-copy-hint {
+  @apply text-[13px] font-bold;
   color: #15803d;
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .standalone-footer {
-  width: 100%;
-  text-align: center;
-  font-size: 13px;
-  color: #64748b;
+  @apply w-full text-center text-[13px] text-slate-500;
 }
 
 .standalone-footer a {
+  @apply font-bold no-underline;
   color: #1d4ed8;
-  font-weight: 700;
-  text-decoration: none;
 }
 
 .standalone-footer a:hover {
@@ -188,6 +137,6 @@
 }
 
 .standalone-version {
-  font-weight: 700;
+  @apply font-bold;
   color: #1d4ed8;
 }

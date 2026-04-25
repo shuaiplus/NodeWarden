@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+import './tailwind.css';
 import './styles.css';
 
 const queryClient = new QueryClient({

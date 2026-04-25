@@ -1,27 +1,22 @@
 * {
-  box-sizing: border-box;
+  @apply box-border;
 }
 
 html,
 body,
 #root {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
+  @apply m-0 h-full w-full p-0;
   color: var(--text);
   background: var(--bg-accent);
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
 }
 
 body {
-  position: relative;
-  transition:
-    background-color var(--dur-medium) var(--ease-smooth),
-    color var(--dur-medium) var(--ease-smooth);
+  @apply relative antialiased;
+  transition: background-color var(--dur-medium) var(--ease-smooth), color var(--dur-medium) var(--ease-smooth);
 }
 
 body.dialog-open {
-  overflow: hidden;
+  @apply overflow-hidden;
   overscroll-behavior: contain;
 }

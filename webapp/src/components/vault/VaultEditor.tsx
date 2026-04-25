@@ -299,7 +299,7 @@ export default function VaultEditor(props: VaultEditorProps) {
           </DndContext>
           {props.draft.loginFido2Credentials.length > 0 && (
             <>
-              <div className="section-head" style={{ marginTop: '18px' }}>
+              <div className="section-head passkeys-section-head">
                 <h4>{t('txt_passkeys')}</h4>
               </div>
               <div className="attachment-list">

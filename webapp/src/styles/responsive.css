@@ -1,11 +1,11 @@
 @media (max-width: 1180px) {
   .app-page {
-    padding: 8px;
+    @apply p-2;
   }
 
   .app-shell {
+    @apply rounded-xl;
     height: calc(100vh - 16px);
-    border-radius: 12px;
   }
 
   .app-main {
@@ -13,26 +13,24 @@
   }
 
   .app-side {
+    @apply grid items-start gap-2;
     border-right: none;
     border-bottom: 1px solid #d9e0ea;
-    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
     align-self: start;
     height: fit-content;
-    gap: 8px;
   }
 
   .app-side > .side-link {
-    min-height: 0;
+    @apply min-h-0;
   }
 
   .vault-grid {
     grid-template-columns: 1fr;
-    height: auto;
+    @apply h-auto;
   }
   .sidebar {
-    max-height: 280px;
+    @apply max-h-[280px];
   }
   .totp-grid,
   .field-grid {
@@ -53,115 +51,95 @@
   }
 
   .standalone-title {
-    font-size: 24px;
+    @apply text-2xl;
   }
 
   .standalone-footer {
-    font-size: 12px;
-    line-height: 1.4;
+    @apply text-xs leading-[1.4];
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1180px) {
   .auth-page {
-    padding: 14px;
-    align-items: start;
+    @apply items-start p-3.5;
   }
 
   .standalone-shell {
-    width: 100%;
-    max-width: 460px;
-    gap: 10px;
-    padding-top: 12px;
+    @apply w-full max-w-[460px] gap-2.5 pt-3;
   }
 
   .standalone-brand-outside {
-    justify-content: flex-start;
+    @apply justify-start;
   }
 
   .standalone-brand-logo {
-    width: 44px;
-    height: 44px;
+    @apply h-11 w-11;
   }
 
   .auth-card {
-    padding: 20px 16px;
-    border-radius: 18px;
+    @apply rounded-[18px] px-4 py-5;
   }
 
   .btn.full {
-    height: 48px;
-    font-size: 18px;
+    @apply h-12 text-lg;
   }
 
   .auth-support-row {
-    align-items: center;
-    flex-direction: row;
+    @apply flex-row items-center;
   }
 
   .app-page {
-    padding: 0;
+    @apply p-0;
     background: transparent;
   }
 
   .app-shell {
     --mobile-topbar-height: 58px;
     --mobile-tabbar-height: 70px;
-    height: 100dvh;
-    max-width: none;
+    @apply h-dvh max-w-none rounded-none border-0;
     border: none;
-    border-radius: 0;
     box-shadow: none;
   }
 
   .topbar {
+    @apply relative z-20 px-3;
     height: var(--mobile-topbar-height);
-    padding: 0 12px;
-    position: relative;
-    z-index: 20;
   }
 
   .brand {
-    min-width: 0;
-    gap: 10px;
-    font-size: 18px;
+    @apply min-w-0 gap-2.5 text-lg;
   }
 
   .brand-logo {
-    width: 34px;
-    height: 34px;
+    @apply h-[34px] w-[34px];
+  }
+
+  .brand-wordmark {
+    @apply hidden;
   }
 
   .mobile-page-title {
-    display: inline;
+    @apply inline;
   }
 
   .topbar-actions .user-chip,
   .topbar-actions > .btn:not(.mobile-sidebar-toggle):not(.mobile-lock-btn),
   .topbar-actions > .theme-switch-wrap {
-    display: none;
+    @apply hidden;
   }
 
   .mobile-sidebar-toggle,
   .mobile-lock-btn {
-    display: inline-flex;
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    padding: 0;
-    justify-content: center;
-    font-size: 0;
-    gap: 0;
+    @apply inline-flex h-9 w-9 min-w-9 justify-center gap-0 p-0 text-[0];
   }
 
   .mobile-sidebar-toggle .btn-icon,
   .mobile-lock-btn .btn-icon {
-    margin: 0;
+    @apply m-0;
   }
 
   .mobile-theme-btn {
-    display: inline-flex;
-    align-items: center;
+    @apply inline-flex items-center;
   }
 
   .mobile-theme-btn .theme-switch {
@@ -170,26 +148,21 @@
   }
 
   .app-main {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+    @apply flex min-h-0 flex-col;
   }
 
   .app-side {
-    display: none;
+    @apply hidden;
   }
 
   .content {
-    flex: 1;
-    min-height: 0;
+    @apply min-h-0 flex-1;
     -webkit-overflow-scrolling: touch;
   }
 
   .mobile-tabbar {
-    display: grid;
+    @apply grid items-center gap-1.5;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: center;
-    gap: 6px;
     min-height: var(--mobile-tabbar-height);
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
@@ -197,15 +170,8 @@
   }
 
   .mobile-tab {
-    display: grid;
-    justify-items: center;
-    gap: 4px;
+    @apply grid justify-items-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-bold no-underline;
     color: #64748b;
-    text-decoration: none;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 6px 4px;
-    border-radius: 12px;
     transition:
       transform 220ms var(--ease-out-soft),
       background-color var(--dur-fast) var(--ease-smooth),
@@ -213,7 +179,7 @@
   }
 
   .mobile-tab:hover {
-    transform: translate3d(var(--mag-x), calc(var(--mag-y) - 1px), 0);
+    transform: translateY(-1px);
   }
 
   .mobile-tab.active {
@@ -223,30 +189,21 @@
   }
 
   .vault-grid {
-    gap: 10px;
-    padding: 0;
+    @apply gap-2.5 p-0;
   }
 
   .sidebar {
-    display: none;
+    @apply hidden;
   }
 
   .mobile-sidebar-sheet {
-    display: block;
-    position: fixed;
-    left: 10px;
-    right: 10px;
+    @apply fixed left-2.5 right-2.5 z-[55] block overflow-auto rounded-[18px] p-3 opacity-0;
     top: calc(var(--mobile-topbar-height) + 10px);
     bottom: auto;
     max-height: calc(100dvh - 145px);
-    z-index: 55;
-    overflow: auto;
     border: 1px solid #d8dee8;
-    border-radius: 18px;
     background: #fff;
-    padding: 12px;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
-    opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transform: translate3d(0, 10px, 0) scale(0.98);
@@ -257,37 +214,26 @@
   }
 
   .mobile-sidebar-sheet.open {
-    opacity: 1;
+    @apply opacity-100;
     visibility: visible;
     pointer-events: auto;
     transform: translate3d(0, 0, 0) scale(1);
   }
 
   .mobile-sidebar-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
+    @apply mb-2.5 flex items-center justify-between gap-2.5;
   }
 
   .mobile-sidebar-title {
-    font-size: 16px;
-    font-weight: 800;
+    @apply text-base font-extrabold;
     color: #0f172a;
   }
 
   .mobile-sidebar-close {
-    width: 34px;
-    height: 34px;
+    @apply inline-grid h-[34px] w-[34px] cursor-pointer place-items-center rounded-full p-0;
     border: 1px solid #d7dde6;
-    border-radius: 999px;
     background: #fff;
     color: #0f172a;
-    display: inline-grid;
-    place-items: center;
-    cursor: pointer;
-    padding: 0;
     transition:
       transform var(--dur-fast) var(--ease-out-soft),
       background-color var(--dur-fast) var(--ease-smooth),
@@ -299,37 +245,31 @@
   }
 
   .mobile-sidebar-sheet .sidebar-block {
-    margin: 0;
-    padding: 0;
+    @apply m-0 rounded-none border-0 p-0;
     border: none;
-    border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
 
   .mobile-sidebar-sheet .tree-btn {
-    margin-bottom: 2px;
+    @apply mb-0.5;
   }
 
   .mobile-sidebar-sheet .folder-row {
-    align-items: stretch;
-    gap: 4px;
+    @apply items-stretch gap-1;
   }
 
   .mobile-sidebar-sheet .folder-row .tree-btn {
-    min-height: 42px;
+    @apply min-h-[42px];
   }
 
   .mobile-sidebar-sheet .sidebar-title,
   .mobile-sidebar-sheet .sidebar-title-row {
-    padding-bottom: 6px;
-    margin-bottom: 0;
+    @apply mb-0 pb-1.5;
   }
 
   .mobile-sidebar-sheet .tree-btn {
-    padding-left: 8px;
-    padding-right: 8px;
-    border-radius: 10px;
+    @apply rounded-[10px] px-2;
   }
 
   .mobile-sidebar-sheet .tree-btn.active {
@@ -337,56 +277,39 @@
   }
 
   .mobile-sidebar-sheet .folder-delete-btn {
-    width: 28px;
-    height: 42px;
-    border-radius: 8px;
+    @apply h-[42px] w-7 rounded-lg;
   }
 
   .list-col {
-    max-width: none;
+    @apply max-w-none;
   }
 
   .list-head {
-    display: grid;
+    @apply grid items-center gap-2;
     grid-template-columns: minmax(0, 1fr) auto auto auto;
-    gap: 8px;
-    align-items: center;
   }
 
   .list-count {
     grid-column: auto;
-    width: auto;
-    font-size: 12px;
-    white-space: nowrap;
+    @apply w-auto whitespace-nowrap text-xs;
   }
 
   .list-head .search-input-wrap {
-    width: 100%;
-    min-width: 0;
+    @apply w-full min-w-0;
   }
 
   .list-head .search-input {
-    width: 100%;
-    min-width: 0;
-    height: 42px;
-    border-radius: 14px;
+    @apply h-[42px] w-full min-w-0 rounded-[14px];
   }
 
   .list-icon-btn {
-    width: auto;
-    min-width: 0;
-    padding: 0 12px;
-    font-size: 13px;
-    gap: 6px;
-    white-space: nowrap;
+    @apply w-auto min-w-0 gap-1.5 whitespace-nowrap px-3 py-0 text-[13px];
   }
 
   .toolbar.actions {
-    justify-content: flex-end;
+    @apply justify-end overflow-visible pb-0.5;
     flex-wrap: unset;
     gap: var(--actions-gap);
-    overflow: visible;
-    padding-bottom: 2px;
   }
 
   .actions {
@@ -394,37 +317,21 @@
   }
 
   .toolbar.actions .btn.small {
-    width: auto;
-    min-width: 0;
-    height: 34px;
-    padding: 0 12px;
-    font-size: 13px;
-    gap: 6px;
-    border-radius: 999px;
-    white-space: nowrap;
+    @apply h-[34px] w-auto min-w-0 gap-1.5 whitespace-nowrap rounded-full px-3 py-0 text-[13px];
   }
 
   .mobile-fab-wrap {
-    position: fixed;
-    right: 14px;
+    @apply fixed right-3.5 z-[45];
     bottom: calc(14px + var(--mobile-tabbar-height) + env(safe-area-inset-bottom));
-    z-index: 45;
   }
 
   .mobile-fab-trigger {
-    width: 36px;
-    height: 56px;
-    padding: 0;
-    border-radius: 999px;
-    font-size: 0;
-    gap: 0;
+    @apply h-14 w-9 gap-0 rounded-full p-0 text-[0];
     box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
   }
 
   .mobile-fab-trigger .btn-icon {
-    margin: 0;
-    width: 20px;
-    height: 20px;
+    @apply m-0 h-5 w-5;
   }
 
   .mobile-fab-wrap .create-menu {
@@ -435,18 +342,15 @@
   }
 
   .list-panel {
-    border-radius: 16px;
-    overflow: visible;
+    @apply overflow-visible rounded-2xl;
   }
 
   .list-item {
-    padding: 12px;
-    border-radius: 14px;
+    @apply rounded-[14px] p-3;
   }
 
   .row-check {
-    width: 18px;
-    height: 18px;
+    @apply h-[18px] w-[18px];
   }
 
   .vault-grid.mobile-panel-detail .sidebar,
@@ -454,20 +358,15 @@
   .vault-grid.mobile-panel-edit .sidebar,
   .vault-grid.mobile-panel-edit .list-col {
     display: none;
+    @apply hidden;
   }
 
   .mobile-detail-sheet {
-    display: block;
-    position: fixed;
-    left: 0;
-    right: 0;
+    @apply fixed left-0 right-0 z-[35] block overflow-auto opacity-0;
     top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top));
     bottom: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom));
-    z-index: 35;
-    overflow: auto;
     background: transparent;
     padding: 0 0 18px;
-    opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transform: translate3d(0, 18px, 0);
@@ -478,49 +377,44 @@
   }
 
   .mobile-detail-sheet.open {
-    opacity: 1;
+    @apply opacity-100;
     visibility: visible;
     pointer-events: auto;
     transform: translate3d(0, 0, 0);
   }
 
   .mobile-panel-head {
-    display: flex;
-    align-items: center;
-    margin: 0 10px 10px;
+    @apply mb-2.5 ml-2.5 mr-2.5 flex items-center;
   }
 
   .mobile-panel-back {
-    min-height: 40px;
+    @apply min-h-10;
   }
 
   .mobile-detail-sheet > .detail-switch-stage,
   .mobile-detail-sheet > .card,
   .mobile-detail-sheet > .empty {
-    margin-left: 10px;
-    margin-right: 10px;
+    @apply ml-2.5 mr-2.5;
   }
 
   .detail-col .card,
   .import-export-panel,
   .settings-subcard {
-    border-radius: 16px;
+    @apply rounded-2xl;
   }
 
   .card {
-    padding: 14px 14px;
+    @apply p-3.5;
   }
 
   .section-head {
-    align-items: flex-start;
-    gap: 10px;
-    flex-direction: column;
+    @apply flex-col items-start gap-2.5;
   }
 
   .detail-actions {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 5px;
   }
 
   .detail-actions .actions {
@@ -566,6 +460,11 @@
   .import-export-panels,
   .settings-twofactor-grid {
     gap: 10px;
+  }
+
+  .settings-modules-grid,
+  .password-settings-grid {
+    grid-template-columns: 1fr;
   }
 
   .import-export-panel .actions .btn,
@@ -734,7 +633,7 @@
 }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1180px) {
   .backup-grid {
     grid-template-columns: 1fr;
   }

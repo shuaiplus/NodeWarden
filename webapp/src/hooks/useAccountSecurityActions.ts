@@ -131,7 +131,6 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
         try {
           const derived = await deriveLoginHash(profile.email, disableTotpPassword, defaultKdfIterations);
           await setTotp(authedFetch, { enabled: false, masterPasswordHash: derived.hash });
-          if (profile.id) localStorage.removeItem(`nodewarden.totp.secret.${profile.id}`);
           clearDisableTotpDialog();
           await refetchTotpStatus();
           onNotify('success', t('txt_totp_disabled'));

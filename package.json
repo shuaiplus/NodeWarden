@@ -1,6 +1,6 @@
 {
   "name": "nodewarden",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Minimal Bitwarden-compatible server running on Cloudflare Workers",
   "author": "shuaiplus",
   "license": "LGPL-3.0",
@@ -40,6 +40,9 @@
     "@cloudflare/workers-types": "^4.20260131.0",
     "@preact/preset-vite": "^2.10.3",
     "@types/node": "^25.2.3",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",

@@ -18,6 +18,7 @@ import {
   revokeCurrentSession,
   getTotpStatus,
   saveSession,
+  stripProfileSecrets,
 } from '@/lib/api/auth';
 import { listAdminInvites, listAdminUsers } from '@/lib/api/admin';
 import { buildSendShareKey, getSends } from '@/lib/api/send';
@@ -82,48 +83,12 @@ const SIGNALR_UPDATE_TYPE_DEVICE_STATUS = 12;
 const SIGNALR_UPDATE_TYPE_BACKUP_RESTORE_PROGRESS = 13;
 
 type ThemePreference = 'system' | 'light' | 'dark';
-const MAGNETIC_SELECTOR = '.topbar .btn, .topbar .user-chip, .side-link, .mobile-tab';
+type LockTimeoutMinutes = 0 | 1 | 5 | 15 | 30;
+type SessionTimeoutAction = 'lock' | 'logout';
 
-function installMagneticUiFeedback() {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
-  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
-  if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) return () => {};
-
-  const resetNode = (node: HTMLElement) => {
-    node.style.setProperty('--mag-x', '0px');
-    node.style.setProperty('--mag-y', '0px');
-    node.style.removeProperty('--mx');
-    node.style.removeProperty('--my');
-  };
-
-  const onPointerMove = (event: PointerEvent) => {
-    const node = event.target instanceof Element ? event.target.closest<HTMLElement>(MAGNETIC_SELECTOR) : null;
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const localX = event.clientX - rect.left;
-    const localY = event.clientY - rect.top;
-    const dx = (localX - rect.width / 2) / Math.max(rect.width / 2, 1);
-    const dy = (localY - rect.height / 2) / Math.max(rect.height / 2, 1);
-    node.style.setProperty('--mx', `${localX}px`);
-    node.style.setProperty('--my', `${localY}px`);
-    node.style.setProperty('--mag-x', `${dx * 6}px`);
-    node.style.setProperty('--mag-y', `${dy * 4}px`);
-  };
-
-  const onPointerLeave = (event: Event) => {
-    const node = event.target instanceof Element ? event.target.closest<HTMLElement>(MAGNETIC_SELECTOR) : null;
-    if (!node) return;
-    resetNode(node);
-  };
-
-  document.addEventListener('pointermove', onPointerMove, { passive: true });
-  document.addEventListener('pointerleave', onPointerLeave, true);
-
-  return () => {
-    document.removeEventListener('pointermove', onPointerMove);
-    document.removeEventListener('pointerleave', onPointerLeave, true);
-  };
-}
+const LOCK_TIMEOUT_STORAGE_KEY = 'nodewarden.lock.timeout-minutes.v1';
+const SESSION_TIMEOUT_ACTION_STORAGE_KEY = 'nodewarden.session.timeout-action.v1';
+const LOCK_TIMEOUT_VALUES = new Set<LockTimeoutMinutes>([0, 1, 5, 15, 30]);
 
 function readThemePreference(): ThemePreference {
   if (typeof window === 'undefined') return 'system';
@@ -135,6 +100,18 @@ function readThemePreference(): ThemePreference {
 function resolveSystemTheme(): 'light' | 'dark' {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function readLockTimeoutMinutes(): LockTimeoutMinutes {
+  if (typeof window === 'undefined') return 15;
+  const value = Number(window.localStorage.getItem(LOCK_TIMEOUT_STORAGE_KEY));
+  return LOCK_TIMEOUT_VALUES.has(value as LockTimeoutMinutes) ? (value as LockTimeoutMinutes) : 15;
+}
+
+function readSessionTimeoutAction(): SessionTimeoutAction {
+  if (typeof window === 'undefined') return 'lock';
+  const value = String(window.localStorage.getItem(SESSION_TIMEOUT_ACTION_STORAGE_KEY) || '').trim();
+  return value === 'logout' ? 'logout' : 'lock';
 }
 
 export default function App() {
@@ -170,6 +147,7 @@ export default function App() {
   const [inviteCodeFromUrl, setInviteCodeFromUrl] = useState(initialInviteCode);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [pendingTotp, setPendingTotp] = useState<PendingTotp | null>(null);
+  const [pendingTotpMode, setPendingTotpMode] = useState<'login' | 'unlock' | null>(null);
   const [totpCode, setTotpCode] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
   const [totpSubmitting, setTotpSubmitting] = useState(false);
@@ -180,10 +158,13 @@ export default function App() {
   const [recoverValues, setRecoverValues] = useState({ email: '', password: '', recoveryCode: '' });
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => readThemePreference());
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => resolveSystemTheme());
-  const [unlockPreparing, setUnlockPreparing] = useState(() => initialBootstrap.phase === 'locked' && !initialProfileSnapshot?.key);
+  const [lockTimeoutMinutes, setLockTimeoutMinutesState] = useState<LockTimeoutMinutes>(() => readLockTimeoutMinutes());
+  const [sessionTimeoutAction, setSessionTimeoutActionState] = useState<SessionTimeoutAction>(() => readSessionTimeoutAction());
+  const [unlockPreparing, setUnlockPreparing] = useState(() => initialBootstrap.phase === 'locked' && !initialBootstrap.session?.email);
 
   const [confirm, setConfirm] = useState<AppConfirmState | null>(null);
   const [mobileLayout, setMobileLayout] = useState(false);
+  const [mobileSidebarToggleKey, setMobileSidebarToggleKey] = useState(0);
   const [decryptedFolders, setDecryptedFolders] = useState<VaultFolder[]>([]);
   const [decryptedCiphers, setDecryptedCiphers] = useState<Cipher[]>([]);
   const [decryptedSends, setDecryptedSends] = useState<Send[]>([]);
@@ -245,7 +226,7 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const media = window.matchMedia('(max-width: 900px)');
+    const media = window.matchMedia('(max-width: 1180px)');
     const sync = () => setMobileLayout(media.matches);
     sync();
     if (typeof media.addEventListener === 'function') {
@@ -287,12 +268,20 @@ export default function App() {
   }, [profile]);
 
   useEffect(() => {
-    if (phase === 'locked' && profile?.key && session) {
+    if (phase === 'locked' && session?.email) {
       setUnlockPreparing(false);
     }
   }, [phase, profile, session]);
 
-  useEffect(() => installMagneticUiFeedback(), []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(LOCK_TIMEOUT_STORAGE_KEY, String(lockTimeoutMinutes));
+  }, [lockTimeoutMinutes]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SESSION_TIMEOUT_ACTION_STORAGE_KEY, sessionTimeoutAction);
+  }, [sessionTimeoutAction]);
 
   function handleToggleTheme() {
     setThemePreference((prev) => {
@@ -305,6 +294,16 @@ export default function App() {
     sessionRef.current = next;
     setSessionState(next);
     saveSession(next);
+  }
+
+  function setLockTimeoutMinutes(next: LockTimeoutMinutes) {
+    setLockTimeoutMinutesState(next);
+    pushToast('success', t('txt_session_timeout_updated'));
+  }
+
+  function setSessionTimeoutAction(next: SessionTimeoutAction) {
+    setSessionTimeoutActionState(next);
+    pushToast('success', t('txt_session_timeout_updated'));
   }
 
   const authedFetch = useMemo(
@@ -353,7 +352,7 @@ export default function App() {
       setSession(boot.session);
       setProfile(boot.profile);
       setPhase(boot.phase);
-      setUnlockPreparing(boot.phase === 'locked' && !boot.profile?.key);
+      setUnlockPreparing(boot.phase === 'locked' && !boot.session?.email);
     })();
 
     return () => {
@@ -377,7 +376,7 @@ export default function App() {
       }
       setSession(result.session);
       if (result.profile) {
-        setProfile(result.profile);
+        setProfile(stripProfileSecrets(result.profile));
       }
     })();
     return () => {
@@ -385,17 +384,19 @@ export default function App() {
     };
   }, [phase, session?.email, location, navigate]);
 
-  async function finalizeLogin(login: CompletedLogin) {
+  async function finalizeLogin(login: CompletedLogin, successMessage = t('txt_login_success')) {
     setSession(login.session);
     setProfile(login.profile);
     setUnlockPreparing(false);
     setPendingTotp(null);
+    setPendingTotpMode(null);
     setTotpCode('');
+    setUnlockPassword('');
     setPhase('app');
     if (location === '/' || location === '/login' || location === '/register' || location === '/lock') {
       navigate('/vault');
     }
-    pushToast('success', t('txt_login_success'));
+    pushToast('success', successMessage);
     void (async () => {
       try {
         const hydratedProfile = await login.profilePromise;
@@ -422,6 +423,7 @@ export default function App() {
       }
       if (result.kind === 'totp') {
         setPendingTotp(result.pendingTotp);
+        setPendingTotpMode('login');
         setTotpCode('');
         setRememberDevice(true);
         return;
@@ -444,7 +446,7 @@ export default function App() {
     setTotpSubmitting(true);
     try {
       const login = await performTotpLogin(pendingTotp, totpCode, rememberDevice);
-      await finalizeLogin(login);
+      await finalizeLogin(login, pendingTotpMode === 'unlock' ? t('txt_unlocked') : t('txt_login_success'));
     } catch (error) {
       pushToast('error', error instanceof Error ? error.message : t('txt_totp_verify_failed'));
     } finally {
@@ -567,20 +569,26 @@ export default function App() {
 
   async function handleUnlock() {
     if (pendingAuthAction) return;
-    if (!session || !profile) return;
+    if (!session?.email) return;
     if (!unlockPassword) {
       pushToast('error', t('txt_please_input_master_password'));
       return;
     }
     setPendingAuthAction('unlock');
     try {
-      const nextSession = await performUnlock(session, profile, unlockPassword, defaultKdfIterations);
-      setSession(nextSession);
-      setUnlockPassword('');
-      setUnlockPreparing(false);
-      setPhase('app');
-      if (location === '/' || location === '/lock') navigate('/vault');
-      pushToast('success', t('txt_unlocked'));
+      const result = await performUnlock(session, profile, unlockPassword, defaultKdfIterations);
+      if (result.kind === 'success') {
+        await finalizeLogin(result.login, t('txt_unlocked'));
+        return;
+      }
+      if (result.kind === 'totp') {
+        setPendingTotp(result.pendingTotp);
+        setPendingTotpMode('unlock');
+        setTotpCode('');
+        setRememberDevice(true);
+        return;
+      }
+      pushToast('error', result.message || t('txt_unlock_failed_master_password_is_incorrect'));
     } catch {
       pushToast('error', t('txt_unlock_failed_master_password_is_incorrect'));
     } finally {
@@ -588,15 +596,28 @@ export default function App() {
     }
   }
 
-  function handleLock() {
-    if (!session) return;
-    const nextSession = { ...session };
+  function lockCurrentSession() {
+    const currentSession = sessionRef.current;
+    if (!currentSession) return;
+    const nextSession = { ...currentSession };
     delete nextSession.symEncKey;
     delete nextSession.symMacKey;
     setSession(nextSession);
+    setProfile((prev) => stripProfileSecrets(prev));
+    setDecryptedFolders([]);
+    setDecryptedCiphers([]);
+    setDecryptedSends([]);
+    setUnlockPassword('');
+    setPendingTotp(null);
+    setPendingTotpMode(null);
+    setTotpCode('');
     setUnlockPreparing(false);
     setPhase('locked');
     navigate('/lock');
+  }
+
+  function handleLock() {
+    lockCurrentSession();
   }
 
   function logoutNow() {
@@ -607,6 +628,7 @@ export default function App() {
     setProfile(null);
     setUnlockPreparing(false);
     setPendingTotp(null);
+    setPendingTotpMode(null);
     setPhase('login');
     navigate('/login');
   }
@@ -621,6 +643,62 @@ export default function App() {
       },
     });
   }
+
+  useEffect(() => {
+    if (phase !== 'app' || lockTimeoutMinutes === 0) return;
+    if (typeof window === 'undefined') return;
+
+    let timerId: number | null = null;
+    let lastActivityAt = 0;
+    const timeoutMs = lockTimeoutMinutes * 60 * 1000;
+
+    const clearTimer = () => {
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+        timerId = null;
+      }
+    };
+    const runTimeoutAction = () => {
+      if (sessionTimeoutAction === 'logout') {
+        logoutNow();
+        return;
+      }
+      if (sessionRef.current?.symEncKey || sessionRef.current?.symMacKey) {
+        lockCurrentSession();
+      }
+    };
+    const scheduleTimeout = () => {
+      clearTimer();
+      timerId = window.setTimeout(() => {
+        runTimeoutAction();
+      }, timeoutMs);
+    };
+    const markActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityAt < 1000) return;
+      lastActivityAt = now;
+      scheduleTimeout();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') markActivity();
+    };
+
+    scheduleTimeout();
+    window.addEventListener('pointerdown', markActivity, { passive: true });
+    window.addEventListener('keydown', markActivity);
+    window.addEventListener('scroll', markActivity, { passive: true });
+    window.addEventListener('touchstart', markActivity, { passive: true });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearTimer();
+      window.removeEventListener('pointerdown', markActivity);
+      window.removeEventListener('keydown', markActivity);
+      window.removeEventListener('scroll', markActivity);
+      window.removeEventListener('touchstart', markActivity);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [phase, lockTimeoutMinutes, sessionTimeoutAction]);
 
   function renderPassiveOverlays() {
     return (
@@ -1147,6 +1225,7 @@ export default function App() {
     profile,
     session,
     mobileLayout,
+    mobileSidebarToggleKey,
     importRoute: IMPORT_ROUTE,
     settingsHomeRoute: SETTINGS_HOME_ROUTE,
     settingsAccountRoute: SETTINGS_ACCOUNT_ROUTE,
@@ -1159,6 +1238,8 @@ export default function App() {
     users: usersQuery.data || [],
     invites: invitesQuery.data || [],
     totpEnabled: !!totpStatusQuery.data?.enabled,
+    lockTimeoutMinutes,
+    sessionTimeoutAction,
     authorizedDevices: authorizedDevicesQuery.data || [],
     authorizedDevicesLoading: authorizedDevicesQuery.isFetching,
     onNavigate: navigate,
@@ -1205,6 +1286,8 @@ export default function App() {
     onGetRecoveryCode: accountSecurityActions.getRecoveryCode,
     onGetApiKey: accountSecurityActions.getApiKey,
     onRotateApiKey: accountSecurityActions.rotateApiKey,
+    onLockTimeoutChange: setLockTimeoutMinutes,
+    onSessionTimeoutActionChange: setSessionTimeoutAction,
     onRefreshAuthorizedDevices: accountSecurityActions.refreshAuthorizedDevices,
     onRenameAuthorizedDevice: accountSecurityActions.renameAuthorizedDevice,
     onRevokeDeviceTrust: accountSecurityActions.openRevokeDeviceTrust,
@@ -1267,7 +1350,7 @@ export default function App() {
         <AuthViews
           mode={phase}
           pendingAction={pendingAuthAction}
-          unlockReady={!!profile?.key && !!session}
+          unlockReady={!!session?.email}
           unlockPreparing={unlockPreparing}
           loginValues={loginValues}
           registerValues={registerValues}
@@ -1309,12 +1392,14 @@ export default function App() {
           onCancelTotp={() => {
             if (totpSubmitting) return;
             setPendingTotp(null);
+            setPendingTotpMode(null);
             setTotpCode('');
             setRememberDevice(true);
           }}
           onUseRecoveryCode={() => {
             if (totpSubmitting) return;
             setPendingTotp(null);
+            setPendingTotpMode(null);
             setTotpCode('');
             setRememberDevice(true);
             navigate('/recover-2fa');
@@ -1348,6 +1433,7 @@ export default function App() {
         onLock={handleLock}
         onLogout={handleLogout}
         onToggleTheme={handleToggleTheme}
+        onToggleMobileSidebar={() => setMobileSidebarToggleKey((key) => key + 1)}
         mainRoutesProps={mainRoutesProps}
       />
 

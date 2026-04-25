@@ -260,18 +260,24 @@ async function buildPublicSendAccessPayload(password?: string, keyPart?: string 
   return payload;
 }
 
-export async function accessPublicSend(accessId: string, keyPart?: string | null, password?: string): Promise<any> {
+export async function accessPublicSend(
+  accessId: string,
+  keyPart?: string | null,
+  password?: string,
+  options?: { signal?: AbortSignal }
+): Promise<unknown> {
   const payload = await buildPublicSendAccessPayload(password, keyPart);
   const resp = await fetch(`/api/sends/access/${encodeURIComponent(accessId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: options?.signal,
   });
   if (!resp.ok) {
     const message = await parseErrorMessage(resp, 'Failed to access send');
     throw createApiError(message, resp.status);
   }
-  return (await parseJson<any>(resp)) || null;
+  return (await parseJson<unknown>(resp)) || null;
 }
 
 export async function accessPublicSendFile(sendId: string, fileId: string, keyPart?: string | null, password?: string): Promise<string> {
@@ -290,19 +296,22 @@ export async function accessPublicSendFile(sendId: string, fileId: string, keyPa
   return body.url;
 }
 
-export async function decryptPublicSend(accessData: any, urlSafeKey: string): Promise<any> {
+export async function decryptPublicSend(accessData: unknown, urlSafeKey: string): Promise<unknown> {
   const sendKeyMaterial = base64UrlToBytes(urlSafeKey);
   const sendKey = await toSendKeyParts(sendKeyMaterial);
-  const out: any = { ...accessData };
-  out.decName = await decryptStr(accessData?.name || '', sendKey.enc, sendKey.mac);
-  if (accessData?.text?.text) {
-    out.decText = await decryptStr(accessData.text.text, sendKey.enc, sendKey.mac);
+  const source = accessData && typeof accessData === 'object' ? accessData as Record<string, unknown> : {};
+  const text = source.text && typeof source.text === 'object' ? source.text as Record<string, unknown> : null;
+  const file = source.file && typeof source.file === 'object' ? source.file as Record<string, unknown> : null;
+  const out: Record<string, unknown> = { ...source };
+  out.decName = await decryptStr(String(source.name || ''), sendKey.enc, sendKey.mac);
+  if (text?.text) {
+    out.decText = await decryptStr(String(text.text), sendKey.enc, sendKey.mac);
   }
-  if (accessData?.file?.fileName) {
+  if (file?.fileName) {
     try {
-      out.decFileName = await decryptStr(accessData.file.fileName, sendKey.enc, sendKey.mac);
+      out.decFileName = await decryptStr(String(file.fileName), sendKey.enc, sendKey.mac);
     } catch {
-      out.decFileName = String(accessData.file.fileName);
+      out.decFileName = String(file.fileName);
     }
   }
   return out;

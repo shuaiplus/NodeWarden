@@ -372,16 +372,36 @@ export async function performRegistration(args: {
 
 export async function performUnlock(
   session: SessionState,
-  profile: Profile,
+  profile: Profile | null,
   password: string,
   fallbackIterations: number
-): Promise<SessionState> {
-  const derived = await deriveLoginHashLocally(profile.email || session.email, password, fallbackIterations);
-  const keys = await unlockVaultKey(profile.key, derived.masterKey);
-  const refreshedSession = await maybeRefreshSession(session);
-  if (!refreshedSession) {
-    throw new Error('Session expired');
+): Promise<PasswordLoginResult> {
+  const normalizedEmail = (profile?.email || session.email).trim().toLowerCase();
+  const derived = await deriveLoginHashLocally(normalizedEmail, password, fallbackIterations);
+  const token = await loginWithPassword(normalizedEmail, derived.hash, { useRememberToken: true });
+
+  if ('access_token' in token && token.access_token) {
+    return {
+      kind: 'success',
+      login: await completeLogin(token, normalizedEmail, derived.masterKey),
+    };
   }
-  return { ...refreshedSession, ...keys };
+
+  const tokenError = token as { TwoFactorProviders?: unknown; error_description?: string; error?: string };
+  if (tokenError.TwoFactorProviders) {
+    return {
+      kind: 'totp',
+      pendingTotp: {
+        email: normalizedEmail,
+        passwordHash: derived.hash,
+        masterKey: derived.masterKey,
+      },
+    };
+  }
+
+  return {
+    kind: 'error',
+    message: tokenError.error_description || tokenError.error || 'Unlock failed',
+  };
 }
 

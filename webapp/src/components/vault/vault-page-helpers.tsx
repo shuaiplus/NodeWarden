@@ -36,7 +36,7 @@ export const CREATE_TYPE_OPTIONS: TypeOption[] = [
 ];
 
 export const VAULT_SORT_STORAGE_KEY = 'nodewarden.vault.sort.v1';
-export const MOBILE_LAYOUT_QUERY = '(max-width: 900px)';
+export const MOBILE_LAYOUT_QUERY = '(max-width: 1180px)';
 export const VAULT_LIST_ROW_HEIGHT = 74;
 export const VAULT_LIST_OVERSCAN = 10;
 export const VAULT_SORT_OPTIONS: Array<{ value: VaultSortMode; label: string }> = [
@@ -433,23 +433,31 @@ export function VaultListIcon({ cipher }: { cipher: Cipher }) {
   const uri = firstCipherUri(cipher);
   const host = hostFromUri(uri);
   const [errored, setErrored] = useState(() => (host ? failedIconHosts.has(host) : false));
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     setErrored(host ? failedIconHosts.has(host) : false);
+    setLoaded(false);
   }, [host]);
 
   if (host && !errored) {
     return (
-      <img
-        className="list-icon"
-        src={websiteIconUrl(host)}
-        alt=""
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        onError={() => {
-          failedIconHosts.add(host);
-          setErrored(true);
-        }}
-      />
+      <span className="list-icon-stack">
+        <span className={`list-icon-fallback ${loaded ? 'hidden' : ''}`}>
+          <TypeIcon type={Number(cipher.type || 1)} />
+        </span>
+        <img
+          className={`list-icon ${loaded ? 'loaded' : ''}`}
+          src={websiteIconUrl(host)}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            failedIconHosts.add(host);
+            setErrored(true);
+          }}
+        />
+      </span>
     );
   }
   return (

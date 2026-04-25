@@ -122,9 +122,11 @@ export function loadProfileSnapshot(email?: string | null): Profile | null {
     const raw = localStorage.getItem(PROFILE_SNAPSHOT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Profile;
-    if (!parsed?.email || !parsed?.key) return null;
+    if (!parsed?.email) return null;
     if (email && parsed.email !== email) return null;
-    return parsed;
+    const snapshot = stripProfileSecrets(parsed);
+    localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    return snapshot;
   } catch {
     return null;
   }
@@ -132,11 +134,25 @@ export function loadProfileSnapshot(email?: string | null): Profile | null {
 
 export function saveProfileSnapshot(profile: Profile | null): void {
   if (!profile) return;
-  localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(profile));
+  localStorage.setItem(PROFILE_SNAPSHOT_KEY, JSON.stringify(stripProfileSecrets(profile)));
 }
 
 export function clearProfileSnapshot(): void {
   localStorage.removeItem(PROFILE_SNAPSHOT_KEY);
+}
+
+export function stripProfileSecrets(profile: Profile | null): Profile | null {
+  if (!profile) return null;
+  return {
+    id: String(profile.id || ''),
+    email: String(profile.email || ''),
+    name: String(profile.name || ''),
+    role: profile.role === 'admin' ? 'admin' : 'user',
+    masterPasswordHint: profile.masterPasswordHint ?? null,
+    publicKey: profile.publicKey ?? null,
+    key: '',
+    privateKey: null,
+  };
 }
 
 export function getCurrentDeviceIdentifier(): string {

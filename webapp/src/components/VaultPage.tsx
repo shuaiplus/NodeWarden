@@ -58,6 +58,7 @@ interface VaultPageProps {
   attachmentDownloadPercent: number | null;
   uploadingAttachmentName: string;
   attachmentUploadPercent: number | null;
+  mobileSidebarToggleKey: number;
 }
 
 
@@ -131,12 +132,9 @@ export default function VaultPage(props: VaultPageProps) {
   }, []);
 
   useEffect(() => {
-    const onToggleSidebar = () => {
-      setMobileSidebarOpen((open) => !open);
-    };
-    window.addEventListener('nodewarden:toggle-sidebar', onToggleSidebar);
-    return () => window.removeEventListener('nodewarden:toggle-sidebar', onToggleSidebar);
-  }, []);
+    if (!props.mobileSidebarToggleKey) return;
+    setMobileSidebarOpen((open) => !open);
+  }, [props.mobileSidebarToggleKey]);
 
   useEffect(() => {
     const onQuickAdd = () => {
