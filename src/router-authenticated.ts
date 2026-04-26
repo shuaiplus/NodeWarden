@@ -60,6 +60,7 @@ import {
   handleCreateAttachment,
   handleUploadAttachment,
   handleGetAttachment,
+  handleUpdateAttachmentMetadata,
   handleDeleteAttachment,
 } from './handlers/attachments';
 import { handleAuthenticatedDeviceRoute } from './router-devices';
@@ -199,6 +200,11 @@ export async function handleAuthenticatedRoute(
       if (method === 'POST' || method === 'PUT') return handleUploadAttachment(request, env, userId, cipherId, attachmentId);
       if (method === 'GET') return handleGetAttachment(request, env, userId, cipherId, attachmentId);
       if (method === 'DELETE') return handleDeleteAttachment(request, env, userId, cipherId, attachmentId);
+    }
+
+    const attachmentMetadataMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)\/metadata$/i);
+    if (attachmentMetadataMatch && (method === 'POST' || method === 'PUT')) {
+      return handleUpdateAttachmentMetadata(request, env, userId, cipherId, attachmentMetadataMatch[1]);
     }
 
     const attachmentDeleteMatch = subPath.match(/^\/attachment\/([a-f0-9-]+)\/delete$/i);

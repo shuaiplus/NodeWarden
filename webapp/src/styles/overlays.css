@@ -9,7 +9,7 @@
 
 .dialog-card {
   @apply rounded-[20px] border bg-white p-5 text-center;
-  width: min(5000px, 100%);
+  width: min(500px, 100%);
   border: 1px solid var(--line);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
   transform-origin: 50% 30%;

@@ -279,6 +279,64 @@ export async function handleGetAttachment(
   });
 }
 
+// PUT /api/ciphers/{cipherId}/attachment/{attachmentId}/metadata
+// 修正旧附件的加密元数据，供官方客户端按当前 Bitwarden 契约解密。
+export async function handleUpdateAttachmentMetadata(
+  request: Request,
+  env: Env,
+  userId: string,
+  cipherId: string,
+  attachmentId: string
+): Promise<Response> {
+  const storage = new StorageService(env.DB);
+
+  const cipher = await storage.getCipher(cipherId);
+  if (!cipher || cipher.userId !== userId) {
+    return errorResponse('Cipher not found', 404);
+  }
+
+  const attachment = await storage.getAttachment(attachmentId);
+  if (!attachment || attachment.cipherId !== cipherId) {
+    return errorResponse('Attachment not found', 404);
+  }
+
+  let body: { fileName?: string | null; key?: string | null };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Invalid JSON', 400);
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(body, 'fileName') && !Object.prototype.hasOwnProperty.call(body, 'key')) {
+    return errorResponse('No metadata fields supplied', 400);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'fileName')) {
+    const fileName = String(body.fileName || '').trim();
+    if (!fileName) return errorResponse('fileName is required', 400);
+    attachment.fileName = fileName;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'key')) {
+    const key = body.key == null ? null : String(body.key || '').trim();
+    attachment.key = key || null;
+  }
+
+  await storage.saveAttachment(attachment);
+  const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
+  if (revisionInfo) {
+    await notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
+  }
+
+  return jsonResponse({
+    object: 'attachment',
+    id: attachment.id,
+    fileName: attachment.fileName,
+    key: attachment.key,
+    size: String(Number(attachment.size) || 0),
+    sizeName: attachment.sizeName,
+  });
+}
+
 // GET /api/attachments/{cipherId}/{attachmentId}?token=xxx
 // Public download endpoint (uses token for auth instead of header)
 export async function handlePublicDownloadAttachment(

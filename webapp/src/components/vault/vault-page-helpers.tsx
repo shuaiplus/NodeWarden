@@ -434,6 +434,18 @@ export function VaultListIcon({ cipher }: { cipher: Cipher }) {
   const host = hostFromUri(uri);
   const [errored, setErrored] = useState(() => (host ? failedIconHosts.has(host) : false));
   const [loaded, setLoaded] = useState(false);
+  const markIconError = () => {
+    if (host) failedIconHosts.add(host);
+    setErrored(true);
+  };
+  const syncCachedIconState = (img: HTMLImageElement | null) => {
+    if (!img || !img.complete) return;
+    if (img.naturalWidth > 0) {
+      setLoaded(true);
+      return;
+    }
+    markIconError();
+  };
   useEffect(() => {
     setErrored(host ? failedIconHosts.has(host) : false);
     setLoaded(false);
@@ -443,7 +455,7 @@ export function VaultListIcon({ cipher }: { cipher: Cipher }) {
     return (
       <span className="list-icon-stack">
         <span className={`list-icon-fallback ${loaded ? 'hidden' : ''}`}>
-          <TypeIcon type={Number(cipher.type || 1)} />
+          <Globe size={18} />
         </span>
         <img
           className={`list-icon ${loaded ? 'loaded' : ''}`}
@@ -451,11 +463,9 @@ export function VaultListIcon({ cipher }: { cipher: Cipher }) {
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
+          ref={syncCachedIconState}
           onLoad={() => setLoaded(true)}
-          onError={() => {
-            failedIconHosts.add(host);
-            setErrored(true);
-          }}
+          onError={markIconError}
         />
       </span>
     );

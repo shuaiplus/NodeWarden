@@ -126,7 +126,12 @@ function buildConfigResponse(origin: string) {
 }
 
 function normalizeIconHost(rawHost: string): string | null {
-  const decoded = decodeURIComponent(String(rawHost || '').trim()).toLowerCase().replace(/\.+$/, '');
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(String(rawHost || '').trim()).toLowerCase().replace(/\.+$/, '');
+  } catch {
+    return null;
+  }
   if (!decoded || decoded.includes('/') || decoded.includes('\\')) return null;
   try {
     const parsed = new URL(`https://${decoded}`);

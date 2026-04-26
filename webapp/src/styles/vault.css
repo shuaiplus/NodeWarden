@@ -376,13 +376,13 @@
   opacity: 1;
 }
 
-.list-icon-fallback.hidden {
-  opacity: 0;
+.list-icon-stack > .list-icon-fallback {
+  opacity: 1;
+  z-index: 1;
 }
 
-.list-icon-stack > .list-icon-fallback {
+.list-icon-stack > .list-icon-fallback.hidden {
   opacity: 0;
-  z-index: 1;
 }
 
 .list-icon-fallback {
