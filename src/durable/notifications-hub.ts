@@ -1,4 +1,4 @@
-import { DurableObject } from 'cloudflare:workers';
+import { DurableObject, waitUntil } from 'cloudflare:workers';
 import type { Env } from '../types';
 
 const SIGNALR_RECORD_SEPARATOR = 0x1e;
@@ -362,21 +362,21 @@ export class NotificationsHub extends DurableObject<Env> {
   }
 }
 
-export async function notifyUserVaultSync(
+export function notifyUserVaultSync(
   env: Env,
   userId: string,
   revisionDate: string,
   contextId?: string | null
-): Promise<void> {
-  return notifyUserUpdate(env, userId, SIGNALR_UPDATE_TYPE_SYNC_VAULT, revisionDate, contextId ?? null, null);
+): void {
+  waitUntil(notifyUserUpdate(env, userId, SIGNALR_UPDATE_TYPE_SYNC_VAULT, revisionDate, contextId ?? null, null));
 }
 
-export async function notifyUserLogout(
+export function notifyUserLogout(
   env: Env,
   userId: string,
   targetDeviceIdentifier?: string | null
-): Promise<void> {
-  return notifyUserUpdate(env, userId, SIGNALR_UPDATE_TYPE_LOG_OUT, new Date().toISOString(), null, targetDeviceIdentifier ?? null);
+): void {
+  waitUntil(notifyUserUpdate(env, userId, SIGNALR_UPDATE_TYPE_LOG_OUT, new Date().toISOString(), null, targetDeviceIdentifier ?? null));
 }
 
 export async function getOnlineUserDevices(env: Env, userId: string): Promise<string[]> {

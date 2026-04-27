@@ -9,13 +9,13 @@ export const SEND_INACCESSIBLE_MSG = 'Send does not exist or is no longer availa
 const SEND_PASSWORD_ITERATIONS = 100_000;
 export const SEND_PASSWORD_LIMIT_SCOPE = 'send-password';
 
-export async function notifyVaultSyncForRequest(
+export function notifyVaultSyncForRequest(
   request: Request,
   env: Env,
   userId: string,
   revisionDate: string
-): Promise<void> {
-  await notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+): void {
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
 export function getAliasedProp(source: unknown, aliases: string[]): { present: boolean; value: unknown } {

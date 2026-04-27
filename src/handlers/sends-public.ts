@@ -89,7 +89,7 @@ export async function handleAccessSend(request: Request, env: Env, accessId: str
     }
     send.accessCount += 1;
     const revisionDate = await storage.updateRevisionDate(send.userId);
-    await notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
+    notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
   }
 
   const creatorIdentifier = await getCreatorIdentifier(storage, send);
@@ -162,7 +162,7 @@ export async function handleAccessSendFile(
   }
   send.accessCount += 1;
   const revisionDate = await storage.updateRevisionDate(send.userId);
-  await notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
+  notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
 
   const token = await createSendFileDownloadToken(send.id, fileId, secret);
   const url = new URL(request.url);
@@ -202,7 +202,7 @@ export async function handleAccessSendV2(request: Request, env: Env): Promise<Re
     }
     send.accessCount += 1;
     const revisionDate = await storage.updateRevisionDate(send.userId);
-    await notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
+    notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
   }
 
   const creatorIdentifier = await getCreatorIdentifier(storage, send);
@@ -241,7 +241,7 @@ export async function handleAccessSendFileV2(request: Request, env: Env, fileId:
   }
   send.accessCount += 1;
   const revisionDate = await storage.updateRevisionDate(send.userId);
-  await notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
+  notifyVaultSyncForRequest(request, env, send.userId, revisionDate);
 
   const downloadToken = await createSendFileDownloadToken(send.id, fileId, jwt.secret);
   const url = new URL(request.url);

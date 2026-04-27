@@ -21,13 +21,13 @@ import {
   putBlobObject,
 } from '../services/blob-store';
 
-async function notifyVaultSyncForRequest(
+function notifyVaultSyncForRequest(
   request: Request,
   env: Env,
   userId: string,
   revisionDate: string
-): Promise<void> {
-  await notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+): void {
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
 // Format file size to human readable
@@ -93,7 +93,7 @@ async function processAttachmentUpload(
 
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    await notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
   }
 
   return new Response(null, { status: 201 });
@@ -153,7 +153,7 @@ export async function handleCreateAttachment(
   // Update cipher revision date
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    await notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
   }
 
   // Get updated cipher for response
@@ -324,7 +324,7 @@ export async function handleUpdateAttachmentMetadata(
   await storage.saveAttachment(attachment);
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    await notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
   }
 
   return jsonResponse({
@@ -432,7 +432,7 @@ export async function handleDeleteAttachment(
   // Update cipher revision date
   const revisionInfo = await storage.updateCipherRevisionDate(cipherId);
   if (revisionInfo) {
-    await notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
+    notifyVaultSyncForRequest(request, env, revisionInfo.userId, revisionInfo.revisionDate);
   }
 
   // Get updated cipher for response

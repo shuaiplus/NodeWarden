@@ -284,7 +284,7 @@ export async function handleDeleteDevice(
   await storage.deleteRefreshTokensByDevice(userId, normalized);
   const deleted = await storage.deleteDevice(userId, normalized);
   if (deleted) {
-    await notifyUserLogout(env, userId, normalized);
+    notifyUserLogout(env, userId, normalized);
   }
   return jsonResponse({ success: deleted });
 }
@@ -327,7 +327,7 @@ export async function handleDeleteAllDevices(request: Request, env: Env, userId:
   user.securityStamp = generateUUID();
   user.updatedAt = new Date().toISOString();
   await storage.saveUser(user);
-  await notifyUserLogout(env, userId, null);
+  notifyUserLogout(env, userId, null);
   return jsonResponse({ success: true, removedTrusted, removedSessions: removedSessions ?? 0, removedDevices });
 }
 
@@ -458,7 +458,7 @@ export async function handleDeactivateDevice(
   await storage.deleteRefreshTokensByDevice(userId, normalized);
   const deleted = await storage.deleteDevice(userId, normalized);
   if (deleted) {
-    await notifyUserLogout(env, userId, normalized);
+    notifyUserLogout(env, userId, normalized);
   }
   return jsonResponse({ success: deleted });
 }

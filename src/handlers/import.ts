@@ -289,7 +289,7 @@ export async function handleCiphersImport(request: Request, env: Env, userId: st
 
   // Update revision date
   const revisionDate = await storage.updateRevisionDate(userId);
-  await notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 
   if (returnCipherMap) {
     return jsonResponse({

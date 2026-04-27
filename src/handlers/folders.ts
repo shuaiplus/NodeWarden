@@ -6,13 +6,13 @@ import { readActingDeviceIdentifier } from '../utils/device';
 import { generateUUID } from '../utils/uuid';
 import { parsePagination, encodeContinuationToken } from '../utils/pagination';
 
-async function notifyVaultSyncForRequest(
+function notifyVaultSyncForRequest(
   request: Request,
   env: Env,
   userId: string,
   revisionDate: string
-): Promise<void> {
-  await notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
+): void {
+  notifyUserVaultSync(env, userId, revisionDate, readActingDeviceIdentifier(request));
 }
 
 // Convert internal folder to API response format
@@ -88,7 +88,7 @@ export async function handleCreateFolder(request: Request, env: Env, userId: str
 
   await storage.saveFolder(folder);
   const revisionDate = await storage.updateRevisionDate(userId);
-  await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
   return jsonResponse(folderToResponse(folder), 200);
 }
@@ -116,7 +116,7 @@ export async function handleUpdateFolder(request: Request, env: Env, userId: str
 
   await storage.saveFolder(folder);
   const revisionDate = await storage.updateRevisionDate(userId);
-  await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
   return jsonResponse(folderToResponse(folder));
 }
@@ -133,7 +133,7 @@ export async function handleDeleteFolder(request: Request, env: Env, userId: str
   await storage.clearFolderFromCiphers(userId, id);
   await storage.deleteFolder(id, userId);
   const revisionDate = await storage.updateRevisionDate(userId);
-  await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+  notifyVaultSyncForRequest(request, env, userId, revisionDate);
 
   return new Response(null, { status: 204 });
 }
@@ -156,7 +156,7 @@ export async function handleBulkDeleteFolders(request: Request, env: Env, userId
 
   const revisionDate = await storage.bulkDeleteFolders(ids, userId);
   if (revisionDate) {
-    await notifyVaultSyncForRequest(request, env, userId, revisionDate);
+    notifyVaultSyncForRequest(request, env, userId, revisionDate);
   }
 
   return new Response(null, { status: 204 });
