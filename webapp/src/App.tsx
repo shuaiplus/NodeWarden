@@ -125,6 +125,7 @@ export default function App() {
   const [session, setSessionState] = useState<SessionState | null>(initialBootstrap.session);
   const [profile, setProfile] = useState<Profile | null>(initialProfileSnapshot);
   const [defaultKdfIterations, setDefaultKdfIterations] = useState(initialBootstrap.defaultKdfIterations);
+  const [masterPasswordMinLength, setMasterPasswordMinLength] = useState(initialBootstrap.masterPasswordMinLength);
   const [jwtWarning, setJwtWarning] = useState<{ reason: JwtUnsafeReason; minLength: number } | null>(initialBootstrap.jwtWarning);
 
   const [loginValues, setLoginValues] = useState({ email: '', password: '' });
@@ -350,6 +351,7 @@ export default function App() {
       const boot = await bootstrapAppSession(initialBootstrap);
       if (!mounted) return;
       setDefaultKdfIterations(boot.defaultKdfIterations);
+      setMasterPasswordMinLength(boot.masterPasswordMinLength);
       setJwtWarning(boot.jwtWarning);
       setSession(boot.session);
       setProfile(boot.profile);
@@ -488,8 +490,8 @@ export default function App() {
       pushToast('error', t('txt_please_input_email_and_password'));
       return;
     }
-    if (registerValues.password.length < 12) {
-      pushToast('error', t('txt_master_password_must_be_at_least_12_chars'));
+    if (registerValues.password.length < masterPasswordMinLength) {
+      pushToast('error', t('txt_master_password_must_be_at_least_chars', { min: masterPasswordMinLength }));
       return;
     }
     if (registerValues.password !== registerValues.password2) {
@@ -1244,6 +1246,7 @@ export default function App() {
     authedFetch,
     profile,
     defaultKdfIterations,
+    masterPasswordMinLength,
     disableTotpPassword,
     clearDisableTotpDialog: () => {
       setDisableTotpOpen(false);

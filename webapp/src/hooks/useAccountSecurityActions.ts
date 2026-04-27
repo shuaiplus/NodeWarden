@@ -25,6 +25,7 @@ interface UseAccountSecurityActionsOptions {
   authedFetch: AuthedFetch;
   profile: Profile | null;
   defaultKdfIterations: number;
+  masterPasswordMinLength: number;
   disableTotpPassword: string;
   clearDisableTotpDialog: () => void;
   onLogoutNow: () => void;
@@ -40,6 +41,7 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
     authedFetch,
     profile,
     defaultKdfIterations,
+    masterPasswordMinLength,
     disableTotpPassword,
     clearDisableTotpDialog,
     onLogoutNow,
@@ -58,8 +60,8 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
           onNotify('error', t('txt_current_new_password_is_required'));
           return;
         }
-        if (nextPassword.length < 12) {
-          onNotify('error', t('txt_new_password_must_be_at_least_12_chars'));
+        if (nextPassword.length < masterPasswordMinLength) {
+          onNotify('error', t('txt_new_password_must_be_at_least_chars', { min: masterPasswordMinLength }));
           return;
         }
         if (nextPassword !== nextPassword2) {
@@ -277,6 +279,7 @@ export default function useAccountSecurityActions(options: UseAccountSecurityAct
       authedFetch,
       clearDisableTotpDialog,
       defaultKdfIterations,
+      masterPasswordMinLength,
       disableTotpPassword,
       onLogoutNow,
       onNotify,

@@ -1,5 +1,8 @@
 ﻿export const LIMITS = {
   auth: {
+    // Default minimum master password length when runtime env does not override it.
+    // 运行时环境变量未覆盖时，主密码的默认最小长度。
+    masterPasswordMinLength: 12,
     // Access token lifetime in seconds.
     // 访问令牌有效期（秒）。
     accessTokenTtlSeconds: 7200,

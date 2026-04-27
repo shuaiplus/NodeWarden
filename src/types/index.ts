@@ -10,6 +10,7 @@ export interface Env {
   // Optional fallback for attachment/send file storage (no credit card required).
   ATTACHMENTS_KV?: KVNamespace;
   JWT_SECRET: string;
+  MASTER_PASSWORD_MIN_LENGTH?: string;
   TOTP_SECRET?: string;
 }
 

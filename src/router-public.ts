@@ -1,4 +1,5 @@
 import { LIMITS } from './config/limits';
+import { getMasterPasswordMinLength } from './config/runtime';
 import { DEFAULT_DEV_SECRET } from './types';
 import {
   handleAccessSend,
@@ -29,6 +30,7 @@ type JwtUnsafeReason = 'missing' | 'default' | 'too_short' | null;
 
 export interface WebBootstrapResponse {
   defaultKdfIterations: number;
+  masterPasswordMinLength: number;
   jwtUnsafeReason: JwtUnsafeReason;
   jwtSecretMinLength: number;
 }
@@ -205,6 +207,7 @@ export function buildWebBootstrapResponse(env: Env): WebBootstrapResponse {
 
   return {
     defaultKdfIterations: LIMITS.auth.defaultKdfIterations,
+    masterPasswordMinLength: getMasterPasswordMinLength(env),
     jwtUnsafeReason,
     jwtSecretMinLength: LIMITS.auth.jwtSecretMinLength,
   };

@@ -3,3 +3,6 @@
 # Generate one with: openssl rand -hex 32
 # (Example only, 64 hex chars = 32 bytes)
 JWT_SECRET=Enter-your-JWT-key-here-at-least-32-characters
+
+# Optional: minimum master password length for registration and password change flows.
+MASTER_PASSWORD_MIN_LENGTH=12

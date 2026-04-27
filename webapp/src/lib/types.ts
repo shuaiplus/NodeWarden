@@ -285,6 +285,7 @@ export interface ListResponse<T> {
 
 export interface WebBootstrapResponse {
   defaultKdfIterations?: number;
+  masterPasswordMinLength?: number;
   jwtUnsafeReason?: 'missing' | 'default' | 'too_short' | null;
   jwtSecretMinLength?: number;
 }
