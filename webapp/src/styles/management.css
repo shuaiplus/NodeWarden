@@ -474,8 +474,74 @@
   @apply mb-0;
 }
 
+.settings-module-span-2 {
+  grid-column: 1 / -1;
+}
+
 .session-timeout-fields {
   @apply grid gap-3;
+}
+
+.domain-rules-list {
+  @apply grid gap-3;
+}
+
+.domain-rules-section {
+  @apply grid gap-3;
+}
+
+.domain-rules-section + .domain-rules-section {
+  @apply mt-5;
+}
+
+.domain-rules-section-head {
+  @apply grid gap-1;
+}
+
+.domain-rules-section-head strong {
+  color: var(--text);
+}
+
+.domain-rules-section-head span {
+  @apply text-sm;
+  color: var(--muted);
+}
+
+.domain-rules-group {
+  @apply rounded-lg border p-3.5;
+  border-color: var(--line-soft);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+}
+
+.domain-rules-group-muted {
+  opacity: 0.78;
+}
+
+.domain-rules-group-head {
+  @apply mb-3 flex items-center justify-between gap-2;
+}
+
+.domain-rules-group-head strong {
+  color: var(--text);
+}
+
+.domain-rules-textarea {
+  min-height: 120px;
+}
+
+.domain-rules-inline-help {
+  @apply mb-2;
+}
+
+.domain-rules-domains {
+  @apply text-sm leading-6 break-words;
+  color: var(--text);
+}
+
+.domain-rules-empty {
+  @apply rounded-lg border border-dashed px-3.5 py-4 text-sm;
+  border-color: var(--line);
+  color: var(--muted);
 }
 
 .sensitive-actions-grid {

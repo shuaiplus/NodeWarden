@@ -56,6 +56,7 @@ import {
 } from './handlers/sends';
 import { handleSync } from './handlers/sync';
 import { handleCiphersImport } from './handlers/import';
+import { handleGetDomainRules, handleSetDomainRules } from './handlers/domain-rules';
 import {
   handleCreateAttachment,
   handleUploadAttachment,
@@ -298,13 +299,8 @@ export async function handleAuthenticatedRoute(
   }
 
   if (path === '/api/settings/domains') {
-    if (method === 'GET' || method === 'PUT' || method === 'POST') {
-      return jsonResponse({
-        equivalentDomains: [],
-        globalEquivalentDomains: [],
-        object: 'domains',
-      });
-    }
+    if (method === 'GET') return handleGetDomainRules(request, env, userId);
+    if (method === 'PUT' || method === 'POST') return handleSetDomainRules(request, env, userId);
     return null;
   }
 

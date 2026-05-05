@@ -11,6 +11,7 @@ import type {
   AdminUser,
   AuthorizedDevice,
   Cipher,
+  DomainRules,
   Folder,
   Profile,
   Send,
@@ -18,6 +19,7 @@ import type {
   SessionState,
   VaultDraft,
 } from '@/lib/types';
+import { createDefaultDomainRules } from '@/lib/types';
 import { t } from '@/lib/i18n';
 import { dispatchBackupProgress } from '@/lib/backup-restore-progress';
 
@@ -67,6 +69,28 @@ export const DEMO_SESSION: SessionState = {
   authMode: 'token',
   symEncKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
   symMacKey: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+};
+
+const DEMO_DOMAIN_RULES: DomainRules = {
+  ...createDefaultDomainRules(),
+  equivalentDomains: [
+    ['apple.com', 'icloud.com'],
+    ['amazon.com', 'amazonaws.com'],
+  ],
+  globalEquivalentDomains: [
+    { type: 0, domains: ['youtube.com', 'google.com', 'gmail.com'], excluded: false, Type: 0, Domains: ['youtube.com', 'google.com', 'gmail.com'], Excluded: false },
+    { type: 10, domains: ['bing.com', 'hotmail.com', 'live.com', 'microsoft.com', 'msn.com', 'passport.net', 'windows.com', 'microsoftonline.com', 'office.com', 'office365.com', 'microsoftstore.com', 'xbox.com', 'azure.com', 'windowsazure.com', 'cloud.microsoft'], excluded: false, Type: 10, Domains: ['bing.com', 'hotmail.com', 'live.com', 'microsoft.com', 'msn.com', 'passport.net', 'windows.com', 'microsoftonline.com', 'office.com', 'office365.com', 'microsoftstore.com', 'xbox.com', 'azure.com', 'windowsazure.com', 'cloud.microsoft'], Excluded: false },
+    { type: 18, domains: ['amazon.com', 'amazon.com.be', 'amazon.ae', 'amazon.ca', 'amazon.co.uk', 'amazon.com.au', 'amazon.com.br', 'amazon.com.mx', 'amazon.com.tr', 'amazon.de', 'amazon.es', 'amazon.fr', 'amazon.in', 'amazon.it', 'amazon.nl', 'amazon.pl', 'amazon.sa', 'amazon.se', 'amazon.sg'], excluded: true, Type: 18, Domains: ['amazon.com', 'amazon.com.be', 'amazon.ae', 'amazon.ca', 'amazon.co.uk', 'amazon.com.au', 'amazon.com.br', 'amazon.com.mx', 'amazon.com.tr', 'amazon.de', 'amazon.es', 'amazon.fr', 'amazon.in', 'amazon.it', 'amazon.nl', 'amazon.pl', 'amazon.sa', 'amazon.se', 'amazon.sg'], Excluded: true },
+  ],
+  EquivalentDomains: [
+    ['apple.com', 'icloud.com'],
+    ['amazon.com', 'amazonaws.com'],
+  ],
+  GlobalEquivalentDomains: [
+    { type: 0, domains: ['youtube.com', 'google.com', 'gmail.com'], excluded: false, Type: 0, Domains: ['youtube.com', 'google.com', 'gmail.com'], Excluded: false },
+    { type: 10, domains: ['bing.com', 'hotmail.com', 'live.com', 'microsoft.com', 'msn.com', 'passport.net', 'windows.com', 'microsoftonline.com', 'office.com', 'office365.com', 'microsoftstore.com', 'xbox.com', 'azure.com', 'windowsazure.com', 'cloud.microsoft'], excluded: false, Type: 10, Domains: ['bing.com', 'hotmail.com', 'live.com', 'microsoft.com', 'msn.com', 'passport.net', 'windows.com', 'microsoftonline.com', 'office.com', 'office365.com', 'microsoftstore.com', 'xbox.com', 'azure.com', 'windowsazure.com', 'cloud.microsoft'], Excluded: false },
+    { type: 18, domains: ['amazon.com', 'amazon.com.be', 'amazon.ae', 'amazon.ca', 'amazon.co.uk', 'amazon.com.au', 'amazon.com.br', 'amazon.com.mx', 'amazon.com.tr', 'amazon.de', 'amazon.es', 'amazon.fr', 'amazon.in', 'amazon.it', 'amazon.nl', 'amazon.pl', 'amazon.sa', 'amazon.se', 'amazon.sg'], excluded: true, Type: 18, Domains: ['amazon.com', 'amazon.com.be', 'amazon.ae', 'amazon.ca', 'amazon.co.uk', 'amazon.com.au', 'amazon.com.br', 'amazon.com.mx', 'amazon.com.tr', 'amazon.de', 'amazon.es', 'amazon.fr', 'amazon.in', 'amazon.it', 'amazon.nl', 'amazon.pl', 'amazon.sa', 'amazon.se', 'amazon.sg'], Excluded: true },
+  ],
 };
 
 export const DEMO_FOLDERS: Folder[] = [
@@ -906,6 +930,9 @@ export function createDemoMainRoutesProps(base: AppMainRoutesProps, notify: Noti
     adminLoading: false,
     adminError: '',
     totpEnabled: true,
+    domainRules: DEMO_DOMAIN_RULES,
+    domainRulesLoading: false,
+    domainRulesError: '',
     authorizedDevices: state.authorizedDevices,
     authorizedDevicesLoading: false,
     authorizedDevicesError: '',
@@ -1052,6 +1079,7 @@ export function createDemoMainRoutesProps(base: AppMainRoutesProps, notify: Noti
     onRotateApiKey: readonlyString,
     onLockTimeoutChange: readonlyVoid,
     onSessionTimeoutActionChange: readonlyVoid,
+    onSaveDomainRules: readonly,
     onRefreshAuthorizedDevices: async () => {
       notify('success', t('txt_demo_devices_refreshed'));
     },

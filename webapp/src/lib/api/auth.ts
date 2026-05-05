@@ -1,12 +1,13 @@
 import { bytesToBase64, decryptBw, encryptBw, hkdfExpand, pbkdf2 } from '../crypto';
 import { t } from '../i18n';
-import type { AuthorizedDevice } from '../types';
+import type { AuthorizedDevice, DomainRules, GlobalDomainRule } from '../types';
 import type {
   Profile,
   SessionState,
   TokenError,
   TokenSuccess,
 } from '../types';
+import { createDefaultDomainRules } from '../types';
 import { parseJson, type AuthedFetch, type SessionSetter } from './shared';
 
 const SESSION_KEY = 'nodewarden.web.session.v4';
@@ -82,6 +83,116 @@ function saveRememberTwoFactorToken(token: string | undefined): void {
 
 function clearRememberTwoFactorToken(): void {
   localStorage.removeItem(TOTP_REMEMBER_TOKEN_KEY);
+}
+
+const DOMAIN_RULES_STANDARD_KEYS = new Set([
+  'equivalentDomains',
+  'EquivalentDomains',
+  'globalEquivalentDomains',
+  'GlobalEquivalentDomains',
+  'object',
+  'Object',
+]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getAliasedValue(source: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function normalizeDomainGroups(value: unknown): string[][] {
+  if (!Array.isArray(value)) return [];
+  const groups: string[][] = [];
+  for (const group of value) {
+    if (!Array.isArray(group)) continue;
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+    for (const entry of group) {
+      if (typeof entry !== 'string') continue;
+      const normalized = entry.trim();
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      deduped.push(normalized);
+    }
+    if (deduped.length > 0) groups.push(deduped);
+  }
+  return groups;
+}
+
+function normalizeGlobalDomainRules(value: unknown): GlobalDomainRule[] {
+  if (!Array.isArray(value)) return [];
+  const rules: GlobalDomainRule[] = [];
+  const seen = new Set<number>();
+
+  for (const entry of value) {
+    if (!isPlainObject(entry)) continue;
+    const rawType = getAliasedValue(entry, ['type', 'Type']);
+    const type = typeof rawType === 'number' ? rawType : Number(rawType);
+    if (!Number.isInteger(type) || seen.has(type)) continue;
+
+    const rawDomains = getAliasedValue(entry, ['domains', 'Domains']);
+    if (!Array.isArray(rawDomains)) continue;
+
+    const domains: string[] = [];
+    const domainsSeen = new Set<string>();
+    for (const domainEntry of rawDomains) {
+      if (typeof domainEntry !== 'string') continue;
+      const normalized = domainEntry.trim();
+      if (!normalized || domainsSeen.has(normalized)) continue;
+      domainsSeen.add(normalized);
+      domains.push(normalized);
+    }
+    if (domains.length === 0) continue;
+
+    const rawExcluded = getAliasedValue(entry, ['excluded', 'Excluded']);
+    const excluded = typeof rawExcluded === 'boolean' ? rawExcluded : false;
+    seen.add(type);
+    rules.push({
+      type,
+      domains,
+      excluded,
+      Type: type,
+      Domains: [...domains],
+      Excluded: excluded,
+    });
+  }
+
+  return rules;
+}
+
+function normalizeDomainRulesPayload(value: unknown): DomainRules {
+  const fallback = createDefaultDomainRules();
+  if (!isPlainObject(value)) return fallback;
+
+  const passthrough: Record<string, unknown> = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    if (DOMAIN_RULES_STANDARD_KEYS.has(key)) continue;
+    passthrough[key] = entryValue;
+  }
+
+  const equivalentDomains = normalizeDomainGroups(
+    getAliasedValue(value, ['equivalentDomains', 'EquivalentDomains'])
+  );
+  const globalEquivalentDomains = normalizeGlobalDomainRules(
+    getAliasedValue(value, ['globalEquivalentDomains', 'GlobalEquivalentDomains'])
+  );
+
+  return {
+    ...passthrough,
+    equivalentDomains,
+    globalEquivalentDomains,
+    object: 'domains',
+    EquivalentDomains: equivalentDomains,
+    GlobalEquivalentDomains: globalEquivalentDomains,
+    Object: 'domains',
+  };
 }
 
 export function loadSession(): SessionState | null {
@@ -517,6 +628,25 @@ export async function updateProfile(
   const body = await parseJson<Profile>(resp);
   if (!body) throw new Error('Invalid profile');
   return body;
+}
+
+export async function getDomainRules(authedFetch: AuthedFetch): Promise<DomainRules> {
+  const resp = await authedFetch('/api/settings/domains');
+  if (!resp.ok) throw new Error('Failed to load domain rules');
+  return normalizeDomainRulesPayload(await parseJson<unknown>(resp));
+}
+
+export async function updateDomainRules(authedFetch: AuthedFetch, payload: DomainRules): Promise<DomainRules> {
+  const resp = await authedFetch('/api/settings/domains', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    const body = await parseJson<TokenError>(resp);
+    throw new Error(body?.error_description || body?.error || 'Failed to save domain rules');
+  }
+  return normalizeDomainRulesPayload(await parseJson<unknown>(resp));
 }
 
 export async function unlockVaultKey(profileKey: string, masterKey: Uint8Array): Promise<{ symEncKey: string; symMacKey: string }> {

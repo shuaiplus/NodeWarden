@@ -454,12 +454,34 @@ export interface FolderResponse {
   object: string;
 }
 
+export interface DomainRulesResponse {
+  equivalentDomains: string[][];
+  globalEquivalentDomains: GlobalDomainRule[];
+  object: 'domains';
+  EquivalentDomains?: string[][];
+  GlobalEquivalentDomains?: GlobalDomainRule[];
+  excludedGlobalEquivalentDomains?: number[];
+  ExcludedGlobalEquivalentDomains?: number[];
+  Object?: 'domains';
+  [key: string]: any;
+}
+
+export interface GlobalDomainRule {
+  type: number;
+  domains: string[];
+  excluded: boolean;
+  Type?: number;
+  Domains?: string[];
+  Excluded?: boolean;
+  [key: string]: any;
+}
+
 export interface SyncResponse {
   profile: ProfileResponse;
   folders: FolderResponse[];
   collections: any[];
   ciphers: CipherResponse[];
-  domains: any;
+  domains: DomainRulesResponse | null;
   policies: any[];
   sends: SendResponse[];
   UserDecryption?: {
