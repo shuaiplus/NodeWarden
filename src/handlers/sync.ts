@@ -4,6 +4,7 @@ import { errorResponse } from '../utils/response';
 import { cipherToResponse, isCipherResponseSyncCompatible } from './ciphers';
 import { sendToResponse } from './sends';
 import { LIMITS } from '../config/limits';
+import { getDomainRulesForUser } from '../services/domain-rules';
 import {
   buildAccountKeys,
   buildUserDecryptionCompat,
@@ -50,11 +51,12 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     return cachedResponse;
   }
 
-  const [ciphers, folders, sends, attachmentsByCipher] = await Promise.all([
+  const [ciphers, folders, sends, attachmentsByCipher, domains] = await Promise.all([
     storage.getAllCiphers(userId),
     storage.getAllFolders(userId),
     excludeSends ? Promise.resolve([]) : storage.getAllSends(userId),
     storage.getAttachmentsByUserId(userId),
+    excludeDomains ? Promise.resolve(null) : getDomainRulesForUser(storage, userId, { includeExcludedGlobalDomains: false }),
   ]);
   const accountKeys = buildAccountKeys(user);
   const userDecryptionOptions = buildUserDecryptionOptions(user);
@@ -109,13 +111,7 @@ export async function handleSync(request: Request, env: Env, userId: string): Pr
     folders: folderResponses,
     collections: [],
     ciphers: cipherResponses,
-    domains: excludeDomains
-      ? null
-      : {
-          equivalentDomains: [],
-          globalEquivalentDomains: [],
-          object: 'domains',
-        },
+    domains,
     policies: [],
     sends: sendResponses,
     UserDecryption: {

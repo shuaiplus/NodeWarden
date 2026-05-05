@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Clipboard, KeyRound, RefreshCw, ShieldCheck, ShieldOff } from 'lucide-preact';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import qrcode from 'qrcode-generator';
-import type { Profile } from '@/lib/types';
+import type { DomainRules, GlobalDomainRule, Profile } from '@/lib/types';
 import { AVAILABLE_LOCALES, getLocale, setLocale, t, type Locale } from '@/lib/i18n';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
@@ -20,6 +20,10 @@ interface SettingsPageProps {
   onRotateApiKey: (masterPassword: string) => Promise<string>;
   onLockTimeoutChange: (minutes: 0 | 1 | 5 | 15 | 30) => void;
   onSessionTimeoutActionChange: (action: 'lock' | 'logout') => void;
+  domainRules: DomainRules | null;
+  domainRulesLoading: boolean;
+  domainRulesError: string;
+  onSaveDomainRules: (payload: { equivalentDomains: string[][]; globalEquivalentDomains: GlobalDomainRule[] }) => Promise<void>;
   onNotify?: (type: 'success' | 'error', text: string) => void;
 }
 
@@ -64,6 +68,31 @@ function clearLegacyTotpSetupSecrets(): void {
   }
 }
 
+function normalizeDomainRuleGroupText(input: string): string[] {
+  const parts = String(input || '').split(/[\n,]/);
+  const values: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const normalized = part.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    values.push(normalized);
+  }
+  return values;
+}
+
+function normalizeGlobalDomainRule(rule: GlobalDomainRule): GlobalDomainRule {
+  const domains = Array.isArray(rule.domains) ? rule.domains.map((domain) => String(domain).trim()).filter(Boolean) : [];
+  return {
+    type: Number(rule.type),
+    domains,
+    excluded: !!rule.excluded,
+    Type: Number(rule.type),
+    Domains: [...domains],
+    Excluded: !!rule.excluded,
+  };
+}
+
 export default function SettingsPage(props: SettingsPageProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -80,6 +109,17 @@ export default function SettingsPage(props: SettingsPageProps) {
   const [masterPasswordPromptValue, setMasterPasswordPromptValue] = useState('');
   const [masterPasswordPromptSubmitting, setMasterPasswordPromptSubmitting] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState<Locale>(() => getLocale());
+  const [domainRuleGroups, setDomainRuleGroups] = useState<string[]>([]);
+  const [globalDomainRules, setGlobalDomainRules] = useState<GlobalDomainRule[]>([]);
+  const [domainRulesSubmitting, setDomainRulesSubmitting] = useState(false);
+  const [domainRulesFormError, setDomainRulesFormError] = useState('');
+  const domainRulesSignature = useMemo(
+    () => JSON.stringify({
+      equivalentDomains: props.domainRules?.equivalentDomains || [],
+      globalEquivalentDomains: props.domainRules?.globalEquivalentDomains || [],
+    }),
+    [props.domainRules]
+  );
 
   useEffect(() => {
     clearLegacyTotpSetupSecrets();
@@ -96,6 +136,15 @@ export default function SettingsPage(props: SettingsPageProps) {
   useEffect(() => {
     setPasswordHint(props.profile.masterPasswordHint || '');
   }, [props.profile.masterPasswordHint]);
+
+  useEffect(() => {
+    const nextGroups = props.domainRules?.equivalentDomains.map((group) => group.join('\n')) || [];
+    const nextGlobalRules = props.domainRules?.globalEquivalentDomains.map(normalizeGlobalDomainRule) || [];
+    setDomainRuleGroups(nextGroups);
+    setGlobalDomainRules(nextGlobalRules);
+    setDomainRulesSubmitting(false);
+    setDomainRulesFormError('');
+  }, [domainRulesSignature]);
 
   const qrDataUrl = useMemo(() => {
     const qr = qrcode(0, 'M');
@@ -175,6 +224,38 @@ export default function SettingsPage(props: SettingsPageProps) {
     window.location.reload();
   }
 
+  function customizeGlobalDomainRule(rule: GlobalDomainRule): void {
+    const joined = rule.domains.join('\n');
+    setGlobalDomainRules((prev) => prev.map((entry) => (
+      entry.type === rule.type ? normalizeGlobalDomainRule({ ...entry, excluded: true }) : entry
+    )));
+    setDomainRuleGroups((prev) => [...prev, joined]);
+    setDomainRulesFormError('');
+  }
+
+  async function saveDomainRules(): Promise<void> {
+    if (!props.domainRules) return;
+    setDomainRulesSubmitting(true);
+    setDomainRulesFormError('');
+    try {
+      const equivalentDomains = domainRuleGroups.map((group, index) => {
+        const normalized = normalizeDomainRuleGroupText(group);
+        if (normalized.length === 0) {
+          throw new Error(`${t('txt_domain_rules_group')} ${index + 1}: ${t('txt_domain_rules_empty_group')}`);
+        }
+        return normalized;
+      });
+      await props.onSaveDomainRules({
+        equivalentDomains,
+        globalEquivalentDomains: globalDomainRules.map(normalizeGlobalDomainRule),
+      });
+    } catch (error) {
+      setDomainRulesFormError(error instanceof Error ? error.message : t('txt_domain_rules_save_failed'));
+    } finally {
+      setDomainRulesSubmitting(false);
+    }
+  }
+
   return (
     <div className="settings-modules-grid">
       <section className="card settings-module">
@@ -225,6 +306,127 @@ export default function SettingsPage(props: SettingsPageProps) {
           </select>
           <div className="field-help">{t('txt_language_saved_locally')}</div>
         </label>
+      </section>
+
+      <section className="card settings-module settings-module-span-2">
+        <h3>{t('txt_domain_rules')}</h3>
+        <p className="muted-inline settings-field-note">{t('txt_domain_rules_help')}</p>
+        {props.domainRulesLoading ? (
+          <p className="muted-inline">{t('txt_loading')}</p>
+        ) : props.domainRulesError ? (
+          <div className="local-error">{props.domainRulesError}</div>
+        ) : props.domainRules ? (
+          <>
+            <div className="domain-rules-section">
+              <div className="domain-rules-section-head">
+                <strong>{t('txt_domain_rules_global_title')}</strong>
+                <span>{t('txt_domain_rules_global_help')}</span>
+              </div>
+              <div className="domain-rules-list">
+                {globalDomainRules.length === 0 ? (
+                  <div className="domain-rules-empty">{t('txt_no_items')}</div>
+                ) : (
+                  globalDomainRules.map((rule, index) => (
+                    <div key={`global-domain-rule-${rule.type}`} className={`domain-rules-group${rule.excluded ? ' domain-rules-group-muted' : ''}`}>
+                      <div className="domain-rules-group-head">
+                        <strong>{`${t('txt_domain_rules_group')} ${index + 1}`}</strong>
+                        <div className="actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary small"
+                            onClick={() => {
+                              setGlobalDomainRules((prev) => prev.map((entry) => (
+                                entry.type === rule.type ? normalizeGlobalDomainRule({ ...entry, excluded: !entry.excluded }) : entry
+                              )));
+                              setDomainRulesFormError('');
+                            }}
+                          >
+                            {rule.excluded ? t('txt_domain_rules_include') : t('txt_domain_rules_exclude')}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary small"
+                            onClick={() => customizeGlobalDomainRule(rule)}
+                          >
+                            {t('txt_domain_rules_customize')}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="field-help domain-rules-inline-help">
+                        {rule.excluded ? t('txt_domain_rules_global_excluded') : t('txt_domain_rules_global_included')}
+                      </div>
+                      <div className="domain-rules-domains">{rule.domains.join(', ')}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="domain-rules-section">
+              <div className="domain-rules-section-head">
+                <strong>{t('txt_domain_rules_custom_title')}</strong>
+                <span>{t('txt_domain_rules_custom_help')}</span>
+              </div>
+            <div className="domain-rules-list">
+              {domainRuleGroups.length === 0 ? (
+                <div className="domain-rules-empty">{t('txt_no_items')}</div>
+              ) : (
+                domainRuleGroups.map((group, index) => (
+                  <div key={`domain-rule-group-${index}`} className="domain-rules-group">
+                    <div className="domain-rules-group-head">
+                      <strong>{`${t('txt_domain_rules_group')} ${index + 1}`}</strong>
+                      <button
+                        type="button"
+                        className="btn btn-secondary small"
+                        onClick={() => {
+                          setDomainRuleGroups((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+                          setDomainRulesFormError('');
+                        }}
+                      >
+                        {t('txt_remove')}
+                      </button>
+                    </div>
+                    <label className="field">
+                      <span>{t('txt_domain_rules_one_domain_per_line')}</span>
+                      <textarea
+                        className="input textarea domain-rules-textarea"
+                        value={group}
+                        placeholder={t('txt_domain_rules_group_placeholder')}
+                        onInput={(e) => {
+                          const value = (e.currentTarget as HTMLTextAreaElement).value;
+                          setDomainRuleGroups((prev) => prev.map((entry, currentIndex) => (currentIndex === index ? value : entry)));
+                          setDomainRulesFormError('');
+                        }}
+                      />
+                    </label>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setDomainRuleGroups((prev) => [...prev, '']);
+                  setDomainRulesFormError('');
+                }}
+              >
+                {t('txt_domain_rules_add_group')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={domainRulesSubmitting}
+                onClick={() => void saveDomainRules()}
+              >
+                {t('txt_save')}
+              </button>
+            </div>
+            </div>
+            {domainRulesFormError && <div className="local-error">{domainRulesFormError}</div>}
+          </>
+        ) : null}
       </section>
 
       <section className="card settings-module">

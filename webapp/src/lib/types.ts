@@ -21,6 +21,39 @@ export interface Profile {
   [k: string]: unknown;
 }
 
+export interface DomainRules {
+  equivalentDomains: string[][];
+  globalEquivalentDomains: GlobalDomainRule[];
+  object: 'domains';
+  EquivalentDomains?: string[][];
+  GlobalEquivalentDomains?: GlobalDomainRule[];
+  excludedGlobalEquivalentDomains?: number[];
+  ExcludedGlobalEquivalentDomains?: number[];
+  Object?: 'domains';
+  [key: string]: unknown;
+}
+
+export interface GlobalDomainRule {
+  type: number;
+  domains: string[];
+  excluded: boolean;
+  Type?: number;
+  Domains?: string[];
+  Excluded?: boolean;
+  [key: string]: unknown;
+}
+
+export function createDefaultDomainRules(): DomainRules {
+  return {
+    equivalentDomains: [],
+    globalEquivalentDomains: [],
+    object: 'domains',
+    EquivalentDomains: [],
+    GlobalEquivalentDomains: [],
+    Object: 'domains',
+  };
+}
+
 export interface Folder {
   id: string;
   name: string;

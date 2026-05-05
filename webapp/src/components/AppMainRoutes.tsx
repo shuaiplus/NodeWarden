@@ -7,7 +7,7 @@ import LoadingState from '@/components/LoadingState';
 import type { AdminBackupImportResponse, AdminBackupRunResponse, AdminBackupSettings, RemoteBackupBrowserResponse } from '@/lib/api/backup';
 import type { CiphersImportPayload } from '@/lib/api/vault';
 import { t } from '@/lib/i18n';
-import type { AdminInvite, AdminUser, AuthorizedDevice, Cipher, Folder as VaultFolder, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
+import type { AdminInvite, AdminUser, AuthorizedDevice, Cipher, DomainRules, Folder as VaultFolder, GlobalDomainRule, Profile, Send, SendDraft, SessionState, VaultDraft } from '@/lib/types';
 import type { ExportRequest } from '@/lib/export-formats';
 
 const VaultPage = lazy(() => import('@/components/VaultPage'));
@@ -53,6 +53,9 @@ export interface AppMainRoutesProps {
   totpEnabled: boolean;
   lockTimeoutMinutes: 0 | 1 | 5 | 15 | 30;
   sessionTimeoutAction: 'lock' | 'logout';
+  domainRules: DomainRules | null;
+  domainRulesLoading: boolean;
+  domainRulesError: string;
   authorizedDevices: AuthorizedDevice[];
   authorizedDevicesLoading: boolean;
   authorizedDevicesError: string;
@@ -107,6 +110,7 @@ export interface AppMainRoutesProps {
   onRotateApiKey: (masterPassword: string) => Promise<string>;
   onLockTimeoutChange: (minutes: 0 | 1 | 5 | 15 | 30) => void;
   onSessionTimeoutActionChange: (action: 'lock' | 'logout') => void;
+  onSaveDomainRules: (payload: { equivalentDomains: string[][]; globalEquivalentDomains: GlobalDomainRule[] }) => Promise<void>;
   onRefreshAuthorizedDevices: () => Promise<void>;
   onRenameAuthorizedDevice: (device: AuthorizedDevice, name: string) => Promise<void>;
   onRevokeDeviceTrust: (device: AuthorizedDevice) => void;
@@ -248,6 +252,10 @@ export default function AppMainRoutes(props: AppMainRoutesProps) {
                 onRotateApiKey={props.onRotateApiKey}
                 onLockTimeoutChange={props.onLockTimeoutChange}
                 onSessionTimeoutActionChange={props.onSessionTimeoutActionChange}
+                domainRules={props.domainRules}
+                domainRulesLoading={props.domainRulesLoading}
+                domainRulesError={props.domainRulesError}
+                onSaveDomainRules={props.onSaveDomainRules}
                 onNotify={props.onNotify}
               />
             </Suspense>

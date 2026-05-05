@@ -12,6 +12,7 @@ import {
   createAuthedFetch,
   getAuthorizedDevices,
   clearProfileSnapshot,
+  getDomainRules,
   getCurrentDeviceIdentifier,
   getPasswordHint,
   getProfile,
@@ -21,6 +22,7 @@ import {
   getTotpStatus,
   saveSession,
   stripProfileSecrets,
+  updateDomainRules,
 } from '@/lib/api/auth';
 import { listAdminInvites, listAdminUsers } from '@/lib/api/admin';
 import { getSends } from '@/lib/api/send';
@@ -68,7 +70,8 @@ import {
   createDemoMainRoutesProps,
 } from '@/lib/demo';
 import type { AdminBackupSettings } from '@/lib/api/backup';
-import type { AdminInvite, AdminUser, AppPhase, AuthorizedDevice, Cipher, Folder as VaultFolder, Profile, Send, SessionState } from '@/lib/types';
+import { createDefaultDomainRules } from '@/lib/types';
+import type { AdminInvite, AdminUser, AppPhase, AuthorizedDevice, Cipher, DomainRules, Folder as VaultFolder, GlobalDomainRule, Profile, Send, SessionState } from '@/lib/types';
 import type { VaultCoreSnapshot } from '@/lib/vault-cache';
 
 function isBackupProgressDetail(value: unknown): value is BackupProgressDetail {
@@ -953,6 +956,13 @@ export default function App() {
     enabled: !IS_DEMO_MODE && phase === 'app' && !!session?.accessToken && vaultInitialDecryptDone,
     staleTime: 30_000,
   });
+  const domainRulesQueryKey = useMemo(() => ['domain-rules', vaultCacheKey || session?.email] as const, [vaultCacheKey, session?.email]);
+  const domainRulesQuery = useQuery({
+    queryKey: domainRulesQueryKey,
+    queryFn: () => getDomainRules(authedFetch),
+    enabled: !IS_DEMO_MODE && phase === 'app' && !!session?.accessToken && vaultInitialDecryptDone,
+    staleTime: 30_000,
+  });
   useQuery({
     queryKey: ['admin-backup-settings', vaultCacheKey],
     queryFn: () => backupActions.loadSettings(),
@@ -1359,6 +1369,26 @@ export default function App() {
     }
   }, [phase, mobileLayout, location, navigate]);
 
+  async function saveDomainRulesEquivalentDomains(payload: {
+    equivalentDomains: string[][];
+    globalEquivalentDomains: GlobalDomainRule[];
+  }): Promise<void> {
+    const baseDomainRules: DomainRules = domainRulesQuery.data || createDefaultDomainRules();
+    try {
+      const saved = await updateDomainRules(authedFetch, {
+        ...baseDomainRules,
+        equivalentDomains: payload.equivalentDomains,
+        globalEquivalentDomains: payload.globalEquivalentDomains,
+      });
+      queryClient.setQueryData(domainRulesQueryKey, saved);
+      pushToast('success', t('txt_domain_rules_saved'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('txt_domain_rules_save_failed');
+      pushToast('error', message);
+      throw error instanceof Error ? error : new Error(message);
+    }
+  }
+
   const mainRoutesProps = {
     profile,
     profileLoading: profileQuery.isFetching && !profile,
@@ -1382,6 +1412,9 @@ export default function App() {
     totpEnabled: !!totpStatusQuery.data?.enabled,
     lockTimeoutMinutes,
     sessionTimeoutAction,
+    domainRules: domainRulesQuery.data || null,
+    domainRulesLoading: domainRulesQuery.isFetching && !domainRulesQuery.data,
+    domainRulesError: domainRulesQuery.isError && !domainRulesQuery.data ? t('txt_domain_rules_load_failed') : '',
     authorizedDevices: authorizedDevicesQuery.data || [],
     authorizedDevicesLoading: authorizedDevicesQuery.isFetching,
     authorizedDevicesError: authorizedDevicesQuery.isError && !authorizedDevicesQuery.data ? t('txt_load_devices_failed') : '',
@@ -1431,6 +1464,7 @@ export default function App() {
     onRotateApiKey: accountSecurityActions.rotateApiKey,
     onLockTimeoutChange: setLockTimeoutMinutes,
     onSessionTimeoutActionChange: setSessionTimeoutAction,
+    onSaveDomainRules: saveDomainRulesEquivalentDomains,
     onRefreshAuthorizedDevices: accountSecurityActions.refreshAuthorizedDevices,
     onRenameAuthorizedDevice: accountSecurityActions.renameAuthorizedDevice,
     onRevokeDeviceTrust: accountSecurityActions.openRevokeDeviceTrust,
